@@ -1,27 +1,47 @@
+import 'dart:async';
+
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_ui/material_ui.dart' hide Banner;
 
+import '../../../data/system/directory_picker.dart';
+import '../../bloc/save_session/save_session_cubit.dart';
+import '../../bloc/save_session/save_session_ui_state.dart';
+import '../../dialogs/open_save_dialog.dart';
+import '../../dialogs/reset_slot_dialog.dart';
+import '../../dialogs/save_as_dialog.dart';
 import '../../theme/bomb_flower_colors.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_typography.dart';
+import '../common/banner.dart';
 import '../common/procedural_painters.dart';
 import '../common/seed_pod_mark.dart';
+import 'file_action_bar.dart';
 
 /// Height of the custom title bar, in logical pixels.
 const double kAppTitleBarHeight = BombFlowerSpacing.titleBarHeight;
 
 /// Frameless window chrome: wood grain, brand mark, save identity slot, dirty
-/// indicator slot, and the three window controls.
+/// indicator slot, the file action group, and the three window controls.
 ///
 /// [interactive] must be false in widget tests. The bar still lays out and
 /// paints, but every native bitsdojo call becomes a no-op.
-class AppTitleBar extends StatelessWidget {
+///
+/// The file actions are driven by the ambient [SaveSessionCubit] when one is
+/// available; [session] can inject one instead, and a null session simply
+/// disables every action. Failures are surfaced in the centre slot so an action
+/// can never fail silently.
+class AppTitleBar extends StatefulWidget {
   const AppTitleBar({
     super.key,
     this.interactive = true,
     this.isDirty = false,
     this.saveName,
+    this.session,
+    this.saveFolderProbe,
+    this.recentPaths,
+    this.directoryPicker,
   });
 
   final bool interactive;
@@ -31,24 +51,243 @@ class AppTitleBar extends StatelessWidget {
   /// rather than inventing a filename.
   final String? saveName;
 
+  /// Session backing the file actions. Null looks the cubit up from context.
+  final SaveSessionCubit? session;
+
+  /// Filesystem inspector for the Open and Save As dialogs.
+  final SaveFolderProbe? saveFolderProbe;
+
+  /// Recent-folder store for the Open dialog.
+  final RecentPathsStore? recentPaths;
+
+  /// Optional native folder chooser for the dialogs.
+  final DirectoryPicker? directoryPicker;
+
+  @override
+  State<AppTitleBar> createState() => _AppTitleBarState();
+}
+
+class _AppTitleBarState extends State<AppTitleBar> {
+  /// The last action failure, shown in place of the save identity.
+  String? _actionError;
+
   void _startDragging() {
-    if (interactive) appWindow.startDragging();
+    if (widget.interactive) appWindow.startDragging();
   }
 
   void _minimize() {
-    if (interactive) appWindow.minimize();
+    if (widget.interactive) appWindow.minimize();
   }
 
   void _maximizeOrRestore() {
-    if (interactive) appWindow.maximizeOrRestore();
+    if (widget.interactive) appWindow.maximizeOrRestore();
   }
 
   void _close() {
-    if (interactive) appWindow.close();
+    if (widget.interactive) appWindow.close();
+  }
+
+  /// The injected session, else the ambient one, else null when neither exists.
+  SaveSessionCubit? _sessionOf(BuildContext context) {
+    final injected = widget.session;
+    if (injected != null) {
+      return injected;
+    }
+    try {
+      return BlocProvider.of<SaveSessionCubit>(context);
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  /// The project carried by [state], or null when nothing is open.
+  SaveProjectUi? _projectOf(SaveSessionUiState state) {
+    return switch (state) {
+      SaveSessionReady(:final project) => project,
+      SaveSessionSaving(:final project) => project,
+      SaveSessionSaved(:final project) => project,
+      SaveSessionPendingDiscard(:final project) => project,
+      SaveSessionError(:final project) => project,
+      SaveSessionClosed() || SaveSessionOpening() => null,
+    };
+  }
+
+  /// Mirrors the cubit's failure into the centre slot, or clears it on success.
+  void _syncError(SaveSessionCubit cubit) {
+    if (!mounted) {
+      return;
+    }
+    final state = cubit.state;
+    final message = state is SaveSessionError ? state.message : null;
+    if (message == _actionError) {
+      return;
+    }
+    setState(() => _actionError = message);
+  }
+
+  Future<void> _open(SaveSessionCubit cubit) async {
+    final path = await OpenSaveDialog.show(
+      context,
+      probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
+      recentPaths: widget.recentPaths ?? RecentPathsFileStore(),
+      directoryPicker: widget.directoryPicker,
+      initialPath: cubit.openProject?.rootPath,
+    );
+    if (!mounted || path == null) {
+      return;
+    }
+    await cubit.openPath(path);
+    _syncError(cubit);
+  }
+
+  Future<void> _save(SaveSessionCubit cubit) async {
+    await cubit.save();
+    _syncError(cubit);
+  }
+
+  Future<void> _saveAs(SaveSessionCubit cubit, SaveProjectUi project) async {
+    final request = await SaveAsDialog.show(
+      context,
+      project: project,
+      probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
+      directoryPicker: widget.directoryPicker,
+    );
+    if (!mounted || request == null) {
+      return;
+    }
+    await cubit.saveAs(request.destinationPath, overwrite: request.overwrite);
+    _syncError(cubit);
+  }
+
+  Future<void> _duplicate(SaveSessionCubit cubit, SaveProjectUi project) async {
+    final request = await SaveAsDialog.show(
+      context,
+      project: project,
+      probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
+      directoryPicker: widget.directoryPicker,
+    );
+    if (!mounted || request == null) {
+      return;
+    }
+    await cubit.duplicate(request.destinationPath);
+    _syncError(cubit);
+  }
+
+  Future<void> _reset(SaveSessionCubit cubit, SaveProjectUi project) async {
+    final confirmed = await ResetSlotDialog.show(
+      context,
+      slotLabel: project.activeSlot?.value ?? 'the open slots',
+      backupPath: project.backupPath,
+    );
+    if (!mounted || !confirmed) {
+      return;
+    }
+    await cubit.reset(slot: project.activeSlot, confirm: true);
+    _syncError(cubit);
+  }
+
+  void _undo(SaveSessionCubit cubit) {
+    cubit.undo();
+    _syncError(cubit);
+  }
+
+  void _redo(SaveSessionCubit cubit) {
+    cubit.redo();
+    _syncError(cubit);
+  }
+
+  /// The file action group, enabled from the current session state.
+  Widget _actionGroup(SaveSessionCubit? cubit, SaveSessionUiState? state) {
+    if (cubit == null || state == null) {
+      return const FileActionBar(
+        onOpen: null,
+        onSave: null,
+        onSaveAs: null,
+        onDuplicate: null,
+        onReset: null,
+        onUndo: null,
+        onRedo: null,
+        disabledReason: 'Open a save first',
+      );
+    }
+    final project = _projectOf(state);
+    if (project == null) {
+      return FileActionBar(
+        onOpen: () => unawaited(_open(cubit)),
+        onSave: null,
+        onSaveAs: null,
+        onDuplicate: null,
+        onReset: null,
+        onUndo: null,
+        onRedo: null,
+        disabledReason: 'Open a save first',
+      );
+    }
+    return FileActionBar(
+      onOpen: () => unawaited(_open(cubit)),
+      onSave: project.hasUnsavedChanges
+          ? () => unawaited(_save(cubit))
+          : null,
+      onSaveAs: () => unawaited(_saveAs(cubit, project)),
+      onDuplicate: () => unawaited(_duplicate(cubit, project)),
+      onReset: () => unawaited(_reset(cubit, project)),
+      onUndo: project.canUndo ? () => _undo(cubit) : null,
+      onRedo: project.canRedo ? () => _redo(cubit) : null,
+    );
+  }
+
+  /// Save identity, or the last action failure in its place.
+  Widget _centreSlot() {
+    final error = _actionError;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: BombFlowerSpacing.lg,
+        ),
+        child: Banner(
+          key: const Key('title-bar-action-error'),
+          variant: BannerVariant.danger,
+          title: error,
+          onDismiss: () => setState(() => _actionError = null),
+        ),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Flexible(
+          child: Text(
+            widget.saveName ?? 'No save open',
+            key: const Key('title-bar-save-name'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: BombFlowerTypography.button.copyWith(
+              color: BombFlowerColors.bone,
+            ),
+          ),
+        ),
+        const SizedBox(width: BombFlowerSpacing.sm),
+        Semantics(
+          label: widget.isDirty ? 'Unsaved changes' : null,
+          child: Container(
+            key: const Key('title-bar-dirty-indicator'),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.isDirty
+                  ? BombFlowerColors.brass
+                  : Colors.transparent,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final session = _sessionOf(context);
     return SizedBox(
       height: kAppTitleBarHeight,
       child: RepaintBoundary(
@@ -83,40 +322,16 @@ class AppTitleBar extends StatelessWidget {
                   ),
                   const SizedBox(width: BombFlowerSpacing.xl),
                   Expanded(
-                    child: Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Flexible(
-                            child: Text(
-                              saveName ?? 'No save open',
-                              key: const Key('title-bar-save-name'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: BombFlowerTypography.button.copyWith(
-                                color: BombFlowerColors.bone,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: BombFlowerSpacing.sm),
-                          Semantics(
-                            label: isDirty ? 'Unsaved changes' : null,
-                            child: Container(
-                              key: const Key('title-bar-dirty-indicator'),
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isDirty
-                                    ? BombFlowerColors.brass
-                                    : Colors.transparent,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: Center(child: _centreSlot()),
                   ),
+                  if (session == null)
+                    _actionGroup(null, null)
+                  else
+                    BlocBuilder<SaveSessionCubit, SaveSessionUiState>(
+                      bloc: session,
+                      builder: (context, state) =>
+                          _actionGroup(session, state),
+                    ),
                   _TitleBarButton(
                     tooltip: 'Minimize',
                     semanticsLabel: 'Minimize window',
