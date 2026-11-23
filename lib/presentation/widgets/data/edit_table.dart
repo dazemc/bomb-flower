@@ -10,6 +10,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../domain/core/field_metadata.dart';
 import '../../../domain/core/field_value.dart';
 import '../../../domain/fields/field_groups.dart';
+import '../../../domain/formatting/scalars.dart';
 import '../../tabs_support/field_editor.dart';
 import '../../tabs_support/save_tab_source.dart';
 import '../../theme/bomb_flower_colors.dart';
@@ -583,8 +584,9 @@ class _EditTableState extends State<EditTable> {
           _buildToolbar(palette),
           const SizedBox(height: BombFlowerSpacing.xs),
           Text(
-            'Showing ${rows.length} of ${widget.rows.length} fields · '
-            '$_editableCount editable',
+            'Showing ${formatRupees(rows.length)} of '
+            '${formatRupees(widget.rows.length)} fields · '
+            '${formatRupees(_editableCount)} editable',
             key: EditTable.countKey,
             style: BombFlowerTypography.caption.copyWith(
               color: palette.textMuted,

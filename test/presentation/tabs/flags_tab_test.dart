@@ -325,7 +325,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Showing 3443 of 3443 fields · $editable editable'),
+      find.text('Showing 3,443 of 3,443 fields · 1 editable'),
       findsOneWidget,
     );
 
@@ -353,6 +353,32 @@ void main() {
     expectNoOverflow(tester);
   });
 
+  testWidgets('the table footer groups its field counts', (tester) async {
+    final source = _FakeSaveTabSource(
+      views: <TabFieldView>[
+        _view(
+          id: _idFor(_fieldA),
+          label: _fieldA.name,
+          value: const BoolValue(false),
+        ),
+      ],
+    );
+    await _pumpFlags(tester, source);
+
+    final table = _table(tester);
+    expect(table.rows, hasLength(3443));
+    expect(
+      table.rows.where((EditTableRow row) => row.isEditable).length,
+      1,
+      reason: 'exactly one verified view over the 3,443-row catalogue',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(EditTable.countKey)).data,
+      'Showing 3,443 of 3,443 fields · 1 editable',
+    );
+    expectNoOverflow(tester);
+  });
+
   testWidgets('search filters the named set and the count readout is exact', (
     tester,
   ) async {
@@ -373,7 +399,7 @@ void main() {
     await _pumpFlags(tester, source);
     expect(
       tester.widget<Text>(find.byKey(EditTable.countKey)).data,
-      'Showing 3443 of 3443 fields · 2 editable',
+      'Showing 3,443 of 3,443 fields · 2 editable',
     );
 
     await _search(tester, _fieldA.name);
@@ -381,7 +407,7 @@ void main() {
     expect(_row(_idFor(_fieldB)), findsNothing);
     expect(
       tester.widget<Text>(find.byKey(EditTable.countKey)).data,
-      'Showing 1 of 3443 fields · 2 editable',
+      'Showing 1 of 3,443 fields · 2 editable',
     );
 
     await _search(tester, _fieldB.name);
@@ -389,13 +415,13 @@ void main() {
     expect(_row(_idFor(_fieldA)), findsNothing);
     expect(
       tester.widget<Text>(find.byKey(EditTable.countKey)).data,
-      'Showing 1 of 3443 fields · 2 editable',
+      'Showing 1 of 3,443 fields · 2 editable',
     );
 
     await _search(tester, 'no-such-flag-name');
     expect(
       tester.widget<Text>(find.byKey(EditTable.countKey)).data,
-      'Showing 0 of 3443 fields · 2 editable',
+      'Showing 0 of 3,443 fields · 2 editable',
     );
     expectNoOverflow(tester);
   });
