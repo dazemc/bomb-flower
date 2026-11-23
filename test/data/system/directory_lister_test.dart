@@ -13,10 +13,16 @@ void main() {
     root = Directory('${temp.path}/root')..createSync();
     Directory('${root.path}/alpha').createSync();
     Directory('${root.path}/alpha/slot_00').createSync();
+    File(
+      '${root.path}/alpha/slot_00/progress.sav',
+    ).writeAsStringSync('x');
     Directory('${root.path}/beta').createSync();
+    Directory('${root.path}/orphan/slot_00').createSync(recursive: true);
     Directory('${root.path}/slot_100').createSync();
+    Directory('${root.path}/.hidden').createSync();
     File('${root.path}/zeta.txt').writeAsStringSync('text');
     File('${root.path}/Alpha.txt').writeAsStringSync('text');
+    File('${root.path}/.dotfile').writeAsStringSync('secret');
   });
 
   tearDown(() {
@@ -33,24 +39,49 @@ void main() {
     expect(listing.parentPath, temp.path);
     expect(
       listing.entries.map((entry) => entry.name).toList(),
-      <String>['alpha', 'beta', 'slot_100', 'Alpha.txt', 'zeta.txt'],
+      <String>['alpha', 'beta', 'orphan', 'slot_100', 'Alpha.txt', 'zeta.txt'],
     );
-    expect(listing.entries.take(3).every((entry) => entry.isDirectory), isTrue);
-    expect(listing.entries.skip(3).every((entry) => !entry.isDirectory), isTrue);
+    expect(listing.entries.take(4).every((entry) => entry.isDirectory), isTrue);
+    expect(listing.entries.skip(4).every((entry) => !entry.isDirectory), isTrue);
     expect(listing.isProfile, isFalse);
   });
 
-  test('marks slot folders and the parent that contains them', () async {
+  test('hides dot-entries by default and lists them on request', () async {
+    final hiddenOff = await lister.list(root.path);
+    expect(
+      hiddenOff.entries.where((entry) => entry.name.startsWith('.')),
+      isEmpty,
+    );
+
+    final hiddenOn = await lister.list(root.path, includeHidden: true);
+    expect(
+      hiddenOn.entries.map((entry) => entry.name),
+      containsAll(<String>['.hidden', '.dotfile']),
+    );
+  });
+
+  test('a profile needs slot_NN/progress.sav, not just slot_NN', () async {
     final alpha = await lister.list('${root.path}/alpha');
     expect(alpha.isProfile, isTrue);
     expect(alpha.slotNames, <String>['slot_00']);
     expect(alpha.entries.single.isSlotDirectory, isTrue);
+    expect(alpha.entries.single.hasProgressSave, isTrue);
 
+    final orphan = await lister.list('${root.path}/orphan');
+    expect(orphan.isProfile, isFalse);
+    expect(orphan.slotNames, isEmpty);
+    expect(orphan.entries.single.isSlotDirectory, isTrue);
+    expect(orphan.entries.single.hasProgressSave, isFalse);
+  });
+
+  test('marks the parent that contains an openable slot', () async {
     final parent = await lister.list(root.path);
     final alphaEntry = parent.entries.firstWhere((e) => e.name == 'alpha');
     final betaEntry = parent.entries.firstWhere((e) => e.name == 'beta');
+    final orphanEntry = parent.entries.firstWhere((e) => e.name == 'orphan');
     expect(alphaEntry.containsSlots, isTrue);
     expect(betaEntry.containsSlots, isFalse);
+    expect(orphanEntry.containsSlots, isFalse);
 
     // `slot_100` is not one of the ten slot names.
     final misnamed = parent.entries.firstWhere((e) => e.name == 'slot_100');
