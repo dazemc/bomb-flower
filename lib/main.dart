@@ -18,8 +18,7 @@ Future<void> main() async {
 
   doWhenWindowReady(() {
     appWindow.title = 'Bomb Flower';
-    appWindow.minSize = const Size(1100, 700);
-    appWindow.size = const Size(1360, 880);
+    appWindow.minSize = const Size(800, 600);
     appWindow.alignment = Alignment.center;
     appWindow.show();
   });

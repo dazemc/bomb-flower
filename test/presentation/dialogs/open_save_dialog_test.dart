@@ -12,6 +12,7 @@ DirectoryEntry slot(String path) => DirectoryEntry(
   name: path.split('/').last,
   isDirectory: true,
   isSlotDirectory: true,
+  hasProgressSave: true,
 );
 
 FakeDirectoryLister buildLister() => FakeDirectoryLister(<String, DirectoryListing>{
@@ -152,6 +153,31 @@ void main() {
 
     await jumpTo(tester, '/save');
     expect(fieldText(tester), '/save');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(await launch.future, isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('a start folder that cannot be resolved says so, not blank', (
+    tester,
+  ) async {
+    final launch = await launchDialog<String>(
+      tester,
+      (context) => OpenSaveDialog.show(
+        context,
+        probe: FakeSaveFolderProbe(),
+        recentPaths: FakeRecentPathsStore(),
+        // No home and nothing stubbed: every resolver probe fails.
+        directoryLister: FakeDirectoryLister(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open-save-listing-error')), findsOneWidget);
+    expect(find.textContaining('No save folder was found'), findsOneWidget);
+    expect(find.byKey(const Key('open-save-list')), findsNothing);
+    expect(openEnabled(tester), isFalse);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();

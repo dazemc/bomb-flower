@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart'
     show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../data/system/directory_lister.dart';
 import '../../data/system/directory_picker.dart';
@@ -15,6 +15,7 @@ import '../theme/bomb_flower_colors.dart';
 import '../theme/bomb_flower_spacing.dart';
 import '../theme/bomb_flower_typography.dart';
 import '../widgets/chrome/app_title_bar.dart';
+import '../widgets/common/banner.dart';
 import '../widgets/common/brass_button.dart';
 import '../widgets/common/error_state.dart';
 import '../widgets/common/procedural_painters.dart';
@@ -64,6 +65,8 @@ class AppShell extends StatefulWidget {
     this.openFailure,
     this.onRetryOpen,
     this.onOpenAnotherSave,
+    this.onOpenPath,
+    this.unverifiedFieldCount = 0,
     this.saveFolderProbe,
     this.directoryLister,
     this.settingsStore,
@@ -78,6 +81,16 @@ class AppShell extends StatefulWidget {
 
   /// Shows the open-save dialog so the user can choose another folder.
   final Future<void> Function(BuildContext context)? onOpenAnotherSave;
+
+  /// The app's single open path, used by the title bar so its Open action
+  /// writes the same `open <path> -> …` line as every other entry point.
+  final Future<void> Function(String path)? onOpenPath;
+
+  /// How many fields opened read-only because their meaning is unverified.
+  ///
+  /// Non-zero shows one dismissible notice above the tab content; the field
+  /// layer already refuses edits, so this only explains why.
+  final int unverifiedFieldCount;
 
   /// Filesystem probe handed to the title bar's file actions, so tests can
   /// substitute a fake. A null value falls back to the real IO probe there.
@@ -108,6 +121,17 @@ class _AppShellState extends State<AppShell> {
   /// One launcher seam for the title bar.
   late final LongshotLauncher _launcher =
       widget.longshotLauncher ?? const IoLongshotLauncher();
+
+  /// Whether the unverified-fields notice was dismissed for this open.
+  bool _unverifiedDismissed = false;
+
+  @override
+  void didUpdateWidget(AppShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.unverifiedFieldCount != widget.unverifiedFieldCount) {
+      _unverifiedDismissed = false;
+    }
+  }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -179,7 +203,26 @@ class _AppShellState extends State<AppShell> {
                   directoryLister: widget.directoryLister,
                   settingsStore: _settingsStore,
                   launcher: _launcher,
+                  onOpenPath: widget.onOpenPath,
                 ),
+                if (widget.unverifiedFieldCount > 0 && !_unverifiedDismissed)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      BombFlowerSpacing.md,
+                      BombFlowerSpacing.sm,
+                      BombFlowerSpacing.md,
+                      0,
+                    ),
+                    child: Banner(
+                      key: const Key('open-unverified-banner'),
+                      variant: BannerVariant.warning,
+                      title:
+                          'Opened with ${widget.unverifiedFieldCount} '
+                          'unverified fields — those fields are read-only',
+                      onDismiss: () =>
+                          setState(() => _unverifiedDismissed = true),
+                    ),
+                  ),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {

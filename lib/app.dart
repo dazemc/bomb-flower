@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -8,6 +9,7 @@ import 'data/system/directory_lister.dart';
 import 'data/system/directory_picker.dart';
 import 'data/system/dropped_folder.dart';
 import 'data/system/open_diagnostics.dart';
+import 'domain/core/parse_result.dart';
 import 'domain/core/validation.dart';
 import 'presentation/bloc/save_session/save_session_cubit.dart';
 import 'presentation/bloc/save_session/save_session_ui_state.dart';
@@ -15,6 +17,7 @@ import 'presentation/bloc/shell/shell_cubit.dart';
 import 'presentation/bloc/shell/shell_state.dart';
 import 'presentation/dialogs/open_save_dialog.dart';
 import 'presentation/shell/app_shell.dart';
+import 'presentation/shell/tabs/settings_tab.dart';
 import 'presentation/tabs_support/save_tab_scope.dart';
 import 'presentation/tabs_support/save_tab_source.dart';
 import 'presentation/tabs_support/session_save_tab_source.dart';
@@ -46,6 +49,7 @@ class BombFlowerApp extends StatefulWidget {
     this.saveFolderProbe,
     this.recentPaths,
     this.directoryLister,
+    this.settingsStore,
     this.initialOpenPath,
   });
 
@@ -78,6 +82,10 @@ class BombFlowerApp extends StatefulWidget {
   /// lazily by the dialog so tests can substitute a fake.
   final DirectoryLister? directoryLister;
 
+  /// Preferences store shared by the Settings tab and the in-app picker so the
+  /// Show-hidden toggle persists across opens. Null keeps it in memory.
+  final SettingsStore? settingsStore;
+
   @override
   State<BombFlowerApp> createState() => _BombFlowerAppState();
 }
@@ -86,6 +94,8 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
   late SaveSessionCubit _session;
   late _SessionChanges _changes;
   late final ShellCubit _shell;
+  late final SettingsStore _settingsStore =
+      widget.settingsStore ?? InMemorySettingsStore();
   bool _ownsSession = false;
 
   /// A folder-shape refusal that never reached the engine.
@@ -100,6 +110,9 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
     _shell = ShellCubit(windowChromeEnabled: widget.enableWindowChrome);
     _attach(widget.session);
     _dropChannel.setMethodCallHandler(_handleDropCall);
+    if (widget.enableWindowChrome) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startWindowProbe());
+    }
     final initial = widget.initialOpenPath?.trim();
     if (initial != null && initial.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -107,6 +120,72 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
           unawaited(_openPath(initial));
         }
       });
+    }
+  }
+
+  /// One first-frame line of real window geometry so a field report can be
+  /// matched against the compositor without dev tools.
+  Timer? _windowProbe;
+  Size? _lastReportedWindowSize;
+
+  void _startWindowProbe() {
+    if (!mounted) {
+      return;
+    }
+    var loggedValid = false;
+    _windowProbe = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final size = _windowSize();
+      if (size == null) {
+        if (timer.tick >= 50) {
+          timer.cancel();
+        }
+        return;
+      }
+      if (!loggedValid) {
+        loggedValid = true;
+        _lastReportedWindowSize = size;
+        final view = View.of(context);
+        debugPrint(
+          '[startup] valid appWindowSize=$size minSize=Size(800.0, 600.0) '
+          'appWindowScale=${_windowValue(() => appWindow.scaleFactor)} '
+          'viewPhysical=${view.physicalSize} '
+          'viewDpr=${view.devicePixelRatio} '
+          'media=${MediaQuery.maybeSizeOf(context)}',
+        );
+      } else if (size != _lastReportedWindowSize) {
+        _lastReportedWindowSize = size;
+        debugPrint('[startup] size change -> $size');
+      }
+      if (timer.tick >= 50) {
+        timer.cancel();
+      }
+    });
+  }
+
+  Size? _windowSize() {
+    try {
+      final size = appWindow.size;
+      if (size.width.isFinite &&
+          size.width > 0 &&
+          size.height.isFinite &&
+          size.height > 0) {
+        return size;
+      }
+    } catch (_) {
+      // bitsdojo is not ready yet.
+    }
+    return null;
+  }
+
+  String _windowValue(Object? Function() read) {
+    try {
+      return '${read()}';
+    } catch (_) {
+      return 'unavailable';
     }
   }
 
@@ -225,6 +304,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
     if (!mounted) {
       return;
     }
+    final state = _session.state;
     final after = _session.lastOpenResult;
     final result = identical(before, after) ? null : after;
     if (result != null) {
@@ -234,11 +314,13 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
           path: path,
           outcome: mapped.outcome,
           reason: mapped.reason,
+          unverifiedFieldCount: result is ParseUnverified
+              ? result.unverifiedFields.length
+              : null,
         ),
       );
       return;
     }
-    final state = _session.state;
     debugPrint(
       formatOpenLogLine(
         path: path,
@@ -320,6 +402,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
 
   @override
   void dispose() {
+    _windowProbe?.cancel();
     _dropChannel.setMethodCallHandler(null);
     _detach();
     unawaited(_shell.close());
@@ -401,6 +484,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
       probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
       recentPaths: widget.recentPaths ?? RecentPathsFileStore(),
       directoryLister: widget.directoryLister,
+      settingsStore: _settingsStore,
       initialPath: initialPath,
     );
     if (!mounted) {
@@ -446,6 +530,14 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
                           path: _attemptedOpenPath(sessionFailure),
                         ));
               final retryPath = sessionFailure == null ? null : failure?.path;
+              final unverifiedCount =
+                  _projectOf(state)?.issues
+                      .where(
+                        (issue) =>
+                            issue.code == ValidationCodes.fieldUnverified,
+                      )
+                      .length ??
+                  0;
               return SaveTabScope(
                 source: _createSource(),
                 child: OpenSaveScope(
@@ -454,7 +546,10 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
                   child: AppShell(
                     saveFolderProbe: widget.saveFolderProbe,
                     directoryLister: widget.directoryLister,
+                    settingsStore: _settingsStore,
                     openFailure: failure,
+                    unverifiedFieldCount: unverifiedCount,
+                    onOpenPath: _openPath,
                     onRetryOpen: retryPath == null
                         ? null
                         : () => unawaited(_openPath(retryPath)),

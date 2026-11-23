@@ -7,6 +7,9 @@ library;
 
 import 'dart:io';
 
+/// File name every save slot folder holds.
+const String progressSaveName = 'progress.sav';
+
 /// One child of a listed directory.
 final class DirectoryEntry {
   /// Creates an entry.
@@ -16,6 +19,7 @@ final class DirectoryEntry {
     required this.isDirectory,
     this.isSlotDirectory = false,
     this.containsSlots = false,
+    this.hasProgressSave = false,
   });
 
   /// Absolute path of the child.
@@ -30,8 +34,11 @@ final class DirectoryEntry {
   /// Whether the basename matches `^slot_\d{2}$`.
   final bool isSlotDirectory;
 
-  /// Whether this directory has a `slot_00`..`slot_09` child.
+  /// Whether this directory has a `slot_NN/progress.sav` child.
   final bool containsSlots;
+
+  /// Whether `progress.sav` sits directly inside this directory.
+  final bool hasProgressSave;
 }
 
 /// The contents of one directory, or the reason they could not be read.
@@ -56,13 +63,17 @@ final class DirectoryListing {
   /// Reader-facing failure, or `null` when [entries] is authoritative.
   final String? error;
 
-  /// Names of the immediate `slot_NN` children.
+  /// Names of the immediate `slot_NN` children that hold `progress.sav`.
   List<String> get slotNames => <String>[
     for (final entry in entries)
-      if (entry.isSlotDirectory) entry.name,
+      if (entry.isSlotDirectory && entry.hasProgressSave) entry.name,
   ];
 
-  /// Whether this directory directly contains at least one save slot.
+  /// Whether this directory directly contains an openable save slot.
+  ///
+  /// A bare `slot_NN` folder is not enough: the app's save root check requires
+  /// `slot_NN/progress.sav`, so Open must not offer a folder the app will
+  /// refuse.
   bool get isProfile => slotNames.isNotEmpty;
 }
 
@@ -73,9 +84,10 @@ abstract interface class DirectoryLister {
 
   /// Lists [path], expanding `~` and resolving relative paths.
   ///
-  /// Returns a [DirectoryListing] whose [DirectoryListing.error] explains any
-  /// unreadable or non-directory path instead of throwing.
-  Future<DirectoryListing> list(String path);
+  /// Dot-entries are omitted unless [includeHidden] is true. Returns a
+  /// [DirectoryListing] whose [DirectoryListing.error] explains any unreadable
+  /// or non-directory path instead of throwing.
+  Future<DirectoryListing> list(String path, {bool includeHidden = false});
 }
 
 /// The real filesystem lister.
@@ -92,7 +104,10 @@ final class IoDirectoryLister implements DirectoryLister {
   }
 
   @override
-  Future<DirectoryListing> list(String path) async {
+  Future<DirectoryListing> list(
+    String path, {
+    bool includeHidden = false,
+  }) async {
     final normalized = _normalize(path);
     try {
       final type = await FileSystemEntity.type(normalized);
@@ -114,7 +129,12 @@ final class IoDirectoryLister implements DirectoryLister {
       final children = await Directory(
         normalized,
       ).list(followLinks: false).toList();
-      final entries = await Future.wait(children.map(_describe));
+      final visible = includeHidden
+          ? children
+          : children
+                .where((entity) => !_basename(entity.path).startsWith('.'))
+                .toList(growable: false);
+      final entries = await Future.wait(visible.map(_describe));
       entries.sort((a, b) {
         if (a.isDirectory != b.isDirectory) {
           return a.isDirectory ? -1 : 1;
@@ -153,6 +173,7 @@ final class IoDirectoryLister implements DirectoryLister {
       // An unreadable child is still shown, as a plain file row.
     }
     final isSlot = isDirectory && _slotName.hasMatch(name);
+    final hasProgressSave = isDirectory && await _hasProgressSave(path);
     final containsSlots = isDirectory && await _containsSlot(path);
     return DirectoryEntry(
       path: path,
@@ -160,23 +181,34 @@ final class IoDirectoryLister implements DirectoryLister {
       isDirectory: isDirectory,
       isSlotDirectory: isSlot,
       containsSlots: containsSlots,
+      hasProgressSave: hasProgressSave,
     );
   }
 
-  /// Probes `slot_00`..`slot_09` and stops at the first hit.
+  /// Probes `slot_00`..`slot_09`, stopping at the first slot with a save.
   Future<bool> _containsSlot(String directory) async {
     for (var index = 0; index < 10; index++) {
       final slot = 'slot_${index.toString().padLeft(2, '0')}';
       final candidate = '$directory${Platform.pathSeparator}$slot';
       try {
-        if (await Directory(candidate).exists()) {
+        if (await _hasProgressSave(candidate)) {
           return true;
         }
       } catch (_) {
-        // One unreadable candidate is not evidence of a slot folder.
+        // One unreadable candidate is not evidence of an openable slot.
       }
     }
     return false;
+  }
+
+  Future<bool> _hasProgressSave(String directory) async {
+    try {
+      return await File(
+        '$directory${Platform.pathSeparator}$progressSaveName',
+      ).exists();
+    } catch (_) {
+      return false;
+    }
   }
 
   String _normalize(String raw) {

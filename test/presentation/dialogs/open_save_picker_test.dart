@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bomb_flower/data/system/directory_lister.dart';
 import 'package:bomb_flower/presentation/dialogs/open_save_dialog.dart';
+import 'package:bomb_flower/presentation/shell/tabs/settings_tab.dart';
 import 'package:bomb_flower/presentation/widgets/common/brass_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +24,10 @@ final class TempTreeLister implements DirectoryLister {
   static final RegExp _slotName = RegExp(r'^slot_\d{2}$');
 
   @override
-  Future<DirectoryListing> list(String path) {
+  Future<DirectoryListing> list(
+    String path, {
+    bool includeHidden = false,
+  }) {
     calls.add(path);
     final directory = Directory(path);
     if (!directory.existsSync()) {
@@ -38,13 +42,22 @@ final class TempTreeLister implements DirectoryLister {
     final entries = <DirectoryEntry>[];
     for (final entity in directory.listSync(followLinks: false)) {
       final name = entity.path.split(Platform.pathSeparator).last;
+      if (!includeHidden && name.startsWith('.')) {
+        continue;
+      }
       final isDirectory = entity is Directory;
+      final hasProgressSave =
+          isDirectory &&
+          File(
+            '${entity.path}${Platform.pathSeparator}$progressSaveName',
+          ).existsSync();
       var containsSlots = false;
       if (isDirectory) {
         for (var index = 0; index < 10; index++) {
           final slot = 'slot_${index.toString().padLeft(2, '0')}';
-          if (Directory(
-            '${entity.path}${Platform.pathSeparator}$slot',
+          if (File(
+            '${entity.path}${Platform.pathSeparator}$slot'
+            '${Platform.pathSeparator}$progressSaveName',
           ).existsSync()) {
             containsSlots = true;
             break;
@@ -58,6 +71,7 @@ final class TempTreeLister implements DirectoryLister {
           isDirectory: isDirectory,
           isSlotDirectory: isDirectory && _slotName.hasMatch(name),
           containsSlots: containsSlots,
+          hasProgressSave: hasProgressSave,
         ),
       );
     }
@@ -88,7 +102,10 @@ final class NeverLister implements DirectoryLister {
   String? get homeDirectory => '/home/test';
 
   @override
-  Future<DirectoryListing> list(String path) {
+  Future<DirectoryListing> list(
+    String path, {
+    bool includeHidden = false,
+  }) {
     calls.add(path);
     return completer.future;
   }
@@ -100,23 +117,20 @@ bool openEnabled(WidgetTester tester) =>
         .onPressed !=
     null;
 
+bool hiddenSwitchValue(WidgetTester tester) =>
+    tester.widget<Switch>(find.byKey(const Key('open-save-show-hidden'))).value;
+
 String fieldText(WidgetTester tester) => tester
     .widget<TextField>(find.byKey(const Key('open-save-path')))
     .controller!
     .text;
-
-Future<void> doubleTap(WidgetTester tester, Finder finder) async {
-  await tester.tap(finder);
-  await tester.pump(const Duration(milliseconds: 50));
-  await tester.tap(finder);
-  await tester.pumpAndSettle();
-}
 
 Future<DialogLauncher<String>> openPicker(
   WidgetTester tester, {
   required DirectoryLister lister,
   required String initialPath,
   FakeRecentPathsStore? recents,
+  SettingsStore? settingsStore,
 }) {
   return launchDialog<String>(
     tester,
@@ -125,6 +139,7 @@ Future<DialogLauncher<String>> openPicker(
       probe: FakeSaveFolderProbe(),
       recentPaths: recents ?? FakeRecentPathsStore(),
       directoryLister: lister,
+      settingsStore: settingsStore ?? InMemorySettingsStore(),
       initialPath: initialPath,
     ),
   );
@@ -142,7 +157,11 @@ void main() {
     Directory('${root.path}/beta').createSync();
     Directory('${root.path}/profile').createSync();
     Directory('${root.path}/profile/slot_00').createSync();
+    File('${root.path}/profile/slot_00/progress.sav').writeAsStringSync('x');
+    Directory('${root.path}/fakeProfile/slot_00').createSync(recursive: true);
+    Directory('${root.path}/.hidden').createSync();
     File('${root.path}/alpha/notes.txt').writeAsStringSync('note');
+    File('${root.path}/.dotfile').writeAsStringSync('secret');
     File('${root.path}/zeta.txt').writeAsStringSync('text');
     lister = TempTreeLister(root.path);
   });
@@ -153,7 +172,7 @@ void main() {
     }
   });
 
-  testWidgets('lists a temp tree dirs-first, descends, and .. returns', (
+  testWidgets('lists dirs-first, single tap descends, .. returns, dots hidden', (
     tester,
   ) async {
     final launch = await openPicker(
@@ -167,6 +186,8 @@ void main() {
     expect(find.byKey(const Key('open-save-entry-beta')), findsOneWidget);
     expect(find.byKey(const Key('open-save-entry-profile')), findsOneWidget);
     expect(find.byKey(const Key('open-save-entry-zeta.txt')), findsOneWidget);
+    expect(find.byKey(const Key('open-save-entry-.hidden')), findsNothing);
+    expect(find.byKey(const Key('open-save-entry-.dotfile')), findsNothing);
 
     final firstDirectory = tester
         .getTopLeft(find.byKey(const Key('open-save-entry-alpha')))
@@ -176,35 +197,54 @@ void main() {
         .dy;
     expect(firstDirectory, lessThan(file));
 
-    // A single click selects but never navigates. Pump past the double-tap
-    // timeout so the next tap starts a fresh gesture.
+    // One tap on a plain folder descends; no double click required.
     await tester.tapAt(
       tester.getCenter(find.byKey(const Key('open-save-entry-alpha'))),
     );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    expect(fieldText(tester), root.path);
-    expect(find.byKey(const Key('open-save-selected')), findsOneWidget);
-
-    // Enter on the selected row descends.
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
     expect(fieldText(tester), '${root.path}/alpha');
     expect(find.byKey(const Key('open-save-entry-notes.txt')), findsOneWidget);
 
-    // A single tap on `..` returns to the parent.
+    // One tap on `..` returns to the parent.
     await tester.tap(find.byKey(const Key('open-save-parent')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     expect(fieldText(tester), root.path);
-    expect(find.byKey(const Key('open-save-entry-alpha')), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(await launch.future, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('Open is disabled with a visible reason without a slot folder', (
+  testWidgets('a selected profile can be entered with Enter', (tester) async {
+    final launch = await openPicker(
+      tester,
+      lister: lister,
+      initialPath: root.path,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-entry-profile'))),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open-save-selected')), findsOneWidget);
+    expect(fieldText(tester), root.path);
+    expect(openEnabled(tester), isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(fieldText(tester), '${root.path}/profile');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(await launch.future, isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('Open is disabled for a folder without an openable slot', (
     tester,
   ) async {
     final launch = await openPicker(
@@ -214,7 +254,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // fakeProfile has slot_00 but no slot_00/progress.sav.
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-entry-fakeProfile'))),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(fieldText(tester), '${root.path}/fakeProfile');
     expect(find.byKey(const Key('open-save-blocked-reason')), findsOneWidget);
+    expect(openEnabled(tester), isFalse);
+
+    // Selecting the bare slot does not turn an unopenable folder into a root.
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-entry-slot_00'))),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
     expect(openEnabled(tester), isFalse);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -222,7 +278,7 @@ void main() {
     expect(await launch.future, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('Open on a slot-bearing folder runs the handler exactly once', (
+  testWidgets('a single tap on a profile enables Open and opens it once', (
     tester,
   ) async {
     final recents = FakeRecentPathsStore();
@@ -236,17 +292,21 @@ void main() {
           probe: FakeSaveFolderProbe(),
           recentPaths: recents,
           directoryLister: lister,
+          settingsStore: InMemorySettingsStore(),
           initialPath: root.path,
         );
       },
     );
     await tester.pumpAndSettle();
 
-    await doubleTap(tester, find.byKey(const Key('open-save-entry-profile')));
-
     final profile = '${root.path}/profile';
-    expect(fieldText(tester), profile);
-    expect(find.byKey(const Key('open-save-valid')), findsOneWidget);
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-entry-profile'))),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open-save-selected')), findsOneWidget);
     expect(openEnabled(tester), isTrue);
 
     await tester.tap(find.byKey(const Key('open-save-submit')));
@@ -257,73 +317,215 @@ void main() {
     expect(recents.added, <String>[profile]);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('a single tap selects a slot-bearing folder and enables Open', (
+  testWidgets('hidden folders are off by default and toggled on and kept', (
+    tester,
+  ) async {
+    final settings = InMemorySettingsStore();
+    await openPicker(
+      tester,
+      lister: lister,
+      initialPath: root.path,
+      settingsStore: settings,
+    );
+    await tester.pumpAndSettle();
+
+    expect(hiddenSwitchValue(tester), isFalse);
+    expect(find.byKey(const Key('open-save-entry-.hidden')), findsNothing);
+    expect(settings.lastValue.showHiddenEntries, isFalse);
+
+    await tester.tap(find.byKey(const Key('open-save-show-hidden')));
+    await tester.pumpAndSettle();
+
+    expect(hiddenSwitchValue(tester), isTrue);
+    expect(find.byKey(const Key('open-save-entry-.hidden')), findsOneWidget);
+    expect(settings.lastValue.showHiddenEntries, isTrue);
+
+    // Persisted across a close and reopen with the same store.
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('dialog-launch')));
+    await tester.pumpAndSettle();
+
+    expect(hiddenSwitchValue(tester), isTrue);
+    expect(find.byKey(const Key('open-save-entry-.hidden')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('it never closes itself while idle', (tester) async {
+    final launch = await openPicker(
+      tester,
+      lister: lister,
+      initialPath: root.path,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+    expect(launch.isCompleted, isFalse);
+
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(await launch.future, isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('the up control keeps the dialog open and lists the parent', (
     tester,
   ) async {
     final launch = await openPicker(
       tester,
       lister: lister,
-      initialPath: root.path,
+      initialPath: '${root.path}/alpha',
+    );
+    await tester.pumpAndSettle();
+    expect(fieldText(tester), '${root.path}/alpha');
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-parent'))),
     );
     await tester.pumpAndSettle();
 
-    final profile = '${root.path}/profile';
-    final row = find.byKey(const Key('open-save-entry-profile'));
-    await tester.tapAt(tester.getCenter(row));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('open-save-selected')), findsOneWidget);
-    expect(find.textContaining(profile), findsOneWidget);
-    expect(openEnabled(tester), isTrue);
-
-    await tester.tap(find.byKey(const Key('open-save-submit')));
-    await tester.pumpAndSettle();
-
-    expect(await launch.future, profile);
-  }, timeout: const Timeout(Duration(seconds: 30)));
-
-  testWidgets('open, Cancel, then open again succeeds', (tester) async {
-    final launch = await openPicker(
-      tester,
-      lister: lister,
-      initialPath: root.path,
-    );
-    await tester.pumpAndSettle();
     expect(find.byType(OpenSaveDialog), findsOneWidget);
+    expect(fieldText(tester), root.path);
+    expect(launch.isCompleted, isFalse);
 
     await tester.tap(find.byKey(const Key('open-save-cancel')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    expect(find.byType(OpenSaveDialog), findsNothing);
-
-    await tester.tap(find.byKey(const Key('dialog-launch')));
-    await tester.pumpAndSettle();
-    expect(find.byType(OpenSaveDialog), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('open-save-cancel')));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
-    expect(find.byType(OpenSaveDialog), findsNothing);
     expect(await launch.future, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('a scrim dismissal still allows reopening', (tester) async {
-    await openPicker(tester, lister: lister, initialPath: root.path);
+  testWidgets('a disabled up control at the filesystem root is inert', (
+    tester,
+  ) async {
+    final scripted = FakeDirectoryLister(<String, DirectoryListing>{
+      '/root': const DirectoryListing(
+        path: '/root',
+        entries: <DirectoryEntry>[],
+        parentPath: null,
+      ),
+    });
+    final launch = await openPicker(
+      tester,
+      lister: scripted,
+      initialPath: '/root',
+    );
+    await tester.pumpAndSettle();
+    expect(fieldText(tester), '/root');
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-parent'))),
+    );
     await tester.pumpAndSettle();
 
-    await tester.tapAt(const Offset(5, 5));
-    await tester.pumpAndSettle();
-    expect(find.byType(OpenSaveDialog), findsNothing);
-
-    await tester.tap(find.byKey(const Key('dialog-launch')));
-    await tester.pumpAndSettle();
     expect(find.byType(OpenSaveDialog), findsOneWidget);
+    expect(fieldText(tester), '/root');
+    expect(launch.isCompleted, isFalse);
 
     await tester.tap(find.byKey(const Key('open-save-cancel')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    expect(find.byType(OpenSaveDialog), findsNothing);
+    expect(await launch.future, isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('up and Cancel are different controls', (tester) async {
+    final launch = await openPicker(
+      tester,
+      lister: lister,
+      initialPath: '${root.path}/alpha',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open-save-parent')), findsOneWidget);
+    expect(find.byKey(const Key('open-save-cancel')), findsOneWidget);
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-parent'))),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+    expect(launch.isCompleted, isFalse);
+
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(await launch.future, isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('footer buttons are hittable across their full width', (
+    tester,
+  ) async {
+    final launch = await openPicker(
+      tester,
+      lister: lister,
+      initialPath: '${root.path}/profile',
+    );
+    await tester.pumpAndSettle();
+
+    final submit = find.byKey(const Key('open-save-submit'));
+    final cancel = find.byKey(const Key('open-save-cancel'));
+    final submitRect = tester.getRect(submit);
+    final cancelRect = tester.getRect(cancel);
+    debugPrint('MEASURE open=$submitRect cancel=$cancelRect');
+
+    for (final fractionY in <double>[0.2, 0.8]) {
+      for (final fractionX in <double>[0.1, 0.9]) {
+        if (find.byType(OpenSaveDialog).evaluate().isEmpty) {
+          await tester.tap(find.byKey(const Key('dialog-launch')));
+          await tester.pumpAndSettle();
+        }
+        final point = Offset(
+          submitRect.left + submitRect.width * fractionX,
+          submitRect.top + submitRect.height * fractionY,
+        );
+        final hit = tester.hitTestOnBinding(point);
+        debugPrint(
+          'MEASURE open@$fractionX/$fractionY point=$point hits='
+          '${hit.path.take(5).map((entry) => entry.target.runtimeType).toList()}',
+        );
+        await tester.tapAt(point);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+        debugPrint(
+          'MEASURE open@$fractionX/$fractionY closed='
+          '${find.byType(OpenSaveDialog).evaluate().isEmpty}',
+        );
+        expect(find.byType(OpenSaveDialog), findsNothing);
+      }
+    }
+    expect(await launch.future, '${root.path}/profile');
+
+    for (final fractionY in <double>[0.2, 0.8]) {
+      for (final fractionX in <double>[0.1, 0.9]) {
+        if (find.byType(OpenSaveDialog).evaluate().isEmpty) {
+          await tester.tap(find.byKey(const Key('dialog-launch')));
+          await tester.pumpAndSettle();
+        }
+        final point = Offset(
+          cancelRect.left + cancelRect.width * fractionX,
+          cancelRect.top + cancelRect.height * fractionY,
+        );
+        final hit = tester.hitTestOnBinding(point);
+        debugPrint(
+          'MEASURE cancel@$fractionX/$fractionY point=$point hits='
+          '${hit.path.take(5).map((entry) => entry.target.runtimeType).toList()}',
+        );
+        await tester.tapAt(point);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+        debugPrint(
+          'MEASURE cancel@$fractionX/$fractionY closed='
+          '${find.byType(OpenSaveDialog).evaluate().isEmpty}',
+        );
+        expect(find.byType(OpenSaveDialog), findsNothing);
+      }
+    }
   }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('Cancel button is the pointer target on its own rect', (
@@ -343,7 +545,6 @@ void main() {
       find.descendant(of: cancel, matching: find.byType(GestureDetector)).first,
     );
 
-    // The pointer test must reach the button's own listener, not a barrier.
     expect(
       hit.path.any((entry) => identical(entry.target, gesture)),
       isTrue,
@@ -405,6 +606,49 @@ void main() {
     expect(await launch.future, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
+  testWidgets('open, Cancel, then open again succeeds', (tester) async {
+    final launch = await openPicker(
+      tester,
+      lister: lister,
+      initialPath: root.path,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsNothing);
+
+    await tester.tap(find.byKey(const Key('dialog-launch')));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsNothing);
+    expect(await launch.future, isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('a scrim dismissal still allows reopening', (tester) async {
+    await openPicker(tester, lister: lister, initialPath: root.path);
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsNothing);
+
+    await tester.tap(find.byKey(const Key('dialog-launch')));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('open-save-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsNothing);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
   testWidgets('Cancel closes while the listing never completes', (
     tester,
   ) async {
@@ -423,10 +667,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
-    expect(
-      await launch.future.timeout(const Duration(seconds: 5)),
-      isNull,
-    );
+    expect(await launch.future.timeout(const Duration(seconds: 5)), isNull);
     expect(find.byType(OpenSaveDialog), findsNothing);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
@@ -445,10 +686,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
-    expect(
-      await launch.future.timeout(const Duration(seconds: 5)),
-      isNull,
-    );
+    expect(await launch.future.timeout(const Duration(seconds: 5)), isNull);
     expect(find.byType(OpenSaveDialog), findsNothing);
   }, timeout: const Timeout(Duration(seconds: 30)));
 }

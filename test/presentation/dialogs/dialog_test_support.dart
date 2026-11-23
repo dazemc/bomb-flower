@@ -133,14 +133,31 @@ final class FakeDirectoryLister implements DirectoryLister {
   final List<String> calls = <String>[];
 
   @override
-  Future<DirectoryListing> list(String path) async {
+  Future<DirectoryListing> list(
+    String path, {
+    bool includeHidden = false,
+  }) async {
     calls.add(path);
-    return listings[path] ??
-        DirectoryListing(
-          path: path,
-          entries: const <DirectoryEntry>[],
-          error: 'Cannot read this folder: not stubbed.',
-        );
+    final listing = listings[path];
+    if (listing == null) {
+      return DirectoryListing(
+        path: path,
+        entries: const <DirectoryEntry>[],
+        error: 'Cannot read this folder: not stubbed.',
+      );
+    }
+    if (includeHidden) {
+      return listing;
+    }
+    return DirectoryListing(
+      path: listing.path,
+      parentPath: listing.parentPath,
+      error: listing.error,
+      entries: <DirectoryEntry>[
+        for (final entry in listing.entries)
+          if (!entry.name.startsWith('.')) entry,
+      ],
+    );
   }
 }
 

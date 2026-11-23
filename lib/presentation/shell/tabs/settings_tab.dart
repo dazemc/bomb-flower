@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../bloc/shell/tab_definition.dart';
+import '../../../build_info.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_theme.dart';
 import '../../theme/bomb_flower_typography.dart';
@@ -38,6 +39,7 @@ final class EditorPreferences {
     this.makeNewestSlotDefault = true,
     this.reducedMotion = false,
     this.textScale = 1.0,
+    this.showHiddenEntries = false,
     this.launcherPath = kDefaultLongshotLauncherPath,
   });
 
@@ -55,6 +57,9 @@ final class EditorPreferences {
   /// UI text scale applied inside the editor, 1.0 to 1.5.
   final double textScale;
 
+  /// Whether the in-app picker lists dot-entries. Off by default.
+  final bool showHiddenEntries;
+
   /// Executable the title-bar Launch action starts.
   final String launcherPath;
 
@@ -64,6 +69,7 @@ final class EditorPreferences {
     bool? makeNewestSlotDefault,
     bool? reducedMotion,
     double? textScale,
+    bool? showHiddenEntries,
     String? launcherPath,
   }) {
     return EditorPreferences(
@@ -73,6 +79,7 @@ final class EditorPreferences {
           makeNewestSlotDefault ?? this.makeNewestSlotDefault,
       reducedMotion: reducedMotion ?? this.reducedMotion,
       textScale: textScale ?? this.textScale,
+      showHiddenEntries: showHiddenEntries ?? this.showHiddenEntries,
       launcherPath: launcherPath ?? this.launcherPath,
     );
   }
@@ -128,6 +135,9 @@ class SettingsTab extends StatefulWidget {
   static const Key launcherPathSaveKey = Key('settings-launcher-path-save');
   static const Key launcherPathResetKey = Key('settings-launcher-path-reset');
   static const Key saveFailedKey = Key('settings-save-failed');
+  static const Key nativeDialogWarningKey = Key(
+    'settings-native-dialog-warning',
+  );
 
   @override
   State<SettingsTab> createState() => _SettingsTabState();
@@ -394,6 +404,34 @@ class _SettingsTabState extends State<SettingsTab> {
           onSave: (path) {
             unawaited(_persist(preferences.copyWith(launcherPath: path)));
           },
+        ),
+      ),
+      _SettingSection(
+        title: 'System file dialog (Linux)',
+        caption:
+            'Opening a save always uses the in-app browser. The system dialog '
+            'is only the Browse fallback in Save As and Duplicate.',
+        child: const Banner(
+          key: SettingsTab.nativeDialogWarningKey,
+          variant: BannerVariant.warning,
+          title: 'The system dialog is fragile on Linux here',
+          message:
+              'With the custom window frame it can open with an unclickable '
+              'sidebar (issue #273): the frame styles every window, including '
+              'the dialog\'s. Prefer the in-app browser. See '
+              'docs/LIMITATIONS.md §15 for the mechanism.',
+        ),
+      ),
+      _SettingSection(
+        title: 'About',
+        caption: 'Identifies the running build.',
+        child: Text(
+          'Build $kBuildId',
+          key: const Key('settings-build-id'),
+          style: BombFlowerTypography.mono.copyWith(
+            fontSize: 12,
+            color: palette.textPrimary,
+          ),
         ),
       ),
     ];

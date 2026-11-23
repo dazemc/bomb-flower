@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bomb_flower/app.dart';
+import 'package:bomb_flower/data/system/directory_lister.dart';
 import 'package:bomb_flower/data/system/directory_picker.dart';
 import 'package:bomb_flower/data/system/startup_open.dart';
 import 'package:bomb_flower/domain/core/core.dart';
@@ -476,6 +477,55 @@ void main() {
     expect(find.text('Could not open save'), findsNothing);
     expect(find.textContaining('Read-only dashboard'), findsOneWidget);
   });
+
+  testWidgets('the in-app picker path reaches the session open', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final session = _openingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+    final lister = FakeDirectoryLister(<String, DirectoryListing>{
+      '/root': const DirectoryListing(
+        path: '/root',
+        parentPath: '/',
+        entries: <DirectoryEntry>[
+          DirectoryEntry(
+            path: '/root/profile',
+            name: 'profile',
+            isDirectory: true,
+            containsSlots: true,
+          ),
+        ],
+      ),
+    }, '/root');
+
+    await tester.pumpWidget(
+      BombFlowerApp(
+        enableWindowChrome: false,
+        session: cubit,
+        saveFolderProbe: _FakeProbe(),
+        recentPaths: _FakeRecentPaths(),
+        directoryLister: lister,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('shell-action-open')));
+    await tester.pumpAndSettle();
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const Key('open-save-entry-profile'))),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('open-save-submit')));
+    await tester.pumpAndSettle();
+
+    expect(session.repository.openCalls, 1);
+    expect(cubit.state, isA<SaveSessionReady>());
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('the failure actions retry the open and open the save dialog', (
     tester,

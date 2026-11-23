@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../bloc/shell/shell_state.dart';
+import '../../build_info.dart';
 import '../theme/bomb_flower_colors.dart';
 import '../theme/bomb_flower_spacing.dart';
 import '../theme/bomb_flower_typography.dart';
@@ -74,13 +75,16 @@ class ShellStatusFooter extends StatelessWidget {
               ),
             ),
             const _FooterDivider(),
-            Text(
-              'rev ${state.revision}',
-              maxLines: 1,
-              style: BombFlowerTypography.mono.copyWith(
-                fontSize: BombFlowerTypography.captionSize,
-                height: 16 / 11,
-                color: BombFlowerColors.boneMuted,
+            Tooltip(
+              message: 'Build $kBuildId',
+              child: Text(
+                'rev ${state.revision}',
+                maxLines: 1,
+                style: BombFlowerTypography.mono.copyWith(
+                  fontSize: BombFlowerTypography.captionSize,
+                  height: 16 / 11,
+                  color: BombFlowerColors.boneMuted,
+                ),
               ),
             ),
           ],

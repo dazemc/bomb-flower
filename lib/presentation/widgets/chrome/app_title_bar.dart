@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart' hide Banner;
 import '../../../data/system/directory_lister.dart';
 import '../../../data/system/directory_picker.dart';
 import '../../../data/system/longshot_launcher.dart';
+import '../../../data/system/open_diagnostics.dart';
 import '../../bloc/save_session/save_session_cubit.dart';
 import '../../bloc/save_session/save_session_ui_state.dart';
 import '../../dialogs/open_save_dialog.dart';
@@ -48,6 +49,7 @@ class AppTitleBar extends StatefulWidget {
     this.directoryLister,
     this.settingsStore,
     this.launcher,
+    this.onOpenPath,
   });
 
   final bool interactive;
@@ -78,6 +80,9 @@ class AppTitleBar extends StatefulWidget {
 
   /// Launcher seam. Null falls back to the real detached process starter.
   final LongshotLauncher? launcher;
+
+  /// The app's single open path. Null keeps this bar's local open-and-log.
+  final Future<void> Function(String path)? onOpenPath;
 
   @override
   State<AppTitleBar> createState() => _AppTitleBarState();
@@ -151,13 +156,52 @@ class _AppTitleBarState extends State<AppTitleBar> {
       probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
       recentPaths: widget.recentPaths ?? RecentPathsFileStore(),
       directoryLister: widget.directoryLister,
+      settingsStore: widget.settingsStore,
       initialPath: cubit.openProject?.rootPath,
     );
     if (!mounted || path == null) {
       return;
     }
+    final openPath = widget.onOpenPath;
+    if (openPath != null) {
+      // One open path for the whole app: folder-shape diagnosis, one log line,
+      // and the same session state as the startup env var and drops.
+      await openPath(path);
+      if (!mounted) {
+        return;
+      }
+      _syncError(cubit);
+      return;
+    }
+    debugPrint('[open-picker] chose=$path');
+    final before = cubit.lastOpenResult;
     await cubit.openPath(path);
+    if (!mounted) {
+      return;
+    }
     _syncError(cubit);
+    final result = cubit.lastOpenResult;
+    final state = cubit.state;
+    if (result != null && !identical(before, result)) {
+      final mapped = openOutcomeOf(result);
+      debugPrint(
+        formatOpenLogLine(
+          path: path,
+          outcome: mapped.outcome,
+          reason: mapped.reason,
+        ),
+      );
+    } else {
+      debugPrint(
+        formatOpenLogLine(
+          path: path,
+          outcome: OpenOutcome.unsupported,
+          reason: state is SaveSessionError
+              ? state.message
+              : 'the attempt was refused before the engine parsed it',
+        ),
+      );
+    }
   }
 
   Future<void> _save(SaveSessionCubit cubit) async {

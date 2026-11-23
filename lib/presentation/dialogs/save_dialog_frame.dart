@@ -22,6 +22,7 @@ class SaveDialogFrame extends StatelessWidget {
     this.icon = Icons.folder_open_outlined,
     this.maxWidth = 560,
     this.destructive = false,
+    this.panelKey,
   });
 
   /// Dialog title.
@@ -45,6 +46,9 @@ class SaveDialogFrame extends StatelessWidget {
   /// Whether the header uses the danger accent.
   final bool destructive;
 
+  /// Optional key for the visible panel; instrumentation reads its real rect.
+  final GlobalKey? panelKey;
+
   @override
   Widget build(BuildContext context) {
     final accent = destructive
@@ -67,6 +71,7 @@ class SaveDialogFrame extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: ClipRRect(
+                key: panelKey,
                 borderRadius: BorderRadius.circular(BombFlowerRadii.md),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
