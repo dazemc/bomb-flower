@@ -20,6 +20,13 @@ const Color _inkMuted = Color(0xFF5C4F3A);
 const Color _danger = Color(0xFFA63A2E);
 const Color _selection = Color(0xFFE8CD7A);
 
+/// The danger tone lifted for dark surfaces.
+///
+/// [_danger] is tuned for parchment; on the canopy it measures about 2.2:1 and
+/// cannot carry text or a border. This is the same hue at light-text weight
+/// (`BombFlowerColors.dangerLight`).
+const Color _dangerLight = Color(0xFFE88B7D);
+
 /// A derived sage tone for the "verified" mark. The palette above has no
 /// success colour, and verified should not share the brass used for edits.
 const Color _verified = Color(0xFF7FA37A);
@@ -42,6 +49,7 @@ class HexEditorThemeData {
     this.ink = _ink,
     this.inkMuted = _inkMuted,
     this.danger = _danger,
+    this.dangerLight = _dangerLight,
     this.selection = _selection,
     this.verified = _verified,
     this.monoFontFamily = 'monospace',
@@ -60,6 +68,14 @@ class HexEditorThemeData {
   final Color ink;
   final Color inkMuted;
   final Color danger;
+
+  /// The danger tone lifted for the dark canopy.
+  ///
+  /// [danger] is tuned for parchment and only reaches about 2.2:1 on the
+  /// canopy, so text and borders painted on the editor's own dark surface use
+  /// this lighter tone instead.
+  final Color dangerLight;
+
   final Color selection;
   final Color verified;
 
@@ -85,9 +101,12 @@ class HexEditorThemeData {
   );
 
   /// The tint used for [kind] in the grid and legend.
+  ///
+  /// The grid and legend are painted on the canopy, so [ByteMarkKind.invalid]
+  /// uses [dangerLight] rather than the parchment-tuned [danger].
   Color markColor(ByteMarkKind kind) => switch (kind) {
     ByteMarkKind.modified => brass,
-    ByteMarkKind.invalid => danger,
+    ByteMarkKind.invalid => dangerLight,
     ByteMarkKind.unknown => stone,
     ByteMarkKind.verified => verified,
   };
@@ -478,14 +497,14 @@ class _HexEditorState extends State<HexEditor> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color: theme.danger.withValues(alpha: 0.16),
-          border: Border.all(color: theme.danger),
+          color: theme.dangerLight.withValues(alpha: 0.16),
+          border: Border.all(color: theme.dangerLight),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           'READ-ONLY',
           style: TextStyle(
-            color: theme.danger,
+            color: theme.dangerLight,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
@@ -1061,7 +1080,11 @@ class _HexEditorState extends State<HexEditor> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(Icons.warning_amber_rounded, size: 30, color: theme.danger),
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 30,
+              color: theme.dangerLight,
+            ),
             const SizedBox(height: 10),
             Text(
               widget.errorMessage!,
@@ -1113,15 +1136,17 @@ class _HexEditorState extends State<HexEditor> {
         fontSize: 11,
         fontFamily: theme.monoFontFamily,
       ),
-      errorStyle: TextStyle(color: theme.danger, fontSize: 10),
+      errorStyle: TextStyle(color: theme.dangerLight, fontSize: 10),
       border: border,
       enabledBorder: border,
       focusedBorder: border.copyWith(
         borderSide: BorderSide(color: theme.brass, width: 1.5),
       ),
-      errorBorder: border.copyWith(borderSide: BorderSide(color: theme.danger)),
+      errorBorder: border.copyWith(
+        borderSide: BorderSide(color: theme.dangerLight),
+      ),
       focusedErrorBorder: border.copyWith(
-        borderSide: BorderSide(color: theme.danger, width: 1.5),
+        borderSide: BorderSide(color: theme.dangerLight, width: 1.5),
       ),
     );
   }
@@ -1468,7 +1493,11 @@ class HexByteCell extends StatelessWidget {
     } else if (isSearchMatch) {
       background = theme.brass.withValues(alpha: 0.22);
     } else if (markColor != null) {
-      background = markColor.withValues(alpha: 0.28);
+      // The wash stays on the unlifted [HexEditorThemeData.danger]: at 28%
+      // opacity over `canopyRaised` the lifted tone would lighten the cell to
+      // #514136 and drop the glyph below 4.5:1.
+      background = (mark == ByteMarkKind.invalid ? theme.danger : markColor)
+          .withValues(alpha: 0.28);
     } else if (modified) {
       background = theme.brass.withValues(alpha: 0.14);
     }
@@ -1477,7 +1506,7 @@ class HexByteCell extends StatelessWidget {
     if (selected) {
       foreground = theme.ink;
     } else if (mark == ByteMarkKind.invalid) {
-      foreground = theme.danger;
+      foreground = theme.dangerLight;
     }
 
     final cell = Container(

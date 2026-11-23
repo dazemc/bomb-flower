@@ -44,7 +44,13 @@ abstract final class BombFlowerColors {
   static const focusOnBrass = Color(0xFF241C12);
   static const selection = Color(0xFFE8CD7A);
   static const selectionDark = Color(0xFF5C4A1E);
-  static const brassDeep = Color(0xFF8C7420);
+
+  /// Deepest stop of the primary brass gradient.
+  ///
+  /// Raised from #8C7420 to #A5811E so [ink] on the darkest stop clears the
+  /// 4.5:1 normal-text threshold (3.71:1 -> 4.61:1); the other stops are
+  /// brighter still. See test/presentation/theme/contrast_test.dart.
+  static const brassDeep = Color(0xFFA5811E);
 
   // Text.
   static const ink = Color(0xFF241C12);

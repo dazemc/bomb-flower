@@ -265,7 +265,7 @@ class _NumericFieldState extends State<NumericField> {
                     ),
                     enabledBorder: fieldBorder,
                     focusedBorder: fieldBorder,
-                    disabledBorder: _border(BombFlowerColors.stoneLight),
+                    disabledBorder: _border(BombFlowerColors.stone),
                   ),
                 ),
               ),

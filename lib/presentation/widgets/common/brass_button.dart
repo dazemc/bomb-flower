@@ -14,6 +14,9 @@ enum BrassButtonVariant { primary, secondary, destructive, text }
 ///
 /// [onPressed] being null disables the control: it leaves the tab order, keeps
 /// its semantics, and uses a hatch instead of opacity reduction.
+///
+/// [height] and [iconSize] exist so one invitation can be deliberately larger
+/// than the 36 px, 16 px-icon default without changing that default anywhere.
 class BrassButton extends StatefulWidget {
   const BrassButton({
     super.key,
@@ -24,6 +27,9 @@ class BrassButton extends StatefulWidget {
     this.semanticsLabel,
     this.autofocus = false,
     this.minWidth,
+    this.height,
+    this.iconSize,
+    this.onDark = false,
   });
 
   final String label;
@@ -33,6 +39,21 @@ class BrassButton extends StatefulWidget {
   final String? semanticsLabel;
   final bool autofocus;
   final double? minWidth;
+
+  /// Control height; null keeps [BombFlowerSpacing.buttonHeight].
+  final double? height;
+
+  /// Leading icon size; null keeps the 16 px default.
+  final double? iconSize;
+
+  /// Whether the control is painted over the dark canopy, not parchment.
+  ///
+  /// Only the transparent-background variants change: secondary and text use
+  /// the on-dark ink pair, secondary gets a lighter border, and the secondary
+  /// hover/pressed wash becomes the dark-surface overlay. Filled variants and
+  /// the disabled state keep their tokens, so parchment call sites are
+  /// unaffected by the default `false`.
+  final bool onDark;
 
   @override
   State<BrassButton> createState() => _BrassButtonState();
@@ -69,7 +90,7 @@ class _BrassButtonState extends State<BrassButton> {
           child: AnimatedContainer(
             duration: duration,
             curve: BombFlowerMotion.hoverCurve,
-            height: BombFlowerSpacing.buttonHeight,
+            height: widget.height ?? BombFlowerSpacing.buttonHeight,
             constraints: BoxConstraints(
               minWidth: widget.minWidth ?? BombFlowerSpacing.minHitTarget,
             ),
@@ -87,7 +108,11 @@ class _BrassButtonState extends State<BrassButton> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 if (widget.icon != null) ...<Widget>[
-                  Icon(widget.icon, size: 16, color: foreground),
+                  Icon(
+                    widget.icon,
+                    size: widget.iconSize ?? 16,
+                    color: foreground,
+                  ),
                   const SizedBox(width: BombFlowerSpacing.md),
                 ],
                 Text(
@@ -178,7 +203,11 @@ class _BrassButtonState extends State<BrassButton> {
     return switch (widget.variant) {
       BrassButtonVariant.primary => Colors.transparent,
       BrassButtonVariant.secondary =>
-        _pressed
+        widget.onDark
+            ? (_pressed || _hovered
+                  ? BombFlowerColors.hoverDark
+                  : Colors.transparent)
+            : _pressed
             ? BombFlowerColors.parchmentSunken
             : _hovered
             ? BombFlowerColors.parchmentRaised
@@ -200,9 +229,11 @@ class _BrassButtonState extends State<BrassButton> {
     if (!_enabled) return palette.disabledText;
     return switch (widget.variant) {
       BrassButtonVariant.primary => BombFlowerColors.ink,
-      BrassButtonVariant.secondary => palette.textPrimary,
+      BrassButtonVariant.secondary =>
+        widget.onDark ? palette.textOnDark : palette.textPrimary,
       BrassButtonVariant.destructive => BombFlowerColors.bone,
-      BrassButtonVariant.text => palette.accentInk,
+      BrassButtonVariant.text =>
+        widget.onDark ? palette.textOnDark : palette.accentInk,
     };
   }
 
@@ -212,7 +243,8 @@ class _BrassButtonState extends State<BrassButton> {
     }
     return switch (widget.variant) {
       BrassButtonVariant.primary => BombFlowerColors.brassInk,
-      BrassButtonVariant.secondary => palette.border,
+      BrassButtonVariant.secondary =>
+        widget.onDark ? BombFlowerColors.stoneLight : palette.border,
       BrassButtonVariant.destructive => BombFlowerColors.danger,
       BrassButtonVariant.text => Colors.transparent,
     };

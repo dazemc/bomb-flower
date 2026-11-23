@@ -135,9 +135,11 @@ class _NavItemState extends State<_NavItem> {
         ? palette.textOnDark
         : palette.textMutedOnDark;
     final iconColor = selected ? palette.accentInk : foreground;
+    // 0.90 alpha, not 0.85: over the wood gradient's lightest stop the hint
+    // must still clear 4.5:1 (0.85 measured 4.41:1, 0.90 measures 4.72:1).
     final hintColor = selected
         ? palette.textMuted
-        : palette.textMutedOnDark.withValues(alpha: 0.85);
+        : palette.textMutedOnDark.withValues(alpha: 0.90);
 
     final content = FocusableActionDetector(
       shortcuts: const <ShortcutActivator, Intent>{

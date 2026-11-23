@@ -13,6 +13,46 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+// Method channel that hands paths dropped onto the window to Dart. The Dart
+// side registers the handler for the same name; keep both in sync.
+static constexpr char kDropChannelName[] = "bomb_flower/drop";
+// Key under which the channel is attached to the FlView so the drop callback
+// can reach it. The channel is created once per view and destroyed with it.
+static constexpr char kDropChannelKey[] = "bomb-flower-drop-channel";
+
+// Called when URIs are dropped on the Flutter view. Only text/uri-list drops
+// reach this handler; the first URI is forwarded to Dart when it resolves to a
+// local file. Directories are not filtered here, Dart validates them.
+static void view_drag_data_received_cb(GtkWidget* widget,
+                                       GdkDragContext* context, gint x, gint y,
+                                       GtkSelectionData* data, guint info,
+                                       guint time, gpointer user_data) {
+  (void)x;
+  (void)y;
+  (void)info;
+  (void)user_data;
+
+  gboolean handled = FALSE;
+  gchar** uris = gtk_selection_data_get_uris(data);
+  if (uris != nullptr && uris[0] != nullptr) {
+    g_autofree gchar* path = g_filename_from_uri(uris[0], nullptr, nullptr);
+    // Non-local URIs (http, ...) resolve to nothing; ignore them silently.
+    if (path != nullptr && path[0] != '\0') {
+      FlMethodChannel* channel = FL_METHOD_CHANNEL(
+          g_object_get_data(G_OBJECT(widget), kDropChannelKey));
+      if (channel != nullptr) {
+        fl_method_channel_invoke_method(channel, "folderDropped",
+                                        fl_value_new_string(path), nullptr,
+                                        nullptr, nullptr);
+        handled = TRUE;
+      }
+    }
+  }
+  g_strfreev(uris);
+
+  gtk_drag_finish(context, handled, FALSE, time);
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -61,6 +101,22 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  // Accept folders dragged from the file manager. GTK_DEST_DEFAULT_ALL has no
+  // default action, so view_drag_data_received_cb finishes the drag itself.
+  gtk_drag_dest_set(GTK_WIDGET(view), GTK_DEST_DEFAULT_ALL, nullptr, 0,
+                    GDK_ACTION_COPY);
+  gtk_drag_dest_add_uri_targets(GTK_WIDGET(view));
+  g_signal_connect(view, "drag-data-received",
+                   G_CALLBACK(view_drag_data_received_cb), nullptr);
+
+  // One channel for the lifetime of the view; g_object_set_data_full frees it
+  // when the view is destroyed.
+  FlMethodChannel* drop_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)), kDropChannelName,
+      FL_METHOD_CODEC(fl_standard_method_codec_new()));
+  g_object_set_data_full(G_OBJECT(view), kDropChannelKey, drop_channel,
+                         (GDestroyNotify)g_object_unref);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

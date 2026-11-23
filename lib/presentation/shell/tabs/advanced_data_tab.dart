@@ -37,7 +37,9 @@ class AdvancedDataTab extends StatefulWidget {
   final HexEditorController? controller;
 
   /// Key for the "Unlock editing" toggle.
-  static const Key unlockToggleKey = ValueKey<String>('advanced-unlock-editing');
+  static const Key unlockToggleKey = ValueKey<String>(
+    'advanced-unlock-editing',
+  );
 
   /// Key for the embedded hex editor.
   static const Key editorKey = ValueKey<String>('advanced-hex-editor');
@@ -319,6 +321,9 @@ class _AdvancedDataTabState extends State<AdvancedDataTab> {
                   'The open save reports no bytes for its active slot. Nothing '
                   'is fabricated; open a save with a loaded slot to inspect its '
                   'bytes.',
+              // This state sits inside a parchment panel, not on the canopy.
+              onDark: false,
+              offerOpenSave: false,
             ),
           ],
         ),

@@ -1,5 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart'
-    show HardwareKeyboard, KeyDownEvent, KeyEvent;
+    show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -37,11 +39,7 @@ import 'tabs/settings_tab.dart';
 /// technical context, shown verbatim when no path is known.
 final class OpenFailureNotice {
   /// Creates a notice.
-  const OpenFailureNotice({
-    required this.message,
-    this.details,
-    this.path,
-  });
+  const OpenFailureNotice({required this.message, this.details, this.path});
 
   /// Friendly, primary explanation.
   final String message;
@@ -108,6 +106,24 @@ class _AppShellState extends State<AppShell> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    final keyboard = HardwareKeyboard.instance;
+
+    // Ctrl+O is the app's open-save shortcut and must work at every width,
+    // including where the title-bar Open action collapses. It is intercepted
+    // first because it is not a tab shortcut and must not be swallowed by the
+    // text-field guard. The callback is the one existing open path.
+    if (keyboard.isControlPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isMetaPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyO) {
+      final open = widget.onOpenAnotherSave;
+      if (open != null) {
+        unawaited(open(context));
+        return KeyEventResult.handled;
+      }
+    }
+
     // Leave editing keys alone while a text field has focus. The shell has no
     // editable placeholder fields yet, but this is the permanent seam.
     final focusedContext = FocusManager.instance.primaryFocus?.context;
@@ -115,7 +131,6 @@ class _AppShellState extends State<AppShell> {
       return KeyEventResult.ignored;
     }
 
-    final keyboard = HardwareKeyboard.instance;
     final consumed = context.read<ShellCubit>().handleShortcut(
       key: event.logicalKey,
       alt: keyboard.isAltPressed,
@@ -249,7 +264,7 @@ class _OpenFailureView extends StatelessWidget {
             Text(
               'Folder attempted',
               style: BombFlowerTypography.label.copyWith(
-                color: BombFlowerColors.inkSecondary,
+                color: BombFlowerColors.boneMuted,
               ),
             ),
             const SizedBox(height: BombFlowerSpacing.xs),
@@ -257,7 +272,7 @@ class _OpenFailureView extends StatelessWidget {
               path,
               key: const Key('open-failure-path'),
               style: BombFlowerTypography.body.copyWith(
-                color: BombFlowerColors.ink,
+                color: BombFlowerColors.bone,
               ),
             ),
           ] else if (details != null)
@@ -267,7 +282,7 @@ class _OpenFailureView extends StatelessWidget {
               details,
               key: const Key('open-failure-details'),
               style: BombFlowerTypography.caption.copyWith(
-                color: BombFlowerColors.inkMuted,
+                color: BombFlowerColors.boneMuted,
               ),
             ),
           const SizedBox(height: BombFlowerSpacing.xl),
@@ -276,9 +291,8 @@ class _OpenFailureView extends StatelessWidget {
             label: 'Open another save…',
             icon: Icons.folder_open,
             variant: BrassButtonVariant.secondary,
-            onPressed: openAnother == null
-                ? null
-                : () => openAnother(context),
+            onDark: true,
+            onPressed: openAnother == null ? null : () => openAnother(context),
           ),
         ],
       ),
@@ -287,7 +301,10 @@ class _OpenFailureView extends StatelessWidget {
 }
 
 class _ShellTabContent extends StatelessWidget {
-  const _ShellTabContent({required this.activeTab, required this.settingsStore});
+  const _ShellTabContent({
+    required this.activeTab,
+    required this.settingsStore,
+  });
 
   final ShellTab activeTab;
 

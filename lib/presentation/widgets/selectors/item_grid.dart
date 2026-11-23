@@ -373,7 +373,7 @@ class _SlotPlatePainter extends CustomPainter {
     canvas.drawRRect(rrect, Paint()..color = fill);
 
     if (!filled) {
-      _drawDashedBorder(canvas, rrect, BombFlowerColors.stoneLight);
+      _drawDashedBorder(canvas, rrect, BombFlowerColors.stone);
     } else {
       canvas.drawRRect(
         rrect,

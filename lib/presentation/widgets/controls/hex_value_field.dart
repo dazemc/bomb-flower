@@ -238,7 +238,7 @@ class _HexValueFieldState extends State<HexValueField> {
               ),
               enabledBorder: fieldBorder,
               focusedBorder: fieldBorder,
-              disabledBorder: _border(BombFlowerColors.stoneLight),
+              disabledBorder: _border(BombFlowerColors.stone),
             ),
           ),
           if (error != null) ...<Widget>[

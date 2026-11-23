@@ -17,8 +17,8 @@ import '../../theme/bomb_flower_colors.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_typography.dart';
 import '../common/banner.dart';
+import '../common/bomb_flower_mark.dart';
 import '../common/procedural_painters.dart';
-import '../common/seed_pod_mark.dart';
 import 'file_action_bar.dart';
 
 /// Height of the custom title bar, in logical pixels.
@@ -335,60 +335,67 @@ class _AppTitleBarState extends State<AppTitleBar> {
           ),
           child: MouseRegion(
             cursor: SystemMouseCursors.basic,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onPanStart: (_) => _startDragging(),
-              onDoubleTap: _maximizeOrRestore,
-              child: Row(
-                children: <Widget>[
-                  const SizedBox(width: BombFlowerSpacing.xl),
-                  const SeedPodMark(
-                    size: 24,
-                    color: BombFlowerColors.bone,
-                    accentColor: BombFlowerColors.brass,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'BOMB FLOWER',
-                    style: BombFlowerTypography.label.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.0,
-                      color: BombFlowerColors.bone,
+            child: Row(
+              children: <Widget>[
+                // The window drag region stops before the file actions.
+                // Keeping the action cluster outside this detector is what
+                // lets a real click reach it: the drag recognizer accepts
+                // after 2 px of precise-pointer (mouse) movement, and once it
+                // wins the gesture arena the button's tap is cancelled. Empty
+                // title-bar space and the centre slot still drag the window.
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (_) => _startDragging(),
+                    onDoubleTap: _maximizeOrRestore,
+                    child: Row(
+                      children: <Widget>[
+                        const SizedBox(width: BombFlowerSpacing.xl),
+                        const BombFlowerMark(size: 32, onDark: true),
+                        const SizedBox(width: 10),
+                        Text(
+                          'BOMB FLOWER',
+                          style: BombFlowerTypography.label.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                            color: BombFlowerColors.bone,
+                          ),
+                        ),
+                        const SizedBox(width: BombFlowerSpacing.xl),
+                        Expanded(
+                          child: Center(child: _centreSlot()),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: BombFlowerSpacing.xl),
-                  Expanded(
-                    child: Center(child: _centreSlot()),
+                ),
+                if (session == null)
+                  _actionGroup(null, null)
+                else
+                  BlocBuilder<SaveSessionCubit, SaveSessionUiState>(
+                    bloc: session,
+                    builder: (context, state) => _actionGroup(session, state),
                   ),
-                  if (session == null)
-                    _actionGroup(null, null)
-                  else
-                    BlocBuilder<SaveSessionCubit, SaveSessionUiState>(
-                      bloc: session,
-                      builder: (context, state) =>
-                          _actionGroup(session, state),
-                    ),
-                  _TitleBarButton(
-                    tooltip: 'Minimize',
-                    semanticsLabel: 'Minimize window',
-                    onPressed: _minimize,
-                    glyph: _WindowGlyph.minimize,
-                  ),
-                  _TitleBarButton(
-                    tooltip: 'Maximize',
-                    semanticsLabel: 'Maximize or restore window',
-                    onPressed: _maximizeOrRestore,
-                    glyph: _WindowGlyph.maximize,
-                  ),
-                  _TitleBarButton(
-                    tooltip: 'Close',
-                    semanticsLabel: 'Close window',
-                    onPressed: _close,
-                    glyph: _WindowGlyph.close,
-                    danger: true,
-                  ),
-                ],
-              ),
+                _TitleBarButton(
+                  tooltip: 'Minimize',
+                  semanticsLabel: 'Minimize window',
+                  onPressed: _minimize,
+                  glyph: _WindowGlyph.minimize,
+                ),
+                _TitleBarButton(
+                  tooltip: 'Maximize',
+                  semanticsLabel: 'Maximize or restore window',
+                  onPressed: _maximizeOrRestore,
+                  glyph: _WindowGlyph.maximize,
+                ),
+                _TitleBarButton(
+                  tooltip: 'Close',
+                  semanticsLabel: 'Close window',
+                  onPressed: _close,
+                  glyph: _WindowGlyph.close,
+                  danger: true,
+                ),
+              ],
             ),
           ),
         ),

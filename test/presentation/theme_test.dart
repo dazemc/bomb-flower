@@ -39,7 +39,7 @@ void main() {
         0xFF241C12,
         0xFFE8CD7A,
         0xFF5C4A1E,
-        0xFF8C7420,
+        0xFFA5811E,
         0xFF241C12,
         0xFF4A3D2A,
         0xFF5C4F3A,

@@ -54,7 +54,7 @@ class StoneToast extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.bombFlowerTheme;
     final accent = _toneColor(tone);
-    final border = _toneBorder(tone, palette);
+    final border = _toneBorder(tone);
 
     return Container(
       decoration: BoxDecoration(
@@ -141,13 +141,14 @@ class StoneToast extends StatelessWidget {
     };
   }
 
-  Color _toneBorder(StoneToastTone tone, BombFlowerTheme palette) {
-    return switch (tone) {
-      StoneToastTone.success => palette.success,
-      StoneToastTone.info => palette.info,
-      StoneToastTone.warning => palette.warning,
-      StoneToastTone.danger => palette.danger,
-    };
+  /// The border shares the tone's light tint, not the dark tone fill.
+  ///
+  /// The card sits on the dark canopy2 chrome; the dark [success], [info],
+  /// [warning], and [danger] tones measure 2.0-2.4:1 there and cannot carry a
+  /// component border. The light tone already carries the icon and the tone
+  /// word at 5.7-7.4:1.
+  Color _toneBorder(StoneToastTone tone) {
+    return _toneColor(tone);
   }
 }
 

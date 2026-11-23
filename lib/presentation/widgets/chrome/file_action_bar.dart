@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/bomb_flower_colors.dart';
@@ -12,8 +13,8 @@ import 'compare_action.dart';
 /// title bar without competing with the save name at 1100 px wide; every icon
 /// carries the label as its tooltip and screen-reader name.
 ///
-/// Below [collapseBreakpoint] the eight icons collapse into one overflow menu so
-/// the brand and save identity keep their room.
+/// Below [collapseBreakpoint] the icon actions collapse into one overflow menu
+/// so the brand and save identity keep their room.
 class FileActionBar extends StatelessWidget {
   /// Creates the action group.
   const FileActionBar({
@@ -68,17 +69,23 @@ class FileActionBar extends StatelessWidget {
     return label;
   }
 
-  /// The eight actions in display order.
+  /// The nine actions in display order.
   ///
   /// One list feeds both the wide row and the collapsed menu so the keys,
-  /// labels and enablement can never drift apart.
+  /// labels, enablement and shortcuts can never drift apart.
   List<_FileAction> _actions() {
     return <_FileAction>[
       _FileAction(
         key: const Key('shell-action-open'),
-        label: 'Open',
+        label: 'Open save…',
         icon: Icons.folder_open_outlined,
         onPressed: onOpen,
+        // Bound by the shell's keyboard shortcuts. Only genuinely bound
+        // accelerators carry a hint here; the rest stay blank.
+        shortcut: const SingleActivator(
+          LogicalKeyboardKey.keyO,
+          control: true,
+        ),
       ),
       _FileAction(
         key: const Key('shell-action-save'),
@@ -172,6 +179,7 @@ class FileActionBar extends StatelessWidget {
             child: MenuItemButton(
               key: actions[index].key,
               leadingIcon: Icon(actions[index].icon, size: 16),
+              shortcut: actions[index].shortcut,
               onPressed: actions[index].onPressed,
               child: Text(actions[index].label),
             ),
@@ -182,7 +190,7 @@ class FileActionBar extends StatelessWidget {
       builder: (context, controller, child) => _action(
         _FileAction(
           key: const Key('shell-action-overflow'),
-          label: 'File actions',
+          label: 'More actions',
           icon: Icons.more_horiz,
           onPressed: () {
             if (controller.isOpen) {
@@ -204,12 +212,16 @@ class _FileAction {
     required this.label,
     required this.icon,
     required this.onPressed,
+    this.shortcut,
   });
 
   final Key key;
   final String label;
   final IconData icon;
   final VoidCallback? onPressed;
+
+  /// Accelerator that actually invokes this action, when one is bound.
+  final MenuSerializableShortcut? shortcut;
 }
 
 class _Action extends StatelessWidget {

@@ -124,6 +124,10 @@ void main() {
       );
 
       expect(find.text('Could not read this slot.'), findsOneWidget);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.warning_amber_rounded)).color,
+        const HexEditorThemeData().dangerLight,
+      );
       await tester.tap(find.byKey(HexEditor.retryKey));
       await tester.pump();
       expect(retries, 1);
@@ -428,6 +432,41 @@ void main() {
       );
     });
 
+    testWidgets('invalid marks paint the lifted danger tone on the canopy', (
+      tester,
+    ) async {
+      const theme = HexEditorThemeData();
+      final controller = makeController(length: 32)
+        ..setMark(1, ByteMarkKind.invalid);
+      await pumpEditor(tester, controller);
+
+      final cell = find.byKey(HexEditor.cellKey(1));
+      expect(tester.widget<HexByteCell>(cell).mark, ByteMarkKind.invalid);
+
+      final glyph = tester.widget<Text>(
+        find.descendant(of: cell, matching: find.byType(Text)),
+      );
+      expect(glyph.style?.color, theme.dangerLight);
+      expect(glyph.style?.color, isNot(theme.danger));
+    });
+
+    testWidgets('read-only badge paints the lifted danger tone', (tester) async {
+      const theme = HexEditorThemeData();
+      await pumpEditor(tester, makeController(length: 16, readOnly: true));
+
+      final label = tester.widget<Text>(find.text('READ-ONLY'));
+      expect(label.style?.color, theme.dangerLight);
+      expect(label.style?.color, isNot(theme.danger));
+
+      final badge = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('READ-ONLY'), matching: find.byType(Container))
+            .first,
+      );
+      final border = (badge.decoration! as BoxDecoration).border!;
+      expect(border.top.color, theme.dangerLight);
+    });
+
     testWidgets('clicking a bit toggles exactly that bit', (tester) async {
       final controller = HexEditorController(bytes: Uint8List(16))
         ..selectByte(1);
@@ -546,6 +585,17 @@ void main() {
 
       expect(() => controller.writeByte(0, 1), throwsStateError);
       expect(() => controller.toggleBit(0, 0), throwsStateError);
+    });
+  });
+
+  group('HexEditorThemeData danger tokens', () {
+    test('invalid marks use the lifted canopy tone, not the parchment danger', () {
+      const theme = HexEditorThemeData();
+      final invalid = theme.markColor(ByteMarkKind.invalid);
+
+      expect(invalid, theme.dangerLight);
+      expect(invalid, const Color(0xFFE88B7D));
+      expect(invalid, isNot(theme.danger));
     });
   });
 }

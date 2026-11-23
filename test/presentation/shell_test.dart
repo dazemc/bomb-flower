@@ -1,7 +1,9 @@
 import 'package:bomb_flower/app.dart';
+import 'package:bomb_flower/data/system/directory_picker.dart';
 import 'package:bomb_flower/presentation/bloc/shell/shell_cubit.dart';
 import 'package:bomb_flower/presentation/bloc/shell/shell_state.dart';
 import 'package:bomb_flower/presentation/bloc/shell/tab_definition.dart';
+import 'package:bomb_flower/presentation/dialogs/open_save_dialog.dart';
 import 'package:bomb_flower/presentation/shell/app_shell.dart';
 import 'package:bomb_flower/presentation/shell/shell_status_footer.dart';
 import 'package:bomb_flower/presentation/theme/bomb_flower_colors.dart';
@@ -48,6 +50,25 @@ Future<void> _sendShortcut(
   await tester.sendKeyUpEvent(key);
   await tester.sendKeyUpEvent(modifier);
   await tester.pumpAndSettle();
+}
+
+/// The always-empty folder inspector: no filesystem, no IO.
+final class _FakeProbe implements SaveFolderProbe {
+  @override
+  Future<SaveFolderInfo> inspect(String path) async =>
+      SaveFolderInfo(path: path, exists: false, isDirectory: false);
+}
+
+/// An in-memory recent-folder port so the dialog stays hermetic.
+final class _FakeRecentPaths implements RecentPathsStore {
+  @override
+  Future<List<String>> read() async => const <String>[];
+
+  @override
+  Future<void> add(String path) async {}
+
+  @override
+  Future<void> clear() async {}
 }
 
 void main() {
@@ -357,9 +378,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('every tab renders its page and real content', (
-      tester,
-    ) async {
+    testWidgets('every tab renders its page and real content', (tester) async {
       await _pumpApp(tester);
 
       for (final definition in kTabDefinitions) {
@@ -372,9 +391,14 @@ void main() {
         );
         // Save-backed tabs show the open-a-save empty state with no save open;
         // placeholder tabs still show their design purpose line.
-        final rendersPurpose = find.text(definition.purpose).evaluate().isNotEmpty;
-        final rendersEmpty =
-            find.text('Open a save to begin').evaluate().isNotEmpty;
+        final rendersPurpose = find
+            .text(definition.purpose)
+            .evaluate()
+            .isNotEmpty;
+        final rendersEmpty = find
+            .text('Open a save to begin')
+            .evaluate()
+            .isNotEmpty;
         expect(
           rendersPurpose || rendersEmpty,
           isTrue,
@@ -417,6 +441,32 @@ void main() {
         LogicalKeyboardKey.tab,
       );
       expect(find.byKey(const Key('tab-page-overview')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Ctrl+O opens the save dialog at the 1100x700 minimum size', (
+      tester,
+    ) async {
+      _useView(tester, const Size(1100, 700));
+      await tester.pumpWidget(
+        BombFlowerApp(
+          enableWindowChrome: false,
+          saveFolderProbe: _FakeProbe(),
+          recentPaths: _FakeRecentPaths(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The title-bar actions collapse at this width, so the shortcut is the
+      // remaining way in and must still work.
+      await _sendShortcut(
+        tester,
+        LogicalKeyboardKey.controlLeft,
+        LogicalKeyboardKey.keyO,
+      );
+
+      expect(find.byType(OpenSaveDialog), findsOneWidget);
+      expect(find.text('Open save folder'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

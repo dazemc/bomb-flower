@@ -125,7 +125,9 @@ class _ChipSpec {
       ),
       RuneChipVariant.neutral => const _ChipSpec(
         fill: BombFlowerColors.parchmentSunken,
-        border: BombFlowerColors.divider,
+        // Stone, not divider: a 1 px chip boundary has to clear 3:1 on the
+        // sunken plate (divider measured 1.3:1, stone measures 3.66:1).
+        border: BombFlowerColors.stone,
         ink: BombFlowerColors.ink,
         description: 'count',
       ),
