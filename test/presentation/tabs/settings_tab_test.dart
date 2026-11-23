@@ -9,14 +9,29 @@ import 'package:material_ui/material_ui.dart';
 import 'support/tab_test_harness.dart';
 
 /// An in-memory store that records every successful save.
-final class FakeSettingsStore implements SettingsStore {
-  FakeSettingsStore({EditorPreferences? seeded, this.failSave = false})
-    : _preferences = seeded ?? const EditorPreferences();
+final class FakeSettingsStore extends ChangeNotifier implements SettingsStore {
+  FakeSettingsStore({
+    EditorPreferences? seeded,
+    this.failSave = false,
+    this.persistent = false,
+  }) : _preferences = seeded ?? const EditorPreferences();
 
   final EditorPreferences _preferences;
 
   /// When true, [save] throws instead of recording.
   final bool failSave;
+
+  /// What the store reports through [isPersistent].
+  final bool persistent;
+
+  @override
+  EditorPreferences get preferences => _preferences;
+
+  @override
+  Listenable get changes => this;
+
+  @override
+  bool get isPersistent => persistent;
 
   /// Values accepted by [save], in order.
   final List<EditorPreferences> saves = <EditorPreferences>[];
@@ -73,7 +88,9 @@ void main() {
       isTrue,
     );
     expect(
-      tester.widget<BrassToggle>(find.byKey(SettingsTab.newestDefaultKey)).value,
+      tester
+          .widget<BrassToggle>(find.byKey(SettingsTab.newestDefaultKey))
+          .value,
       isFalse,
     );
 
@@ -143,7 +160,9 @@ void main() {
     expect(find.text('/saves/a.sav'), findsNothing);
     expect(find.text('No recent save folders recorded.'), findsOneWidget);
     expect(
-      tester.widget<BrassButton>(find.byKey(SettingsTab.clearRecentKey)).onPressed,
+      tester
+          .widget<BrassButton>(find.byKey(SettingsTab.clearRecentKey))
+          .onPressed,
       isNull,
     );
   });
@@ -171,21 +190,23 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(
-      tester.widget<BrassToggle>(find.byKey(SettingsTab.newestDefaultKey)).value,
+      tester
+          .widget<BrassToggle>(find.byKey(SettingsTab.newestDefaultKey))
+          .value,
       isFalse,
     );
     expectNoOverflow(tester);
   });
 
-  testWidgets('the default store shows the not-persisted caption', (
+  testWidgets('the in-memory default says preferences do not persist', (
     tester,
   ) async {
     await pumpTab(tester, const SettingsTab());
     await tester.pump();
 
-    expect(find.byKey(SettingsTab.notPersistedCaptionKey), findsOneWidget);
+    expect(find.byKey(SettingsTab.persistenceCaptionKey), findsOneWidget);
     expect(
-      find.textContaining('does not persist across launches'),
+      find.textContaining('held in memory for this session only'),
       findsOneWidget,
     );
     // The default in-memory store still loads, so the controls render.
@@ -207,7 +228,9 @@ void main() {
     expectNoOverflow(tester);
   });
 
-  testWidgets('editing the launcher path saves only that field', (tester) async {
+  testWidgets('editing the launcher path saves only that field', (
+    tester,
+  ) async {
     const seeded = '/opt/longshot/Launcher.AppImage';
     final store = FakeSettingsStore(
       seeded: const EditorPreferences(
@@ -225,11 +248,9 @@ void main() {
     );
     expect(field.controller!.text, seeded);
 
-    const edited = '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
-    await tester.enterText(
-      find.byKey(SettingsTab.launcherPathKey),
-      edited,
-    );
+    const edited =
+        '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
+    await tester.enterText(find.byKey(SettingsTab.launcherPathKey), edited);
     await tester.ensureVisible(find.byKey(SettingsTab.launcherPathSaveKey));
     await tester.tap(find.byKey(SettingsTab.launcherPathSaveKey));
     await tester.pump();

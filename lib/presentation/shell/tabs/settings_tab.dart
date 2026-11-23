@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart' hide Banner;
 
-import '../../bloc/shell/tab_definition.dart';
 import '../../../build_info.dart';
+import '../../bloc/shell/tab_definition.dart';
+import '../../settings/settings_store.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_theme.dart';
 import '../../theme/bomb_flower_typography.dart';
@@ -18,100 +19,19 @@ import '../../widgets/controls/brass_toggle.dart';
 import '../../widgets/selectors/searchable_select.dart';
 import 'placeholder_tab.dart';
 
-/// The executables the editor starts for the user.
-///
-/// Presentation keeps its own default so this file never imports the data-layer
-/// launcher port; the title bar reads the persisted value from here.
-const String kDefaultLongshotLauncherPath =
-    '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
+export '../../settings/settings_store.dart';
 
-/// What the editor should do when a save is about to be overwritten.
-enum BackupPolicy { always, ask, never }
+/// What the caption says when preferences are written to disk.
+const String persistedCaption =
+    'Preferences are stored for this operating-system user and survive a '
+    'restart. Text scale applies as soon as you change it. While it is set, it '
+    'replaces the platform text scale rather than multiplying it, so the '
+    'editor renders at exactly the chosen size.';
 
-/// User-facing editor preferences.
-///
-/// This is a presentation-layer port. A data-layer implementation can satisfy
-/// [SettingsStore] later without this file depending on the data layer.
-final class EditorPreferences {
-  const EditorPreferences({
-    this.recentPaths = const <String>[],
-    this.backupPolicy = BackupPolicy.ask,
-    this.makeNewestSlotDefault = true,
-    this.reducedMotion = false,
-    this.textScale = 1.0,
-    this.showHiddenEntries = false,
-    this.launcherPath = kDefaultLongshotLauncherPath,
-  });
-
-  /// Recently opened save folders, newest first.
-  final List<String> recentPaths;
-
-  final BackupPolicy backupPolicy;
-
-  /// Whether the newest save slot is preselected when a folder is opened.
-  final bool makeNewestSlotDefault;
-
-  /// Editor-level reduced motion, applied on the next launch.
-  final bool reducedMotion;
-
-  /// UI text scale applied inside the editor, 1.0 to 1.5.
-  final double textScale;
-
-  /// Whether the in-app picker lists dot-entries. Off by default.
-  final bool showHiddenEntries;
-
-  /// Executable the title-bar Launch action starts.
-  final String launcherPath;
-
-  EditorPreferences copyWith({
-    List<String>? recentPaths,
-    BackupPolicy? backupPolicy,
-    bool? makeNewestSlotDefault,
-    bool? reducedMotion,
-    double? textScale,
-    bool? showHiddenEntries,
-    String? launcherPath,
-  }) {
-    return EditorPreferences(
-      recentPaths: recentPaths ?? this.recentPaths,
-      backupPolicy: backupPolicy ?? this.backupPolicy,
-      makeNewestSlotDefault:
-          makeNewestSlotDefault ?? this.makeNewestSlotDefault,
-      reducedMotion: reducedMotion ?? this.reducedMotion,
-      textScale: textScale ?? this.textScale,
-      showHiddenEntries: showHiddenEntries ?? this.showHiddenEntries,
-      launcherPath: launcherPath ?? this.launcherPath,
-    );
-  }
-}
-
-/// Persistence boundary for [EditorPreferences].
-abstract interface class SettingsStore {
-  Future<EditorPreferences> load();
-  Future<void> save(EditorPreferences preferences);
-}
-
-/// Process-lifetime store used when the shell injects no [SettingsStore].
-///
-/// It keeps the last saved value in memory; nothing survives a restart, which
-/// is why the tab always shows the not-persisted caption.
-final class InMemorySettingsStore implements SettingsStore {
-  InMemorySettingsStore([EditorPreferences? seed])
-    : _preferences = seed ?? const EditorPreferences();
-
-  EditorPreferences _preferences;
-
-  /// The most recent value handed to [save], for inspection.
-  EditorPreferences get lastValue => _preferences;
-
-  @override
-  Future<EditorPreferences> load() async => _preferences;
-
-  @override
-  Future<void> save(EditorPreferences preferences) async {
-    _preferences = preferences;
-  }
-}
+/// What the caption says when only the in-memory fallback store is in use.
+const String memoryCaption =
+    'Preferences are held in memory for this session only: this build was '
+    'given no persistent store, so changes are lost when the app closes.';
 
 /// Editor preferences: recent saves, backup policy, slot default, motion, and
 /// text scale.
@@ -125,7 +45,9 @@ class SettingsTab extends StatefulWidget {
   /// Persistence boundary. Defaults to a fresh [InMemorySettingsStore].
   final SettingsStore? store;
 
-  static const Key notPersistedCaptionKey = Key('settings-not-persisted');
+  /// Caption stating whether preferences survive a restart, and the trade-off
+  /// of the editor's own text scale.
+  static const Key persistenceCaptionKey = Key('settings-persistence');
   static const Key clearRecentKey = Key('settings-clear-recent');
   static const Key backupPolicyKey = Key('settings-backup-policy');
   static const Key newestDefaultKey = Key('settings-newest-default');
@@ -220,10 +142,8 @@ class _SettingsTabState extends State<SettingsTab> {
               description: definition.purpose,
             ),
             Text(
-              'Preferences are held by the injected store; the default '
-              'in-memory store does not persist across launches until a '
-              'data-layer store is wired.',
-              key: SettingsTab.notPersistedCaptionKey,
+              _store.isPersistent ? persistedCaption : memoryCaption,
+              key: SettingsTab.persistenceCaptionKey,
               style: BombFlowerTypography.caption.copyWith(
                 color: palette.textMuted,
               ),
@@ -264,9 +184,7 @@ class _SettingsTabState extends State<SettingsTab> {
 
     final preferences = _preferences;
     if (preferences == null) {
-      return <Widget>[
-        const LoadingState(label: 'Reading preferences…'),
-      ];
+      return <Widget>[const LoadingState(label: 'Reading preferences…')];
     }
 
     return _buildControls(context, preferences);
@@ -330,7 +248,8 @@ class _SettingsTabState extends State<SettingsTab> {
       ),
       _SettingSection(
         title: 'Backup policy',
-        caption: 'Decides whether a backup is written before a save is overwritten.',
+        caption:
+            'Decides whether a backup is written before a save is overwritten.',
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 360),
           child: SearchableSelect<BackupPolicy>(
@@ -339,9 +258,8 @@ class _SettingsTabState extends State<SettingsTab> {
             itemLabel: _backupPolicyLabel,
             value: preferences.backupPolicy,
             label: 'When overwriting a save',
-            onChanged: (policy) => unawaited(
-              _persist(preferences.copyWith(backupPolicy: policy)),
-            ),
+            onChanged: (policy) =>
+                unawaited(_persist(preferences.copyWith(backupPolicy: policy))),
           ),
         ),
       ),
@@ -385,9 +303,8 @@ class _SettingsTabState extends State<SettingsTab> {
                 valueLabel: _formatTextScale(preferences.textScale),
                 // BrassSlider has no change-end callback, so every committed
                 // step saves once.
-                onChanged: (value) => unawaited(
-                  _persist(preferences.copyWith(textScale: value)),
-                ),
+                onChanged: (value) =>
+                    unawaited(_persist(preferences.copyWith(textScale: value))),
               ),
             ),
           ],

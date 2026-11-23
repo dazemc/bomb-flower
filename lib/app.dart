@@ -17,7 +17,7 @@ import 'presentation/bloc/shell/shell_cubit.dart';
 import 'presentation/bloc/shell/shell_state.dart';
 import 'presentation/dialogs/open_save_dialog.dart';
 import 'presentation/shell/app_shell.dart';
-import 'presentation/shell/tabs/settings_tab.dart';
+import 'presentation/settings/settings_store.dart';
 import 'presentation/tabs_support/save_tab_scope.dart';
 import 'presentation/tabs_support/save_tab_source.dart';
 import 'presentation/tabs_support/session_save_tab_source.dart';
@@ -546,6 +546,25 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
       title: 'Bomb Flower',
       debugShowCheckedModeBanner: false,
       theme: BombFlowerThemeData.build(),
+      // The editor's own text scale is applied here, below the MediaQuery that
+      // MaterialApp derives from the platform view, so every route and dialog
+      // inherits it. It replaces the platform text scale rather than composing
+      // with it: Flutter exposes no composition API, and the Settings caption
+      // says so. The clamp is defensive - the slider cannot leave 1.0-1.5, but
+      // a stored document could.
+      builder: (context, child) => ListenableBuilder(
+        listenable: _settingsStore.changes,
+        builder: (context, _) {
+          final scale = _settingsStore.preferences.textScale
+              .clamp(kMinAppliedTextScale, kMaxAppliedTextScale)
+              .toDouble();
+          return MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+      ),
       home: BlocProvider<ShellCubit>.value(
         value: _shell,
         child: BlocProvider<SaveSessionCubit>.value(

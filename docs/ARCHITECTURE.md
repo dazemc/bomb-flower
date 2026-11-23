@@ -256,7 +256,7 @@ Eleven tabs, of which seven are real:
 | Equipment | Equipped gear, tiers, condition; unknown actor text is read-only |
 | Resources | Vitals, currency, consumable counts; enforces semantic bounds |
 | Advanced Data | Hex inspection plus editing behind an explicit **Unlock editing** toggle |
-| Settings | Editor preferences held in an in-memory store; not persisted across launches |
+| Settings | Editor preferences persisted per OS user through `shared_preferences`, and applied app-wide: the text scale is a `MediaQuery` override in `MaterialApp.builder` |
 
 No tab renders a read-only **gap panel** any more: Progression and Dungeons
 became editors in `f4e0499`, Collectibles and Flags in `3048558`. The retired
@@ -364,6 +364,7 @@ too, so deleting a layer fails the test.
 | New save-folder entry point | `lib/data/system/` | Typed result, no UI imports |
 | New domain operation | `lib/domain/engine/` | Synthetic-layout test; no `dart:io` |
 | New screen or tab | `lib/presentation/shell/tabs/` and `lib/presentation/bloc/` | Widget test; no `dart:io` |
+| New persisted user preference | JSON in the store at `lib/presentation/settings/`, platform storage behind the pure `PreferencesBackend` port in `lib/domain/preferences/`, implementation in `lib/data/system/` | Round-trip test through a fresh store instance over the same backend |
 | New shared tab control | `lib/presentation/tabs_support/` | Widget test; no filesystem access |
 | New theme token | `lib/presentation/theme/` | Token test in `test/presentation/theme_test.dart` |
 | New reusable widget | `lib/presentation/widgets/` | Widget test in `test/presentation/` |

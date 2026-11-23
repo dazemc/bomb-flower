@@ -7,11 +7,13 @@ import 'data/adapter/progress_field_value_codec.dart';
 import 'data/adapter/progress_layout_builder.dart';
 import 'data/adapter/progress_layout_resolver.dart';
 import 'data/io/file_save_repository.dart';
+import 'data/system/shared_preferences_backend.dart';
 import 'data/system/startup_open.dart';
 import 'domain/core/layout.dart';
 import 'domain/engine/save_engine.dart';
 import 'domain/schema/gamedata_schema.dart';
 import 'presentation/bloc/save_session/save_session_cubit.dart';
+import 'presentation/settings/settings_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,5 +57,18 @@ Future<void> main() async {
     StartupOpenAbsent() => null,
   };
 
-  runApp(BombFlowerApp(session: session, initialOpenPath: initialOpenPath));
+  // Preferences are resolved before the first frame so the applied text scale
+  // is right on the first paint; `open` never throws and falls back to the
+  // defaults when the store is missing or unreadable.
+  final settingsStore = await PersistedSettingsStore.open(
+    const SharedPreferencesBackend(),
+  );
+
+  runApp(
+    BombFlowerApp(
+      session: session,
+      initialOpenPath: initialOpenPath,
+      settingsStore: settingsStore,
+    ),
+  );
 }
