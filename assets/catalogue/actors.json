@@ -1,0 +1,822 @@
+{
+  "bottles": [
+    {
+      "displayName": "Empty Bottle",
+      "kind": "bottle",
+      "labelInferred": false,
+      "name": "Item_Bottle",
+      "section": "Items",
+      "sourceLine": 43,
+      "stackable": true
+    }
+  ],
+  "counts": {
+    "bottles": 1,
+    "equipment": 19,
+    "items": 54,
+    "songs": 12,
+    "total": 86
+  },
+  "equipment": [
+    {
+      "displayName": "Goron Tunic",
+      "kind": "tunic",
+      "labelInferred": false,
+      "name": "Armor_Adult_Goron",
+      "section": "Equipment",
+      "sourceLine": 16,
+      "stackable": false
+    },
+    {
+      "displayName": "Iron Boots",
+      "kind": "boots",
+      "labelInferred": false,
+      "name": "Armor_Adult_HeavyBoot",
+      "section": "Equipment",
+      "sourceLine": 18,
+      "stackable": false
+    },
+    {
+      "displayName": "Hover Boots",
+      "kind": "boots",
+      "labelInferred": false,
+      "name": "Armor_Adult_HoverBoot",
+      "section": "Equipment",
+      "sourceLine": 19,
+      "stackable": false
+    },
+    {
+      "displayName": "Zora Tunic",
+      "kind": "tunic",
+      "labelInferred": false,
+      "name": "Armor_Adult_Zora",
+      "section": "Equipment",
+      "sourceLine": 17,
+      "stackable": false
+    },
+    {
+      "displayName": "Bunny Hood",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Bunny",
+      "section": "Masks",
+      "sourceLine": 49,
+      "stackable": false
+    },
+    {
+      "displayName": "Gerudo Mask",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Gerudo",
+      "section": "Masks",
+      "sourceLine": 52,
+      "stackable": false
+    },
+    {
+      "displayName": "Goron Mask",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Goron",
+      "section": "Masks",
+      "sourceLine": 50,
+      "stackable": false
+    },
+    {
+      "displayName": "Keaton Mask",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Keaton",
+      "section": "Masks",
+      "sourceLine": 46,
+      "stackable": false
+    },
+    {
+      "displayName": "Skull Mask",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Skull",
+      "section": "Masks",
+      "sourceLine": 47,
+      "stackable": false
+    },
+    {
+      "displayName": "Spooky Mask",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Spooky",
+      "section": "Masks",
+      "sourceLine": 48,
+      "stackable": false
+    },
+    {
+      "displayName": "Mask of Truth",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Truth",
+      "section": "Masks",
+      "sourceLine": 53,
+      "stackable": false
+    },
+    {
+      "displayName": "Zora Mask",
+      "kind": "mask",
+      "labelInferred": false,
+      "name": "Armor_Child_Mask_Zora",
+      "section": "Masks",
+      "sourceLine": 51,
+      "stackable": false
+    },
+    {
+      "displayName": "Deku Shield",
+      "kind": "shield",
+      "labelInferred": false,
+      "name": "Weapon_Shield_Deku",
+      "section": "Equipment",
+      "sourceLine": 13,
+      "stackable": false
+    },
+    {
+      "displayName": "Hylian Shield",
+      "kind": "shield",
+      "labelInferred": false,
+      "name": "Weapon_Shield_Hylian",
+      "section": "Equipment",
+      "sourceLine": 14,
+      "stackable": false
+    },
+    {
+      "displayName": "Mirror Shield",
+      "kind": "shield",
+      "labelInferred": false,
+      "name": "Weapon_Shield_Mirror",
+      "section": "Equipment",
+      "sourceLine": 15,
+      "stackable": false
+    },
+    {
+      "displayName": "Biggoron's Sword",
+      "kind": "sword",
+      "labelInferred": false,
+      "name": "Weapon_Sword_Biggoron",
+      "section": "Equipment",
+      "sourceLine": 12,
+      "stackable": false
+    },
+    {
+      "displayName": "Giant's Knife",
+      "kind": "sword",
+      "labelInferred": false,
+      "name": "Weapon_Sword_Giant",
+      "section": "Equipment",
+      "sourceLine": 11,
+      "stackable": false
+    },
+    {
+      "displayName": "Kokiri Sword",
+      "kind": "sword",
+      "labelInferred": false,
+      "name": "Weapon_Sword_Kokiri",
+      "section": "Equipment",
+      "sourceLine": 9,
+      "stackable": false
+    },
+    {
+      "displayName": "Master Sword",
+      "kind": "sword",
+      "labelInferred": false,
+      "name": "Weapon_Sword_Master",
+      "section": "Equipment",
+      "sourceLine": 10,
+      "stackable": false
+    }
+  ],
+  "items": [
+    {
+      "displayName": "Golden Gauntlets",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Armor_Adult_Gauntlet_Gold",
+      "section": "Upgrades",
+      "sourceLine": 57,
+      "stackable": false
+    },
+    {
+      "displayName": "Silver Gauntlets",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Armor_Adult_Gauntlet_Silver",
+      "section": "Upgrades",
+      "sourceLine": 56,
+      "stackable": false
+    },
+    {
+      "displayName": "Stone of Agony",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_AgonyStone",
+      "section": "Quest",
+      "sourceLine": 96,
+      "stackable": false
+    },
+    {
+      "displayName": "Fire Arrow",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Arrow_Fire",
+      "section": "Items",
+      "sourceLine": 29,
+      "stackable": false
+    },
+    {
+      "displayName": "Ice Arrow",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Arrow_Ice",
+      "section": "Items",
+      "sourceLine": 30,
+      "stackable": false
+    },
+    {
+      "displayName": "Light Arrow",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Arrow_Light",
+      "section": "Items",
+      "sourceLine": 31,
+      "stackable": false
+    },
+    {
+      "displayName": "Arrows",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Arrow_Normal",
+      "section": "Items",
+      "sourceLine": 28,
+      "stackable": true
+    },
+    {
+      "displayName": "Bombs",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Bomb",
+      "section": "Items",
+      "sourceLine": 23,
+      "stackable": true
+    },
+    {
+      "displayName": "Biggest Bomb Bag",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_BombBag_Large",
+      "section": "Upgrades",
+      "sourceLine": 62,
+      "stackable": false
+    },
+    {
+      "displayName": "Big Bomb Bag",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_BombBag_Medium",
+      "section": "Upgrades",
+      "sourceLine": 61,
+      "stackable": false
+    },
+    {
+      "displayName": "Bomb Bag",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_BombBag_Small",
+      "section": "Upgrades",
+      "sourceLine": 60,
+      "stackable": false
+    },
+    {
+      "displayName": "Bombchus",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Bombchu",
+      "section": "Items",
+      "sourceLine": 24,
+      "stackable": true
+    },
+    {
+      "displayName": "Boomerang",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Boomerang",
+      "section": "Items",
+      "sourceLine": 39,
+      "stackable": false
+    },
+    {
+      "displayName": "Biggest Bullet Bag",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_BulletBag_Large",
+      "section": "Upgrades",
+      "sourceLine": 68,
+      "stackable": false
+    },
+    {
+      "displayName": "Big Bullet Bag",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_BulletBag_Medium",
+      "section": "Upgrades",
+      "sourceLine": 67,
+      "stackable": false
+    },
+    {
+      "displayName": "Bullet Bag",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_BulletBag_Small",
+      "section": "Upgrades",
+      "sourceLine": 66,
+      "stackable": false
+    },
+    {
+      "displayName": "Deku Nuts",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_DekuNut",
+      "section": "Items",
+      "sourceLine": 22,
+      "stackable": true
+    },
+    {
+      "displayName": "Deku Seeds",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_DekuSeed",
+      "section": "Items",
+      "sourceLine": 26,
+      "stackable": true
+    },
+    {
+      "displayName": "Deku Sticks",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_DekuStick",
+      "section": "Items",
+      "sourceLine": 21,
+      "stackable": true
+    },
+    {
+      "displayName": "Din's Fire",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_DinFire",
+      "section": "Items",
+      "sourceLine": 32,
+      "stackable": false
+    },
+    {
+      "displayName": "Double Defense",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_FairyBless_DefenseDouble",
+      "section": "Upgrades",
+      "sourceLine": 73,
+      "stackable": false
+    },
+    {
+      "displayName": "Magic Meter",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_FairyBless_MP",
+      "section": "Upgrades",
+      "sourceLine": 71,
+      "stackable": false
+    },
+    {
+      "displayName": "Double Magic",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_FairyBless_MPDouble",
+      "section": "Upgrades",
+      "sourceLine": 72,
+      "stackable": false
+    },
+    {
+      "displayName": "Farore's Wind",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_FaroreWind",
+      "section": "Items",
+      "sourceLine": 33,
+      "stackable": false
+    },
+    {
+      "displayName": "Goron's Bracelet",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Gauntlet_Goron",
+      "section": "Upgrades",
+      "sourceLine": 55,
+      "stackable": false
+    },
+    {
+      "displayName": "Lens of Truth",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_GlassTruth",
+      "section": "Items",
+      "sourceLine": 40,
+      "stackable": false
+    },
+    {
+      "displayName": "Megaton Hammer",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Hammer",
+      "section": "Items",
+      "sourceLine": 42,
+      "stackable": false
+    },
+    {
+      "displayName": "Hookshot",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Hookshot",
+      "section": "Items",
+      "sourceLine": 37,
+      "stackable": false
+    },
+    {
+      "displayName": "Longshot",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Longshot",
+      "section": "Items",
+      "sourceLine": 38,
+      "stackable": false
+    },
+    {
+      "displayName": "Magic Beans",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_MagicBean",
+      "section": "Items",
+      "sourceLine": 41,
+      "stackable": true
+    },
+    {
+      "displayName": "Fire Medallion",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Medal_Fire",
+      "section": "Quest",
+      "sourceLine": 79,
+      "stackable": false
+    },
+    {
+      "displayName": "Forest Medallion",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Medal_Forest",
+      "section": "Quest",
+      "sourceLine": 78,
+      "stackable": false
+    },
+    {
+      "displayName": "Light Medallion",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Medal_Light",
+      "section": "Quest",
+      "sourceLine": 83,
+      "stackable": false
+    },
+    {
+      "displayName": "Shadow Medallion",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Medal_Shadow",
+      "section": "Quest",
+      "sourceLine": 81,
+      "stackable": false
+    },
+    {
+      "displayName": "Spirit Medallion",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Medal_Spirit",
+      "section": "Quest",
+      "sourceLine": 82,
+      "stackable": false
+    },
+    {
+      "displayName": "Water Medallion",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Medal_Water",
+      "section": "Quest",
+      "sourceLine": 80,
+      "stackable": false
+    },
+    {
+      "displayName": "Nayru's Love",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_NayruLove",
+      "section": "Items",
+      "sourceLine": 34,
+      "stackable": false
+    },
+    {
+      "displayName": "Fairy Ocarina",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Ocarina_Fairy",
+      "section": "Items",
+      "sourceLine": 35,
+      "stackable": false
+    },
+    {
+      "displayName": "Ocarina of Time",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_Ocarina_Time",
+      "section": "Items",
+      "sourceLine": 36,
+      "stackable": false
+    },
+    {
+      "displayName": "Biggest Quiver",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Quiver_Large",
+      "section": "Upgrades",
+      "sourceLine": 65,
+      "stackable": false
+    },
+    {
+      "displayName": "Big Quiver",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Quiver_Medium",
+      "section": "Upgrades",
+      "sourceLine": 64,
+      "stackable": false
+    },
+    {
+      "displayName": "Quiver",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Quiver_Small",
+      "section": "Upgrades",
+      "sourceLine": 63,
+      "stackable": false
+    },
+    {
+      "displayName": "Golden Scale",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Scale_Gold",
+      "section": "Upgrades",
+      "sourceLine": 59,
+      "stackable": false
+    },
+    {
+      "displayName": "Silver Scale",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Scale_Silver",
+      "section": "Upgrades",
+      "sourceLine": 58,
+      "stackable": false
+    },
+    {
+      "displayName": "Goron's Ruby",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Stone_Fire",
+      "section": "Quest",
+      "sourceLine": 76,
+      "stackable": false
+    },
+    {
+      "displayName": "Kokiri's Emerald",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Stone_Forest",
+      "section": "Quest",
+      "sourceLine": 75,
+      "stackable": false
+    },
+    {
+      "displayName": "Zora's Sapphire",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Stone_Water",
+      "section": "Quest",
+      "sourceLine": 77,
+      "stackable": false
+    },
+    {
+      "displayName": "Gerudo's Card",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Token_Gerudo",
+      "section": "Quest",
+      "sourceLine": 97,
+      "stackable": false
+    },
+    {
+      "displayName": "Gold Skulltula Tokens",
+      "kind": "quest",
+      "labelInferred": false,
+      "name": "Item_Token_Gold",
+      "section": "Quest",
+      "sourceLine": 98,
+      "stackable": true
+    },
+    {
+      "displayName": "Giant's Wallet",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Wallet_Large",
+      "section": "Upgrades",
+      "sourceLine": 70,
+      "stackable": false
+    },
+    {
+      "displayName": "Adult's Wallet",
+      "kind": "upgrade",
+      "labelInferred": false,
+      "name": "Item_Wallet_Medium",
+      "section": "Upgrades",
+      "sourceLine": 69,
+      "stackable": false
+    },
+    {
+      "displayName": "Zelda's Letter",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Item_ZeldaLetter",
+      "section": "Items",
+      "sourceLine": 44,
+      "stackable": false
+    },
+    {
+      "displayName": "Fairy Bow",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Weapon_Range_Bow",
+      "section": "Items",
+      "sourceLine": 27,
+      "stackable": false
+    },
+    {
+      "displayName": "Fairy Slingshot",
+      "kind": "item",
+      "labelInferred": false,
+      "name": "Weapon_Range_SlingShot",
+      "section": "Items",
+      "sourceLine": 25,
+      "stackable": false
+    }
+  ],
+  "provenance": {
+    "classification": {
+      "bottles": "the Item_Bottle row",
+      "equipment": "OOT_SECTION Equipment and Masks; kind is sword, shield, tunic, boots or mask",
+      "items": "OOT_SECTION Items except Item_Bottle, all of Upgrades, and Quest rows other than the twelve melodies",
+      "songs": "Quest rows named Item_Melody_*"
+    },
+    "excluded": [
+      "OOT_CHEAT_ITEM_PROBES spellings are unverified guesses and are not accepted names; the game logs them to check the real spelling.",
+      "The N64 ItemID catalogue (items.json) is not applicable to Longshot and is not imported."
+    ],
+    "game": {
+      "build": "e0f3ccfa",
+      "program": "0400486024DEC000",
+      "title": "The Legend of Zelda: Ocarina of Time (Nintendo Switch 2)",
+      "version": "131072"
+    },
+    "generatedBy": "tool/gen_catalogues.dart",
+    "labelPolicy": "displayName is the first OOT_ITEM argument, so labelInferred is false for every row. If a label were absent the generator would use the exact game string with underscores replaced by spaces and set labelInferred true.",
+    "notVerified": [
+      "Whether the save container accepts every one of these strings in every slot is not proven by the header alone",
+      "Display labels are the inventory editor labels, not game-localized message text"
+    ],
+    "source": {
+      "id": "longshot-cheat-items",
+      "lines": "1-110",
+      "path": "Longshot:gpu/vk/oot_cheat_items.h",
+      "usedFor": "the 86 OOT_ITEM(label, pouch name, kind) rows shared by the inventory editor and the game side"
+    },
+    "title": "Longshot actor/item name catalogue"
+  },
+  "songs": [
+    {
+      "displayName": "Epona's Song",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_EponaSong",
+      "section": "Quest",
+      "sourceLine": 85,
+      "stackable": false
+    },
+    {
+      "displayName": "Bolero of Fire",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_FireBolero",
+      "section": "Quest",
+      "sourceLine": 91,
+      "stackable": false
+    },
+    {
+      "displayName": "Minuet of Forest",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_ForestMinuet",
+      "section": "Quest",
+      "sourceLine": 90,
+      "stackable": false
+    },
+    {
+      "displayName": "Prelude of Light",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_LightPrelude",
+      "section": "Quest",
+      "sourceLine": 95,
+      "stackable": false
+    },
+    {
+      "displayName": "Saria's Song",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_SariaSong",
+      "section": "Quest",
+      "sourceLine": 86,
+      "stackable": false
+    },
+    {
+      "displayName": "Nocturne of Shadow",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_ShadowNocturne",
+      "section": "Quest",
+      "sourceLine": 93,
+      "stackable": false
+    },
+    {
+      "displayName": "Requiem of Spirit",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_SpiritRequiem",
+      "section": "Quest",
+      "sourceLine": 94,
+      "stackable": false
+    },
+    {
+      "displayName": "Song of Storms",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_StormSong",
+      "section": "Quest",
+      "sourceLine": 89,
+      "stackable": false
+    },
+    {
+      "displayName": "Sun's Song",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_SunSong",
+      "section": "Quest",
+      "sourceLine": 87,
+      "stackable": false
+    },
+    {
+      "displayName": "Song of Time",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_TimeSong",
+      "section": "Quest",
+      "sourceLine": 88,
+      "stackable": false
+    },
+    {
+      "displayName": "Serenade of Water",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_WaterSerenade",
+      "section": "Quest",
+      "sourceLine": 92,
+      "stackable": false
+    },
+    {
+      "displayName": "Zelda's Lullaby",
+      "kind": "song",
+      "labelInferred": false,
+      "name": "Item_Melody_ZeldaLullaby",
+      "section": "Quest",
+      "sourceLine": 84,
+      "stackable": false
+    }
+  ]
+}
