@@ -21,3 +21,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/schema/
+    - assets/world/
+    - assets/catalogue/
+    - assets/fields/
