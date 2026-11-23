@@ -25,10 +25,15 @@
 ///   borders, and the disabled toggle/checkbox/slider stone are not asserted.
 /// * Purely ornamental rules are excluded: `divider` on parchment inside a
 ///   `ParchmentPanel` (parchment_panel.dart:147,152), the brass double rule
-///   (section_header.dart:155), and the carved wood hairlines
-///   (file_action_bar.dart:269, app_title_bar.dart window-button borders).
-///   They group content but do not identify a control; the panel's own
-///   `stone` border does that job and is asserted.
+///   (section_header.dart:155), the brass thumb's engraved inner rim over
+///   brassDeep (brass_toggle.dart:316, 2.12:1) and the primary button's
+///   brassInk hairline over brassDeep (brass_button.dart:245, 2.12:1). They
+///   group content or add depth but do not identify a control; the panel
+///   `stone` border and the brass fill do that job and are asserted.
+/// * The wood hairlines in the title bar are also ornamental: the action
+///   button border (file_action_bar.dart:252, woodLight on wood, 1.46:1) and
+///   the window-button hover fills (app_title_bar.dart:435-443). The bone
+///   glyphs inside them are asserted at 3:1 and identify the controls.
 /// * Two real sites remain unfixed because their files belong to another lane;
 ///   they are reported, not asserted, so this guard stays green on this
 ///   worktree: the primary focus ring `focusOnLight` on the canopy
@@ -1137,16 +1142,16 @@ final List<_Pair> _paintedPairs = <_Pair>[
     _TextClass.component,
   ),
   const _Pair(
-    'brass_toggle.dart:316 check glyph',
-    BombFlowerColors.brassInk,
-    BombFlowerColors.parchmentSunken,
-    _TextClass.component,
-  ),
-  const _Pair(
     'rune_checkbox.dart:67 checkbox label (label 12)',
     BombFlowerColors.ink,
     BombFlowerColors.parchment,
     _TextClass.normal,
+  ),
+  const _Pair(
+    'rune_checkbox.dart:221 checked glyph',
+    BombFlowerColors.brassInk,
+    BombFlowerColors.parchmentRaised,
+    _TextClass.component,
   ),
   const _Pair(
     'rune_checkbox.dart:212 checkbox border',
