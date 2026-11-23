@@ -9,6 +9,16 @@ been tested in-game. The production codecs and the engine can read the bytes,
 but that is not the same as Ocarina of Time loading them. Treat a created save
 as a format experiment until an in-game test has been recorded.
 
+Template mode is the **game-verified creation path**. Cloning `slot_00` and
+changing only `PlayerStatus.Life` (hash `0x31ab5580`, value at offset 82516)
+from `10 00 00 00` to `0c 00 00 00` produced a one-byte `cmp -l` diff
+(`82517 20 14`), an unchanged 122,852-byte length, a byte-identical caption,
+the Continue prompt with one Load row, and the game reached `state=play` at
+`HyruleField_Child` with `life 12 / max_life 16`. That verification is limited
+to cloning a slot the game already accepts: the mode applies only
+length-preserving overrides and cannot invent a save from nothing, so it does
+not upgrade the synthesised-defaults warning above.
+
 ## What is created
 
 A successful run writes:
