@@ -105,13 +105,20 @@ During development, a display-backed run is `flutter run -d linux`.
 
 ## Creating a save
 
-The new-save path is `tool/create_save.dart`, not a UI action:
+A new save has two entry points, and they share one implementation:
+
+- the CLI, `dart run tool/create_save.dart --out /tmp/new-save`;
+- the in-app dialog, opened from the title bar's `New save…` action or the
+  no-save empty state's `Create new save` link.
+
+Both run the same `NewSaveBuilder` + `NewSaveWriter`. The dialog asks before
+replacing a non-empty folder and keeps `.bak` copies.
 
 ```sh
 dart run tool/create_save.dart --out /tmp/new-save
 ```
 
-It writes `/tmp/new-save/slot_00/progress.sav` (120,572 bytes) and
+The CLI writes `/tmp/new-save/slot_00/progress.sav` (120,572 bytes) and
 `caption.sav` (2,029 bytes with the built-in 633-byte JPEG), then decodes both
 with the production codecs. It refuses a non-empty destination unless
 `--allow-overwrite` is passed. The complete options and the byte-level checks

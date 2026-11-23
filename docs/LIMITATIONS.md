@@ -7,9 +7,13 @@ Status is as of 2026-11-22, shipped tip `1b387db`. The recorded gate is commit
 `491fa3d`: `flutter analyze` reports 0 issues (exit 0) and `flutter test`
 reports `+880 ~8 -0`. A local run at `1b387db` reports `No issues found!` and
 `+896 ~2: All tests passed!` (the preceding tip `ffa8359` measured `+894 ~2`).
-Two `skip:` stubs remain in
-`test/domain/engine/roundtrip_invariants_test.dart`. Check `git log` and the
-current test output before relying on any statement.
+Nothing is skipped in the default run: a full run at
+`4562298` reports `No issues found!` and `+1131 ~0 -0`, and
+`test/domain/engine/roundtrip_invariants_test.dart` asserts byte-identical
+reserialisation of two real played slots on every run instead of skipping. What
+remains is acceptance, not coverage: one scalar edit has ever loaded and no
+created save has (section 2). Check `git log` and the current test output before
+relying on any statement.
 
 ## 1. The format has no confirmed checksum
 
@@ -151,8 +155,13 @@ N64 scene ids into a remake save. Treat an unobserved map as a warning.
 upstream maintenance is uncertain. A future Flutter or GTK change can break the
 build or the window controls. This is build risk, not save-format risk.
 
-**Mitigation.** Keep the dependency isolated to `lib/main.dart`, the title bar,
-and the two lines in `linux/runner/my_application.cc`. Pin the version. Keep
+**Mitigation.** The dependency is pinned at `^0.1.6` and already spans more
+than the title bar: `lib/main.dart`, `lib/app.dart`, the title bar
+(`lib/presentation/widgets/chrome/app_title_bar.dart`), and
+`lib/presentation/dialogs/open_save_browser.dart` import it, while
+`linux/runner/my_application.cc` carries the include plus
+`bitsdojo_window_from` / `setCustomFrame(true)` (three physical lines). Do not
+spread it further and do not upgrade it casually. Keep
 `BombFlowerApp(enableWindowChrome: false)` working so widget tests never depend
 on native chrome. Plan a replacement before it blocks a Flutter upgrade.
 

@@ -18,7 +18,7 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 
 ## Tests
 
-- 103 `*_test.dart` files under `test/` (114 Dart files on disk here, 113 tracked), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
+- 105 `*_test.dart` files under `test/` (116 Dart files on disk here, 113 tracked; the three untracked ones are `test/e2e/` and `test/audit/tab_content_test.dart`), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
 - One file: `flutter test test/data/progress_codec_test.dart`. One test: `flutter test test/architecture/layering_test.dart --plain-name 'domain is pure Dart'`.
 - Slowest: every test in `test/presentation/dialogs/open_save_picker_test.dart` and `open_save_dialog_test.dart` sets `Timeout(Duration(seconds: 30))`.
 - `.local-fixtures/` is gitignored yet present here (3 scrubbed samples + `real/`), rebuilt by `dart run tool/make_fixtures.dart`; where it is absent the fixture groups skip, and a lower `+N` with a higher `~N` is not a failure. Override with `BOMB_FLOWER_LONGSHOT_SAVES` / `BOMB_FLOWER_REAL_SAVES`.
@@ -30,7 +30,7 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 
 - `flutter run -d linux`, or `flutter build linux --debug` then `./build/linux/x64/debug/bundle/bomb_flower` (the release bundle drops `/debug/`). Run from `bundle/`, never an intermediate `build/` dir.
 - Headless smoke test, where exit `124` means it stayed alive and therefore passed: `xvfb-run -a --server-args='-screen 0 1400x900x24' timeout 15 ./build/linux/x64/debug/bundle/bomb_flower`
-- `linux/runner/my_application.cc` commits two `bitsdojo_window` lines (the include and `setCustomFrame(true)`); regenerating `linux/` drops them and the window reverts to a native frame.
+- `linux/runner/my_application.cc` commits four `bitsdojo_window` lines (the include, a comment, `bitsdojo_window_from(window)` and `setCustomFrame(true)`); regenerating `linux/` drops them and the window reverts to a native frame.
 - New save has two entry points: the CLI `dart run tool/create_save.dart --out /tmp/new-save`, and an in-app dialog reachable from the title bar's `New save…` action and the no-save empty state's `Create new save` link. Both run the same `NewSaveBuilder` + `NewSaveWriter`, which writes one fixed `slot_00` pair (a 120,572-byte `progress.sav` plus `caption.sav`), asks before replacing a non-empty folder and keeps `.bak` copies, and **no created save has been loaded by the game**.
 
 ## Architecture
@@ -68,7 +68,7 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 
 ## Conventions that differ from defaults
 
-- Mandated packages: `flutter_bloc` ^9.1.1, `equatable` ^2.1.0, `material_ui` ^1.1.0, `bitsdojo_window` ^0.1.6 (unmaintained — keep it confined to `main.dart`, the title bar, and the two `linux/runner` lines).
+- Mandated packages: `flutter_bloc` ^9.1.1, `equatable` ^2.1.0, `material_ui` ^1.1.0, `bitsdojo_window` ^0.1.6 (unmaintained, pinned: imported by `lib/main.dart`, `lib/app.dart`, the title bar (`lib/presentation/widgets/chrome/app_title_bar.dart`), and `lib/presentation/dialogs/open_save_browser.dart`, plus the `linux/runner/my_application.cc` include and its `bitsdojo_window_from` / `setCustomFrame(true)` calls — do not spread it further, and do not upgrade it casually).
 - Human directive: prefer a maintained third-party package over hand-rolled infrastructure, but never for save bytes, which stay owned in-repo.
 - Conventional Commits with a scope, one concern per commit — `feat(ui):`, `fix(app):`, `fix(adapter):`, `test(ui):`, `docs:`; scopes in use include `ui`, `app`, `adapter`, `codec`, `engine`, `newsave`, `tabs`, `theme`, `tool`.
 - Stage only your own paths, never `git add -A`; branch `main`, remote `origin`; no force-push, no rebasing published history, no amending pushed commits.
