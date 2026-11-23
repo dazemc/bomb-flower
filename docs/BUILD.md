@@ -48,19 +48,21 @@ flutter test
 ```
 
 `flutter analyze` is expected to report `No issues found!`. `flutter test` runs
-the committed suite. The last recorded gate, at commit `491fa3d` with the local
-sample fixtures present, is `+880 ~8 -0` with analyze at 0 issues and exit 0.
-The shipped tip `ffa8359` adds the comparison dialog and the honest footer
-count on top of that gate; it has no separately recorded run. Two `skip:` stubs
-remain in `test/domain/engine/roundtrip_invariants_test.dart`; the real-format
-behaviour they describe is covered by `test/data/adapter/` and
-`test/integration/`. Codec and integration tests that need the samples skip
-automatically when `.local-fixtures/` is absent, so a run without fixtures has
-more skips and a lower pass count; that is not a failure.
+the committed suite. The recorded gate, at commit `491fa3d` with the local
+sample fixtures present, is `+880 ~8 -0` with analyze at 0 issues and exit 0. A
+local run at the shipped tip `1b387db` reports `No issues found!` and
+`+896 ~2: All tests passed!` (the preceding tip `ffa8359` measured `+894 ~2`).
+Two `skip:` stubs remain in
+`test/domain/engine/roundtrip_invariants_test.dart`; the real-format behaviour
+they describe is covered by `test/data/adapter/` and `test/integration/`. Codec
+and integration tests that need the samples skip automatically when
+`.local-fixtures/` is absent, so a run without fixtures has more skips and a
+lower pass count; that is not a failure.
 
-On a real sample the status footer reports `11 warnings · 8328 informational
-notes`: eleven `field.out_of_range` results on sentinel values inside signed
-int32 fields and 8,328 `field.unverified` records. A successful build or
+On a single-slot real sample the status footer reports no actionable warnings
+and `8,328 informational notes` (8,325 `field.unverified` plus 3 caption
+records); a six-slot folder totals 49,968. The former eleven sentinel
+`field.out_of_range` warnings were removed by `1b387db`. A successful build or
 analyzer run says nothing about those save-level results.
 
 ## Build

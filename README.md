@@ -28,14 +28,14 @@ tests are committed; a gap is listed with the reason it remains a gap.
 | Edited save loads in game | One external E2E run: a 2-byte `Life`/`MaxLife` edit produced 4 hearts | one-off run, not CI |
 | Created save loads in game | **Unproven** | no in-game test has been run |
 | Original/edited comparison | Read-only **Compare** dialog: changed fields and byte spans, original vs current, one slot at a time | `compare_save_dialog.dart` |
-| Validation footer | A real save reports **11 warnings · 8328 informational notes**: 11 `field.out_of_range` on `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values inside signed int32 fields, and 8,328 `field.unverified` | status footer on a real sample |
+| Validation footer | On a single-slot real sample: **no actionable warnings**, **8,328 informational notes** (8,325 field + 3 caption `field.unverified`). `1b387db` removed the former 11 sentinel `field.out_of_range` warnings | status footer; `1b387db` |
 | Windows and macOS builds | Not supported | Linux-only verification |
 
 Gate at commit `491fa3d`: `flutter analyze` → 0 issues, exit 0;
 `flutter test` → `+880 ~8 -0`; `flutter build linux --debug` → ok, 47,848 B
-launcher, ~139 MB bundle. The shipped tip `ffa8359` (comparison dialog and the
-honest footer count) has no separately recorded gate of its own. The suite still
-declares two `skip:` stubs in
+launcher. A local run at the shipped tip `1b387db` reports `No issues found!`
+and `+896 ~2: All tests passed!` (the preceding tip `ffa8359` measured
+`+894 ~2`). The suite still declares two `skip:` stubs in
 `test/domain/engine/roundtrip_invariants_test.dart`; real-format coverage lives
 in `test/data/adapter/` and `test/integration/`.
 

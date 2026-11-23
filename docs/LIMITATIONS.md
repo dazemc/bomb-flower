@@ -3,10 +3,11 @@
 This document lists what Bomb Flower cannot yet prove or do. An unlisted
 limitation is a documentation bug, not a feature.
 
-Status is as of 2026-11-22, shipped tip `ffa8359`. The last recorded gate is
-commit `491fa3d`: `flutter analyze` reports 0 issues (exit 0) and `flutter test`
-reports `+880 ~8 -0`. The comparison and footer work at `ffa8359` sits on top of
-that gate without a separately recorded run. Two `skip:` stubs remain in
+Status is as of 2026-11-22, shipped tip `1b387db`. The recorded gate is commit
+`491fa3d`: `flutter analyze` reports 0 issues (exit 0) and `flutter test`
+reports `+880 ~8 -0`. A local run at `1b387db` reports `No issues found!` and
+`+896 ~2: All tests passed!` (the preceding tip `ffa8359` measured `+894 ~2`).
+Two `skip:` stubs remain in
 `test/domain/engine/roundtrip_invariants_test.dart`. Check `git log` and the
 current test output before relying on any statement.
 
@@ -30,12 +31,14 @@ records (11,925 fields, 32 sentinels, one footer), and a pointer-referenced
 tail. Real played saves carry 280–608 trailing bytes after the footer value, so
 even file length is not a reliable integrity signal.
 
-**Validation output is not silent.** On a real sample the status footer reports
-**11 warnings · 8328 informational notes**: eleven `field.out_of_range` results
-on `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values stored inside signed int32 fields,
-and 8,328 `field.unverified` records. Those results are shown, not suppressed.
-They describe what the schema and bounds checks found; they are not an integrity
-verdict, and a tidy-looking file can still be semantically wrong.
+**Validation output is not silent.** On a single-slot real sample the status
+footer reports no actionable warnings and **8,328 informational notes**: 8,325
+`field.unverified` records plus 3 from the caption file. A six-slot folder
+totals 49,968 notes. The former eleven `field.out_of_range` results on
+`0xFFFFFFFF`/`0xFFFFFFFB` sentinel values were a signed-`Int` decoding bug and
+are gone since `1b387db`. Those results describe what the schema and bounds
+checks found; they are not an integrity verdict, and a tidy-looking file can
+still be semantically wrong.
 
 ## 2. Edited-save acceptance is one scalar case; created-save acceptance is unproven
 

@@ -289,11 +289,13 @@ coalesced changed byte spans. It computes from the in-memory open-time original
 (also mirrored to the sidecar on export); it never writes and it never accepts
 or rejects a change.
 
-The status footer reports validation results instead of hiding them. On a real
-sample it shows **11 warnings · 8328 informational notes**: eleven
-`field.out_of_range` results on `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values inside
-signed int32 fields, and 8,328 `field.unverified` records (the unnamed fields).
-Neither group blocks an export by itself, and neither is silent.
+The status footer reports validation results instead of hiding them. On a
+single-slot real sample it shows no actionable warnings and **8,328
+informational notes** (8,325 `field.unverified` records plus 3 caption records);
+a six-slot folder totals 49,968. `1b387db` removed the former eleven
+`field.out_of_range` results by decoding signed `Int` fields before range
+validation, so the `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values are no longer
+misreported. Neither group blocks an export, and neither is silent.
 
 ## Compatibility gate
 
@@ -433,7 +435,7 @@ without a save backend: every action returns a typed error instead of throwing.
 - Two declared invariants — `(a)` zero-edit round-trip and `(b)` exact
   edit-span equivalence — are still stubs with a `skip:` in
   `test/domain/engine/roundtrip_invariants_test.dart`; do not report them as
-  passing. The gate at commit `491fa3d` reports `+880 ~8 -0`, and the shipped
-  tip `ffa8359` adds the comparison and footer work on top of that gate. The
+  passing. The recorded gate at commit `491fa3d` reports `+880 ~8 -0`; a local
+  run at the shipped tip `1b387db` reports `+896 ~2` with analyze clean. The
   real-format behaviour the stubs describe is exercised by the adapter and
   integration tests above, not by that file.
