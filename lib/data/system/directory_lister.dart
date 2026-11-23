@@ -34,7 +34,7 @@ final class DirectoryEntry {
   /// Whether the basename matches `^slot_\d{2}$`.
   final bool isSlotDirectory;
 
-  /// Whether this directory has a `slot_NN/progress.sav` child.
+  /// Whether a child directory directly holds `progress.sav`.
   final bool containsSlots;
 
   /// Whether `progress.sav` sits directly inside this directory.
@@ -63,17 +63,20 @@ final class DirectoryListing {
   /// Reader-facing failure, or `null` when [entries] is authoritative.
   final String? error;
 
-  /// Names of the immediate `slot_NN` children that hold `progress.sav`.
+  /// Names of the immediate child directories that hold `progress.sav`.
+  ///
+  /// Slot identity is the file, never a `slot_NN` name: a slot folder with an
+  /// unrelated name still counts.
   List<String> get slotNames => <String>[
     for (final entry in entries)
-      if (entry.isSlotDirectory && entry.hasProgressSave) entry.name,
+      if (entry.hasProgressSave) entry.name,
   ];
 
   /// Whether this directory directly contains an openable save slot.
   ///
-  /// A bare `slot_NN` folder is not enough: the app's save root check requires
-  /// `slot_NN/progress.sav`, so Open must not offer a folder the app will
-  /// refuse.
+  /// A bare folder named like a slot is not enough: the app's save root check
+  /// requires `<slot>/progress.sav`, so Open must not offer a folder the app
+  /// will refuse.
   bool get isProfile => slotNames.isNotEmpty;
 }
 
@@ -126,9 +129,9 @@ final class IoDirectoryLister implements DirectoryLister {
         );
       }
 
-      final children = await Directory(
-        normalized,
-      ).list(followLinks: false).toList();
+      final children = await Directory(normalized)
+          .list(followLinks: false)
+          .toList();
       final visible = includeHidden
           ? children
           : children
@@ -185,27 +188,33 @@ final class IoDirectoryLister implements DirectoryLister {
     );
   }
 
-  /// Probes `slot_00`..`slot_09`, stopping at the first slot with a save.
+  /// Whether any immediate child directory holds `progress.sav`.
+  ///
+  /// One pass over the directory: slots are identified by the file, never by a
+  /// `slot_NN` name. An unreadable child is not evidence either way.
   Future<bool> _containsSlot(String directory) async {
-    for (var index = 0; index < 10; index++) {
-      final slot = 'slot_${index.toString().padLeft(2, '0')}';
-      final candidate = '$directory${Platform.pathSeparator}$slot';
-      try {
-        if (await _hasProgressSave(candidate)) {
+    try {
+      await for (final entity in Directory(
+        directory,
+      ).list(followLinks: false)) {
+        final type = await FileSystemEntity.type(entity.path);
+        if (type != FileSystemEntityType.directory) {
+          continue;
+        }
+        if (await _hasProgressSave(entity.path)) {
           return true;
         }
-      } catch (_) {
-        // One unreadable candidate is not evidence of an openable slot.
       }
+    } on FileSystemException {
+      // An unreadable directory is not evidence of an openable slot.
     }
     return false;
   }
 
   Future<bool> _hasProgressSave(String directory) async {
     try {
-      return await File(
-        '$directory${Platform.pathSeparator}$progressSaveName',
-      ).exists();
+      return await File('$directory${Platform.pathSeparator}$progressSaveName')
+          .exists();
     } catch (_) {
       return false;
     }

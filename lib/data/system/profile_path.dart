@@ -3,16 +3,18 @@
 /// This is the only place the open flow's path rules touch the filesystem, and
 /// they do it through [DirectoryLister] so the same rules run against a fake in
 /// tests. Nothing here throws: a bad path is [ProfilePathRejected] with a short,
-/// user-facing reason, and an unreadable folder is [ProfilePathUnreadable].
+/// user-facing reason, an unreadable folder is [ProfilePathUnreadable], and
+/// several candidate roots are [ProfilePathAmbiguous], never a guess.
 library;
 
 import 'dart:io';
 
 import 'directory_lister.dart';
 
-/// The folder shape the open form expects, named in every refusal.
+/// The save-root shapes the open form accepts, named in its refusals.
 const String profileFolderShape =
-    'a profile folder containing slot_NN/progress.sav';
+    'a progress.sav file path, a slot folder, a profile folder, or a save '
+    'root holding profiles';
 
 /// XDG variable that names the data root on Linux.
 const String _xdgDataHomeVariable = 'XDG_DATA_HOME';
@@ -53,16 +55,44 @@ final class ProfilePathUnreadable extends ProfilePathResolution {
   final String message;
 }
 
-/// A slot directory name, for example `slot_03`.
-final RegExp _slotFolderName = RegExp(r'^slot_\d{2}$');
+/// More than one profile folder sits directly under the typed save root.
+final class ProfilePathAmbiguous extends ProfilePathResolution {
+  /// Creates an ambiguous result with the [candidates] to choose from.
+  const ProfilePathAmbiguous(this.candidates);
+
+  /// Openable profile folders, sorted by path and unmodifiable.
+  ///
+  /// Never a slot folder: each candidate is a root whose child holds
+  /// `progress.sav`.
+  final List<String> candidates;
+}
+
+/// Deepest directory level below the typed path the scouting scan opens.
+const int _scanDepth = 3;
+
+/// Most directories the scouting scan opens before giving up.
+const int _scanDirectoryBudget = 64;
 
 /// Resolves [rawPath] into an openable save root through [lister].
 ///
-/// Rules, in order: a `slot_NN` basename, or a folder holding `progress.sav`
-/// directly, means the parent is the root; a folder holding any
-/// `slot_NN/progress.sav` child is the root; anything else is
-/// [ProfilePathRejected] naming [profileFolderShape], and an unreadable path is
-/// [ProfilePathUnreadable] with the lister's own message.
+/// The result is always the *profile folder* — the save root whose immediate
+/// child holds `progress.sav` — never a slot folder, because that is what the
+/// session opens.
+///
+/// Four typed shapes are accepted: a `progress.sav` file path, a slot folder
+/// that directly holds `progress.sav`, a profile folder, or a bare save root
+/// whose child profiles are discovered. A slot is identified by holding
+/// `progress.sav`, never by a `slot_NN`-shaped name.
+///
+/// Discovery beneath a save root is bounded: three directory levels below the
+/// typed folder and 64 listed directories, directories only and without
+/// following links, so a mistaken `~` cannot walk a home directory. Rules, in
+/// order: an empty path is [ProfilePathRejected]; a file path lists its slot
+/// folder; a slot folder lists its profile; a profile is itself; a bare root
+/// with one profile is that profile, with several is
+/// [ProfilePathAmbiguous] (sorted candidates), and with none is rejected by
+/// name. An unreadable folder is [ProfilePathUnreadable] with the lister's own
+/// message.
 Future<ProfilePathResolution> resolveProfilePath(
   String rawPath, {
   DirectoryLister lister = const IoDirectoryLister(),
@@ -71,32 +101,140 @@ Future<ProfilePathResolution> resolveProfilePath(
   if (typed.isEmpty) {
     return const ProfilePathRejected('Enter the path to $profileFolderShape.');
   }
+  if (_baseName(typed) == progressSaveName) {
+    final slotListing = await lister.list(Directory(typed).parent.path);
+    if (slotListing.error != null) {
+      return ProfilePathUnreadable(slotListing.error!);
+    }
+    if (!_holdsSaveFile(slotListing)) {
+      return ProfilePathRejected(
+        '${slotListing.path} contains no $progressSaveName.',
+      );
+    }
+    return _resolveSlotParent(slotListing, lister);
+  }
   final listing = await lister.list(typed);
   if (listing.error != null) {
     return ProfilePathUnreadable(listing.error!);
   }
+  if (_holdsSaveFile(listing)) {
+    return _resolveSlotParent(listing, lister);
+  }
   if (listing.isProfile) {
     return ProfilePathResolved(listing.path);
   }
-  final holdsProgressSave = listing.entries.any(
-    (entry) => !entry.isDirectory && entry.name == progressSaveName,
-  );
-  final isSlotFolder = _slotFolderName.hasMatch(_baseName(listing.path));
-  if (holdsProgressSave || isSlotFolder) {
-    final parent = listing.parentPath;
-    if (parent != null) {
-      final parentListing = await lister.list(parent);
-      if (parentListing.error != null) {
-        return ProfilePathUnreadable(parentListing.error!);
-      }
-      if (parentListing.isProfile) {
-        return ProfilePathResolved(parentListing.path);
-      }
-    }
+  final candidates = await _childProfiles(listing, lister);
+  if (candidates.length == 1) {
+    return ProfilePathResolved(candidates.single);
+  }
+  if (candidates.length > 1) {
+    candidates.sort();
+    return ProfilePathAmbiguous(List<String>.unmodifiable(candidates));
+  }
+  if (await _holdsSaveBeneath(listing, lister)) {
+    return ProfilePathRejected(
+      '${listing.path} has no slot folder directly beneath it, but '
+      '$progressSaveName exists deeper; open the folder that contains the '
+      'slot folder.',
+    );
   }
   return ProfilePathRejected(
-    '${listing.path} is not $profileFolderShape.',
+    '${listing.path} contains no $progressSaveName anywhere beneath it, so '
+    'it is not a save folder; expected $profileFolderShape.',
   );
+}
+
+/// Whether [listing] directly holds a non-directory `progress.sav`.
+bool _holdsSaveFile(DirectoryListing listing) => listing.entries.any(
+  (entry) => !entry.isDirectory && entry.name == progressSaveName,
+);
+
+/// Resolves the slot folder [slot] to the profile folder that contains it.
+Future<ProfilePathResolution> _resolveSlotParent(
+  DirectoryListing slot,
+  DirectoryLister lister,
+) async {
+  final parent = slot.parentPath;
+  if (parent == null) {
+    return ProfilePathRejected(
+      '${slot.path} holds $progressSaveName but has no containing folder to '
+      'open; expected $profileFolderShape.',
+    );
+  }
+  final parentListing = await lister.list(parent);
+  if (parentListing.error != null) {
+    return ProfilePathUnreadable(parentListing.error!);
+  }
+  if (parentListing.isProfile) {
+    return ProfilePathResolved(parentListing.path);
+  }
+  return ProfilePathRejected(
+    '${slot.path} holds $progressSaveName, but ${parentListing.path} is not '
+    '$profileFolderShape.',
+  );
+}
+
+/// Profile folders that are immediate child directories of [listing].
+Future<List<String>> _childProfiles(
+  DirectoryListing listing,
+  DirectoryLister lister,
+) async {
+  final profiles = <String>[];
+  for (final entry in listing.entries) {
+    if (!entry.isDirectory) {
+      continue;
+    }
+    final child = await lister.list(entry.path);
+    if (child.error != null) {
+      continue;
+    }
+    if (child.isProfile) {
+      profiles.add(child.path);
+    }
+  }
+  return profiles;
+}
+
+/// Whether a directory at most [_scanDepth] levels below [listing] holds a
+/// `progress.sav` file, opening at most [_scanDirectoryBudget] directories.
+///
+/// The typed folder's own children are the first level, so the scan never
+/// re-opens a folder [resolveProfilePath] already read, and it stops as soon as
+/// the budget is spent rather than walking an arbitrary tree.
+Future<bool> _holdsSaveBeneath(
+  DirectoryListing listing,
+  DirectoryLister lister,
+) async {
+  var level = <String>[
+    for (final entry in listing.entries)
+      if (entry.isDirectory) entry.path,
+  ];
+  var visited = 1;
+  for (var depth = 1; depth <= _scanDepth; depth++) {
+    final next = <String>[];
+    for (final directory in level) {
+      if (visited >= _scanDirectoryBudget) {
+        return false;
+      }
+      visited++;
+      final child = await lister.list(directory);
+      if (child.error != null) {
+        continue;
+      }
+      for (final entry in child.entries) {
+        if (entry.isDirectory) {
+          next.add(entry.path);
+        } else if (entry.name == progressSaveName) {
+          return true;
+        }
+      }
+    }
+    if (next.isEmpty) {
+      return false;
+    }
+    level = next;
+  }
+  return false;
 }
 
 /// Longshot's save base directory, resolved at runtime, or `null` when the
@@ -138,7 +276,8 @@ final DateTime _unknownModified = DateTime.fromMillisecondsSinceEpoch(
   isUtc: true,
 );
 
-/// The newest profile folder under [saveBase] that holds `slot_NN/progress.sav`.
+/// The newest profile folder under [saveBase] that holds a child directory
+/// with `progress.sav`.
 ///
 /// The profile directory names are discovered through [lister] (the existing
 /// profile rule), never synthesised. Several profiles have no established
@@ -230,9 +369,7 @@ Future<DateTime> _lastWrite(
     return stamp;
   }
   for (final entry in listing.entries) {
-    if (!entry.isDirectory ||
-        !entry.isSlotDirectory ||
-        !entry.hasProgressSave) {
+    if (!entry.isDirectory || !entry.hasProgressSave) {
       continue;
     }
     final modified = modifiedAt(_join(entry.path, progressSaveName));
