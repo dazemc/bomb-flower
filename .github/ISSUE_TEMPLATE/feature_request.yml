@@ -1,0 +1,91 @@
+name: Feature request
+description: Propose a new field, tab, save-creation rule, or tooling improvement.
+title: "[Feature]: "
+body:
+  - type: markdown
+    id: intro
+    attributes:
+      value: |
+        Describe the **problem**, not the implementation. A request that names a
+        field and a desired behaviour is actionable; a request that names a
+        patch is a pull request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you unable to do today, and why does it matter? Include what you do instead right now, even if that is "edit bytes by hand".
+      placeholder: |
+        When I want to ..., I cannot ..., so I ...
+    validations:
+      required: true
+
+  - type: markdown
+    id: verification-policy
+    attributes:
+      value: |
+        ### Unverified fields stay read-only
+
+        Bomb Flower only writes a field when its offset, width and meaning are
+        backed by evidence. **Unverified fields are read-only by policy**, so a
+        request for an unverified field will most likely be implemented as a
+        read-only display or a "gap" panel that shows the bytes without an
+        editor. That is not a rejection — it is the only safe intermediate
+        state.
+
+  - type: dropdown
+    id: verification-status
+    attributes:
+      label: Is this field or feature verified against the game?
+      description: >-
+        Be honest here. "Inferred from the schema" is a useful answer; claiming
+        game verification that you did not do sends the request down the wrong
+        path.
+      options:
+        - Verified in game
+        - Verified against the samples only
+        - Inferred from the schema
+        - Unverified / guess
+    validations:
+      required: true
+
+  - type: textarea
+    id: schema-evidence
+    attributes:
+      label: Schema evidence
+      description: >-
+        Required. Link or name the evidence you read:
+        `assets/schema/gamedata_110.json`, a page under `docs/`, or a path in the
+        Longshot decompilation that you read (read-only — do not copy game assets
+        into this repository or this issue).
+      placeholder: |
+        e.g. assets/schema/gamedata_110.json — field "Life", record 0x...
+        e.g. docs/FIELDS-BY-TAB.md — the row for ...
+        e.g. Longshot  (read-only) — path/to/file.cpp:1234
+    validations:
+      required: true
+
+  - type: dropdown
+    id: change-shape
+    attributes:
+      label: What shape would the change take?
+      description: Pick the closest match. An edit needs a verified write span; a display does not.
+      options:
+        - An editable field
+        - A read-only display (value shown, not written)
+        - A new save-creation rule (defaults or record ordering)
+        - Not sure — maintainers decide
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: No game assets, ROMs, or saves are attached to this issue.
+          required: true
+        - label: This request does not require modifying the game.
+          required: true
+        - label: I understand that a round-trip test is not game acceptance; the game can load a file and still clamp or ignore the value.
+          required: true

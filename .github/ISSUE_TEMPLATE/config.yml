@@ -1,0 +1,16 @@
+# Issue chooser configuration.
+#
+# Blank issues are disabled so every report arrives in a form that asks for the
+# save-format evidence the project actually needs.
+blank_issues_enabled: false
+contact_links:
+  # Discussions is DISABLED on this repository, so do not link it: a
+  # https://github.com/dazemc/bomb-flower/discussions URL 404s today. If
+  # Discussions is enabled later, switch this first entry to it and keep the
+  # two-form policy for bugs and feature requests.
+  - name: Documentation (questions and usage)
+    url: https://github.com/dazemc/bomb-flower/tree/main/docs
+    about: Architecture, save format, field tables, new-save rules, build steps and known limitations.
+  - name: Report a security vulnerability
+    url: https://github.com/dazemc/bomb-flower/security/policy
+    about: Do not open a public issue for a vulnerability; use the private security policy instead.
