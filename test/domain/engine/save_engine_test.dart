@@ -622,6 +622,91 @@ void main() {
   });
 
   group('validation', () {
+    ({SaveEngine engine, SaveProject project}) openRangeField(
+      FieldDescriptor descriptor,
+      Uint8List bytes,
+    ) {
+      final layout = LayoutDescriptor('range', 7, <SaveSlotLayout>[
+        SaveSlotLayout(progressSlot, 'slot_00/progress.sav', <FieldDescriptor>[
+          descriptor,
+        ], expectedLength: 256),
+      ]);
+      final engine = SaveEngine(
+        SaveFormat('range', 'Range', <LayoutDescriptor>[layout]),
+      );
+      final result = engine.parse(
+        rootPath: '/save',
+        files: <SaveSlotId, ByteRegion>{
+          progressSlot: ByteRegion.fromBytes(bytes),
+        },
+        layout: layout,
+        detectedVersion: 7,
+      );
+      return (engine: engine, project: projectOf(result));
+    }
+
+    test('a signed Int field holding -1 is inside its declared range', () {
+      const descriptor = FieldDescriptor(
+        FieldId('progress.signed'),
+        progressSlot,
+        'Signed',
+        FieldKind.integer,
+        ByteSpan(70, 4),
+        FieldConfidence.verified,
+        'test/domain/engine/save_engine_test.dart',
+        endianness: Endian.little,
+        min: -2147483648,
+        max: 2147483647,
+      );
+      final bytes = progressBytes()
+        ..setRange(70, 74, <int>[0xff, 0xff, 0xff, 0xff]);
+      final opened = openRangeField(descriptor, bytes);
+
+      expect(
+        opened.engine
+            .validateResult(opened.project)
+            .issues
+            .where(
+              (issue) =>
+                  issue.code == ValidationCodes.fieldOutOfRange &&
+                  issue.field == descriptor.id,
+            ),
+        isEmpty,
+      );
+    });
+
+    test('the same bytes on an unsigned field are still out of range', () {
+      const descriptor = FieldDescriptor(
+        FieldId('progress.unsigned'),
+        progressSlot,
+        'Unsigned',
+        FieldKind.integer,
+        ByteSpan(70, 4),
+        FieldConfidence.verified,
+        'test/domain/engine/save_engine_test.dart',
+        endianness: Endian.little,
+        min: 0,
+        max: 100,
+      );
+      final bytes = progressBytes()
+        ..setRange(70, 74, <int>[0xff, 0xff, 0xff, 0xff]);
+      final opened = openRangeField(descriptor, bytes);
+
+      expect(
+        opened.engine
+            .validateResult(opened.project)
+            .issues
+            .where(
+              (issue) =>
+                  issue.code == ValidationCodes.fieldOutOfRange &&
+                  issue.field == descriptor.id,
+            )
+            .single
+            .message,
+        contains('4294967295'),
+      );
+    });
+
     test('valid verified project has no blocking issues', () {
       final opened = openEngine();
       expect(

@@ -527,12 +527,20 @@ final class SaveEngine {
         if (raw != null) {
           final min = descriptor.min;
           final max = descriptor.max;
-          if ((min != null && raw < min) || (max != null && raw > max)) {
+          // A descriptor whose declared minimum is negative describes a signed
+          // field: the layout builder maps the schema's `Int` to signed 32-bit
+          // bounds while the bytes are stored in two's complement. Reading
+          // them unsigned would turn the documented `-1` default into
+          // 4294967295 and flag every retail save.
+          final value = min != null && min < 0
+              ? raw.toSigned(descriptor.span.length * 8)
+              : raw;
+          if ((min != null && value < min) || (max != null && value > max)) {
             issues.add(
               ValidationIssue(
                 Severity.warning,
                 ValidationCodes.fieldOutOfRange,
-                'Field ${descriptor.id.value} is $raw, outside the declared '
+                'Field ${descriptor.id.value} is $value, outside the declared '
                 'range ${min ?? '−∞'}..${max ?? '∞'}',
                 slotLayout.id,
                 field: descriptor.id,
