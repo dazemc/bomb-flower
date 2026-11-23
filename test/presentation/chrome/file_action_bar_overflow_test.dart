@@ -110,22 +110,24 @@ void main() {
     disposeCubit(harness.cubit);
     await harness.cubit.openPath('/save');
     final recentPaths = FakeRecentPathsStore();
+    final lister = FakeDirectoryLister();
 
     await pumpTitleBar(
       tester,
       cubit: harness.cubit,
       size: const Size(1100, 700),
       recentPaths: recentPaths,
+      directoryLister: lister,
     );
 
     await openOverflow(tester);
-    expect(recentPaths.reads, 0);
+    expect(lister.calls, isEmpty);
 
     await tester.tap(find.text('Open save…'));
     await tester.pumpAndSettle();
 
     expect(find.byType(OpenSaveDialog), findsOneWidget);
-    expect(recentPaths.reads, 1);
+    expect(lister.calls, hasLength(1));
   });
 
   testWidgets('Undo is listed but not selectable while the save is clean', (
@@ -274,12 +276,14 @@ void main() {
     disposeCubit(harness.cubit);
     await harness.cubit.openPath('/save');
     final recentPaths = FakeRecentPathsStore();
+    final lister = FakeDirectoryLister();
 
     await pumpTitleBar(
       tester,
       cubit: harness.cubit,
       size: const Size(1360, 880),
       recentPaths: recentPaths,
+      directoryLister: lister,
     );
 
     await clickWithSlightMovement(
@@ -288,7 +292,7 @@ void main() {
     );
 
     expect(find.byType(OpenSaveDialog), findsOneWidget);
-    expect(recentPaths.reads, 1);
+    expect(lister.calls, hasLength(1));
   });
 
   testWidgets('clicking outside closes the popup without invoking', (

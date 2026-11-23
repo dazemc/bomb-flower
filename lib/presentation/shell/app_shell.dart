@@ -5,6 +5,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../data/system/directory_lister.dart';
 import '../../data/system/directory_picker.dart';
 import '../../data/system/longshot_launcher.dart';
 import '../bloc/shell/shell_cubit.dart';
@@ -64,6 +65,7 @@ class AppShell extends StatefulWidget {
     this.onRetryOpen,
     this.onOpenAnotherSave,
     this.saveFolderProbe,
+    this.directoryLister,
     this.settingsStore,
     this.longshotLauncher,
   });
@@ -80,6 +82,10 @@ class AppShell extends StatefulWidget {
   /// Filesystem probe handed to the title bar's file actions, so tests can
   /// substitute a fake. A null value falls back to the real IO probe there.
   final SaveFolderProbe? saveFolderProbe;
+
+  /// Directory listing port handed to the title bar's open-save picker so
+  /// tests can keep the dialog hermetic.
+  final DirectoryLister? directoryLister;
 
   /// Preferences store shared by the Settings tab and the title bar, so a path
   /// edited there reaches the Launch action without a restart. A null value
@@ -170,6 +176,7 @@ class _AppShellState extends State<AppShell> {
                   isDirty: state.isDirty,
                   saveName: state.saveName,
                   saveFolderProbe: widget.saveFolderProbe,
+                  directoryLister: widget.directoryLister,
                   settingsStore: _settingsStore,
                   launcher: _launcher,
                 ),

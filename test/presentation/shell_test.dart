@@ -23,6 +23,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'dialogs/dialog_test_support.dart';
+
 void _useView(WidgetTester tester, Size size) {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
@@ -453,6 +455,7 @@ void main() {
           enableWindowChrome: false,
           saveFolderProbe: _FakeProbe(),
           recentPaths: _FakeRecentPaths(),
+          directoryLister: FakeDirectoryLister(),
         ),
       );
       await tester.pumpAndSettle();

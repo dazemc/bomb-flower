@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'data/system/directory_lister.dart';
 import 'data/system/directory_picker.dart';
 import 'data/system/dropped_folder.dart';
 import 'data/system/open_diagnostics.dart';
@@ -44,7 +45,7 @@ class BombFlowerApp extends StatefulWidget {
     this.session,
     this.saveFolderProbe,
     this.recentPaths,
-    this.directoryPicker,
+    this.directoryLister,
     this.initialOpenPath,
   });
 
@@ -73,8 +74,9 @@ class BombFlowerApp extends StatefulWidget {
   /// Recent-folder port used by the open-save dialog; resolved lazily.
   final RecentPathsStore? recentPaths;
 
-  /// Optional native folder chooser used by the open-save dialog.
-  final DirectoryPicker? directoryPicker;
+  /// Directory listing port used by the in-app open-save picker; resolved
+  /// lazily by the dialog so tests can substitute a fake.
+  final DirectoryLister? directoryLister;
 
   @override
   State<BombFlowerApp> createState() => _BombFlowerAppState();
@@ -398,7 +400,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
       context,
       probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
       recentPaths: widget.recentPaths ?? RecentPathsFileStore(),
-      directoryPicker: widget.directoryPicker,
+      directoryLister: widget.directoryLister,
       initialPath: initialPath,
     );
     if (!mounted) {
@@ -451,6 +453,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
                       _openAnotherSave(shellContext, failure?.path),
                   child: AppShell(
                     saveFolderProbe: widget.saveFolderProbe,
+                    directoryLister: widget.directoryLister,
                     openFailure: failure,
                     onRetryOpen: retryPath == null
                         ? null

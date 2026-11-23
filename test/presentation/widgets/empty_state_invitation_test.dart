@@ -9,6 +9,8 @@ import 'package:bomb_flower/presentation/widgets/common/open_save_scope.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../dialogs/dialog_test_support.dart';
+
 /// The always-empty folder inspector: no filesystem, no IO.
 final class _FakeProbe implements SaveFolderProbe {
   @override
@@ -46,6 +48,7 @@ void main() {
           enableWindowChrome: false,
           saveFolderProbe: _FakeProbe(),
           recentPaths: _FakeRecentPaths(),
+          directoryLister: FakeDirectoryLister(),
         ),
       );
       await tester.pumpAndSettle();

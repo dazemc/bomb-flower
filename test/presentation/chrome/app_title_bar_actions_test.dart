@@ -1,3 +1,4 @@
+import 'package:bomb_flower/data/system/directory_lister.dart';
 import 'package:bomb_flower/data/system/directory_picker.dart';
 import 'package:bomb_flower/domain/core/core.dart';
 import 'package:bomb_flower/domain/engine/engine.dart';
@@ -132,6 +133,7 @@ Future<void> pumpTitleBar(
   Size size = const Size(1360, 880),
   SaveFolderProbe? probe,
   RecentPathsStore? recentPaths,
+  DirectoryLister? directoryLister,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -143,6 +145,7 @@ Future<void> pumpTitleBar(
     saveName: 'slot_00',
     saveFolderProbe: probe ?? FakeSaveFolderProbe(),
     recentPaths: recentPaths ?? FakeRecentPathsStore(),
+    directoryLister: directoryLister ?? FakeDirectoryLister(),
   );
   if (cubit != null) {
     bar = BlocProvider<SaveSessionCubit>.value(value: cubit, child: bar);
@@ -260,18 +263,20 @@ void main() {
     await harness.cubit.openPath('/save');
     final probe = FakeSaveFolderProbe();
     final recentPaths = FakeRecentPathsStore();
+    final lister = FakeDirectoryLister();
 
     await pumpTitleBar(
       tester,
       cubit: harness.cubit,
       probe: probe,
       recentPaths: recentPaths,
+      directoryLister: lister,
     );
 
     await tapAction(tester, find.byKey(const Key('shell-action-open')));
 
     expect(find.byType(OpenSaveDialog), findsOneWidget);
-    expect(recentPaths.reads, greaterThan(0));
+    expect(lister.calls, isNotEmpty);
 
     await tapAction(tester, find.byKey(const Key('open-save-cancel')));
 

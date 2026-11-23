@@ -21,6 +21,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'dialogs/dialog_test_support.dart';
+
 /// Minimal layout and project so an open can reach [SaveSessionReady] without
 /// any real file or real save bytes.
 const LayoutDescriptor _layout = LayoutDescriptor(
@@ -489,6 +491,7 @@ void main() {
         session: cubit,
         saveFolderProbe: _FakeProbe(),
         recentPaths: _FakeRecentPaths(),
+        directoryLister: FakeDirectoryLister(),
       ),
     );
     await tester.pumpAndSettle();

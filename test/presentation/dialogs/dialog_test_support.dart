@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bomb_flower/data/system/directory_lister.dart';
 import 'package:bomb_flower/data/system/directory_picker.dart';
 import 'package:bomb_flower/presentation/theme/bomb_flower_theme.dart';
 import 'package:material_ui/material_ui.dart';
@@ -111,6 +112,35 @@ final class FakeRecentPathsStore implements RecentPathsStore {
   @override
   Future<void> clear() async {
     paths = <String>[];
+  }
+}
+
+/// A map-backed directory lister for hermetic picker tests.
+///
+/// Unstubbed paths return an inline error, never an exception, matching the
+/// real port's contract.
+final class FakeDirectoryLister implements DirectoryLister {
+  FakeDirectoryLister([
+    Map<String, DirectoryListing>? listings,
+    this.homeDirectory,
+  ]) : listings = listings ?? <String, DirectoryListing>{};
+
+  final Map<String, DirectoryListing> listings;
+
+  @override
+  final String? homeDirectory;
+
+  final List<String> calls = <String>[];
+
+  @override
+  Future<DirectoryListing> list(String path) async {
+    calls.add(path);
+    return listings[path] ??
+        DirectoryListing(
+          path: path,
+          entries: const <DirectoryEntry>[],
+          error: 'Cannot read this folder: not stubbed.',
+        );
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
+import '../../../data/system/directory_lister.dart';
 import '../../../data/system/directory_picker.dart';
 import '../../../data/system/longshot_launcher.dart';
 import '../../bloc/save_session/save_session_cubit.dart';
@@ -44,6 +45,7 @@ class AppTitleBar extends StatefulWidget {
     this.saveFolderProbe,
     this.recentPaths,
     this.directoryPicker,
+    this.directoryLister,
     this.settingsStore,
     this.launcher,
   });
@@ -64,8 +66,11 @@ class AppTitleBar extends StatefulWidget {
   /// Recent-folder store for the Open dialog.
   final RecentPathsStore? recentPaths;
 
-  /// Optional native folder chooser for the dialogs.
+  /// Optional native folder chooser for Save As and Duplicate.
   final DirectoryPicker? directoryPicker;
+
+  /// Directory listing port for the in-app Open picker.
+  final DirectoryLister? directoryLister;
 
   /// Store the Launch action reads the launcher path from. Null falls back to a
   /// fresh [InMemorySettingsStore], i.e. the platform default path.
@@ -145,7 +150,7 @@ class _AppTitleBarState extends State<AppTitleBar> {
       context,
       probe: widget.saveFolderProbe ?? const IoSaveFolderProbe(),
       recentPaths: widget.recentPaths ?? RecentPathsFileStore(),
-      directoryPicker: widget.directoryPicker,
+      directoryLister: widget.directoryLister,
       initialPath: cubit.openProject?.rootPath,
     );
     if (!mounted || path == null) {

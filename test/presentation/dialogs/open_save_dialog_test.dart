@@ -1,40 +1,36 @@
-import 'package:bomb_flower/data/system/directory_picker.dart';
+import 'package:bomb_flower/data/system/directory_lister.dart';
 import 'package:bomb_flower/presentation/dialogs/open_save_dialog.dart';
 import 'package:bomb_flower/presentation/widgets/common/brass_button.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'dialog_test_support.dart';
 
-SaveFolderInfo folder({
-  required bool exists,
-  required bool isDirectory,
-  List<String> slots = const <String>[],
-  bool parentExists = true,
-}) => SaveFolderInfo(
-  path: '',
-  exists: exists,
-  isDirectory: isDirectory,
-  slotDirectories: slots,
-  parentExists: parentExists,
+DirectoryEntry slot(String path) => DirectoryEntry(
+  path: path,
+  name: path.split('/').last,
+  isDirectory: true,
+  isSlotDirectory: true,
 );
 
-FakeSaveFolderProbe buildProbe() =>
-    FakeSaveFolderProbe(<String, SaveFolderInfo>{
-      '/save': folder(
-        exists: true,
-        isDirectory: true,
-        slots: <String>['slot_00', 'slot_01'],
-      ),
-      '/save/progress.sav': folder(exists: true, isDirectory: false),
-      '/empty': folder(exists: true, isDirectory: true),
-      '/picked': folder(
-        exists: true,
-        isDirectory: true,
-        slots: <String>['slot_00'],
-      ),
-    });
+FakeDirectoryLister buildLister() => FakeDirectoryLister(<String, DirectoryListing>{
+  '/save': DirectoryListing(
+    path: '/save',
+    parentPath: '/',
+    entries: <DirectoryEntry>[slot('/save/slot_00'), slot('/save/slot_01')],
+  ),
+  '/empty': const DirectoryListing(
+    path: '/empty',
+    parentPath: '/',
+    entries: <DirectoryEntry>[],
+  ),
+  '/save/progress.sav': const DirectoryListing(
+    path: '/save/progress.sav',
+    entries: <DirectoryEntry>[],
+    error: 'Not a folder',
+  ),
+});
 
 bool openEnabled(WidgetTester tester) =>
     tester
@@ -47,54 +43,58 @@ String fieldText(WidgetTester tester) => tester
     .controller!
     .text;
 
+Future<void> jumpTo(WidgetTester tester, String path) async {
+  await tester.enterText(find.byKey(const Key('open-save-path')), path);
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('rejects a file path and keeps Open disabled', (tester) async {
-    final probe = buildProbe();
+  testWidgets('a typed file path shows an inline error, not a throw', (
+    tester,
+  ) async {
     final launch = await launchDialog<String>(
       tester,
       (context) => OpenSaveDialog.show(
         context,
-        probe: probe,
+        probe: FakeSaveFolderProbe(),
         recentPaths: FakeRecentPathsStore(),
+        directoryLister: buildLister(),
+        initialPath: '/save',
       ),
     );
-
-    await tester.enterText(
-      find.byKey(const Key('open-save-path')),
-      '/save/progress.sav',
-    );
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('That path is a file, not a save folder.'),
-      findsOneWidget,
-    );
+    await jumpTo(tester, '/save/progress.sav');
+
+    expect(find.byKey(const Key('open-save-listing-error')), findsOneWidget);
+    expect(find.text('Not a folder'), findsOneWidget);
     expect(openEnabled(tester), isFalse);
-    await tester.tap(find.byKey(const Key('open-save-submit')));
-    await tester.pumpAndSettle();
-    expect(find.text('Open save folder'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
-    // The rejected submit keeps the dialog open, so dismiss it for real before
-    // awaiting the route future; a bare `completes` would wait out the timeout.
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(await launch.future, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('rejects a directory without slot_* folders', (tester) async {
+  testWidgets('a folder without slot folders disables Open with a reason', (
+    tester,
+  ) async {
     final launch = await launchDialog<String>(
       tester,
       (context) => OpenSaveDialog.show(
         context,
-        probe: buildProbe(),
+        probe: FakeSaveFolderProbe(),
         recentPaths: FakeRecentPathsStore(),
+        directoryLister: buildLister(),
+        initialPath: '/save',
       ),
     );
-
-    await tester.enterText(find.byKey(const Key('open-save-path')), '/empty');
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('No slot_* folders were found'), findsOneWidget);
+    await jumpTo(tester, '/empty');
+
+    expect(find.byKey(const Key('open-save-blocked-reason')), findsOneWidget);
     expect(openEnabled(tester), isFalse);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -102,20 +102,26 @@ void main() {
     expect(await launch.future, isNull);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('accepts a directory with a slot_00 folder', (tester) async {
+  testWidgets('a folder with a slot_00 folder opens and records the path', (
+    tester,
+  ) async {
     final recents = FakeRecentPathsStore();
     final launch = await launchDialog<String>(
       tester,
       (context) => OpenSaveDialog.show(
         context,
-        probe: buildProbe(),
+        probe: FakeSaveFolderProbe(),
         recentPaths: recents,
+        directoryLister: buildLister(),
+        initialPath: '/empty',
       ),
     );
-
-    await tester.enterText(find.byKey(const Key('open-save-path')), '/save');
     await tester.pumpAndSettle();
 
+    await jumpTo(tester, '/save');
+
+    expect(fieldText(tester), '/save');
+    expect(find.byKey(const Key('open-save-valid')), findsOneWidget);
     expect(find.textContaining('slot_00, slot_01'), findsOneWidget);
     expect(openEnabled(tester), isTrue);
 
@@ -126,93 +132,26 @@ void main() {
     expect(recents.added, <String>['/save']);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('shows the picker fallback hint when no picker is wired', (
-    tester,
-  ) async {
-    await launchDialog<String>(
-      tester,
-      (context) => OpenSaveDialog.show(
-        context,
-        probe: buildProbe(),
-        recentPaths: FakeRecentPathsStore(),
-      ),
-    );
-
-    await tester.tap(find.byKey(const Key('open-save-browse')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.textContaining('No system folder picker is wired'),
-      findsOneWidget,
-    );
-  }, timeout: const Timeout(Duration(seconds: 30)));
-
-  testWidgets('Browse fills the field and validates the picked folder', (
-    tester,
-  ) async {
-    final picker = FakeDirectoryPicker(result: '/picked');
+  testWidgets('the path field follows navigation', (tester) async {
     final launch = await launchDialog<String>(
       tester,
       (context) => OpenSaveDialog.show(
         context,
-        probe: buildProbe(),
+        probe: FakeSaveFolderProbe(),
         recentPaths: FakeRecentPathsStore(),
-        directoryPicker: picker,
+        directoryLister: buildLister(),
+        initialPath: '/save',
       ),
     );
-
-    await tester.tap(find.byKey(const Key('open-save-browse')));
-    await tester.pumpAndSettle();
-
-    expect(picker.calls, 1);
-    expect(fieldText(tester), '/picked');
-    expect(openEnabled(tester), isTrue);
-    await tester.tap(find.byKey(const Key('open-save-submit')));
-    await tester.pumpAndSettle();
-    expect(await launch.future, '/picked');
-  }, timeout: const Timeout(Duration(seconds: 30)));
-
-  testWidgets('a cancelled picker shows a hint but keeps the typed path', (
-    tester,
-  ) async {
-    final picker = FakeDirectoryPicker();
-    await launchDialog<String>(
-      tester,
-      (context) => OpenSaveDialog.show(
-        context,
-        probe: buildProbe(),
-        recentPaths: FakeRecentPathsStore(),
-        directoryPicker: picker,
-      ),
-    );
-    await tester.enterText(find.byKey(const Key('open-save-path')), '/save');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('open-save-browse')));
     await tester.pumpAndSettle();
 
     expect(fieldText(tester), '/save');
-    expect(find.byKey(const Key('open-save-picker-hint')), findsOneWidget);
-    expect(openEnabled(tester), isTrue);
-  }, timeout: const Timeout(Duration(seconds: 30)));
 
-  testWidgets('a recent folder fills the field', (tester) async {
-    final recents = FakeRecentPathsStore(<String>['/save']);
-    final launch = await launchDialog<String>(
-      tester,
-      (context) => OpenSaveDialog.show(
-        context,
-        probe: buildProbe(),
-        recentPaths: recents,
-      ),
-    );
-    await tester.pumpAndSettle();
+    await jumpTo(tester, '/empty');
+    expect(fieldText(tester), '/empty');
 
-    await tester.tap(find.byKey(const Key('open-save-recent-0')));
-    await tester.pumpAndSettle();
-
+    await jumpTo(tester, '/save');
     expect(fieldText(tester), '/save');
-    expect(openEnabled(tester), isTrue);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -224,10 +163,13 @@ void main() {
       tester,
       (context) => OpenSaveDialog.show(
         context,
-        probe: buildProbe(),
+        probe: FakeSaveFolderProbe(),
         recentPaths: FakeRecentPathsStore(),
+        directoryLister: buildLister(),
+        initialPath: '/save',
       ),
     );
+    await tester.pumpAndSettle();
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
