@@ -157,22 +157,15 @@ void main() {
       expect(custom.relativePath, 'slot_03.caption/caption.sav');
     });
 
-    test('describes all six fields as read-only with cited provenance', () {
+    test('cites scene and map as editable 64-byte strings', () {
       final caption = _caption();
       final layout = ProgressLayoutBuilder(schema)
           .buildCaptionSlotLayout(caption);
 
-      expect(layout.fields.length, CaptionLayout.fields.length);
-      expect(layout.fields.length, 6);
-      for (final descriptor in layout.fields) {
-        expect(descriptor.slot, layout.id);
-        expect(descriptor.readOnly, isTrue);
-        expect(descriptor.isEditable, isFalse);
-        expect(descriptor.source, startsWith('caption:'));
-        expect(descriptor.source.length, greaterThan('caption:'.length));
-        // No per-field provenance in CaptionLayout says "verified".
-        expect(descriptor.confidence, FieldConfidence.inferred);
-      }
+      expect(
+        layout.fields.length,
+        CaptionLayout.fields.length + CaptionLayout.dateFields.length,
+      );
 
       final scene = layout.fields.singleWhere(
         (field) => field.label == 'sceneName',
@@ -182,6 +175,10 @@ void main() {
         scene.span,
         ByteSpan(CaptionLayout.sceneNameOffset, CaptionLayout.nameLength),
       );
+      expect(scene.confidence, FieldConfidence.verified);
+      expect(scene.source, 'caption:control.c:1885');
+      expect(scene.readOnly, isFalse);
+      expect(scene.isEditable, isTrue);
 
       final map = layout.fields.singleWhere(
         (field) => field.label == 'mapPath',
@@ -191,17 +188,64 @@ void main() {
         map.span,
         ByteSpan(CaptionLayout.mapPathOffset, CaptionLayout.nameLength),
       );
+      expect(map.confidence, FieldConfidence.verified);
+      expect(map.source, 'caption:control.c:1885');
+      expect(map.readOnly, isFalse);
+      expect(map.isEditable, isTrue);
+    });
+
+    test('keeps header and date fields read-only', () {
+      final caption = _caption();
+      final layout = ProgressLayoutBuilder(schema)
+          .buildCaptionSlotLayout(caption);
+
+      expect(layout.fields.length, 12);
+      for (final descriptor in layout.fields) {
+        expect(descriptor.slot, layout.id);
+        expect(descriptor.source, startsWith('caption:'));
+        expect(descriptor.source.length, greaterThan('caption:'.length));
+      }
+
+      final magic = layout.fields.singleWhere(
+        (field) => field.label == 'magic',
+      );
+      expect(magic.confidence, FieldConfidence.inferred);
+      expect(magic.readOnly, isTrue);
+
+      final layoutCheck = layout.fields.singleWhere(
+        (field) => field.label == 'layoutCheck',
+      );
+      expect(layoutCheck.readOnly, isTrue);
 
       final jpegLength = layout.fields.singleWhere(
         (field) => field.label == 'jpegLength',
       );
       expect(jpegLength.kind, FieldKind.integer);
       expect(jpegLength.span, ByteSpan(CaptionLayout.jpegLengthOffset, 4));
+      expect(jpegLength.confidence, FieldConfidence.verified);
+      expect(jpegLength.source, 'caption:control.c:1894');
+      expect(jpegLength.readOnly, isTrue);
+      expect(jpegLength.isEditable, isFalse);
 
       final jpeg = layout.fields.singleWhere((field) => field.label == 'jpeg');
       expect(jpeg.kind, FieldKind.list);
       expect(jpeg.span, ByteSpan(CaptionLayout.jpegOffset, caption.jpegLength));
       expect(jpeg.span.end, caption.jpegLength + CaptionLayout.jpegOffset);
+      expect(jpeg.confidence, FieldConfidence.inferred);
+      expect(jpeg.readOnly, isTrue);
+
+      for (final date in CaptionLayout.dateFields) {
+        final descriptor = layout.fields.singleWhere(
+          (field) => field.id.value == 'caption.savedAt.${date.field.name}',
+        );
+        expect(descriptor.kind, FieldKind.integer);
+        expect(descriptor.span, ByteSpan(date.sampleOffset + 4, 4));
+        expect(descriptor.confidence, FieldConfidence.verified);
+        expect(descriptor.source, 'caption:docs/SAVE-FORMAT.md');
+        // sampleOffset is an observation; the codec finds entries by key.
+        expect(descriptor.readOnly, isTrue);
+        expect(descriptor.isEditable, isFalse);
+      }
     });
   });
 }

@@ -74,7 +74,7 @@ final class ProgressLayoutBuilder {
     );
   }
 
-  /// Describes the six fields of [caption].
+  /// Describes the six layout fields and the six date entries of [caption].
   ///
   /// [progressSlot] defaults to `slot_00`; the caption slot id is
   /// `<progressSlot>.caption`, which is deliberately not a progress slot id.
@@ -94,6 +94,7 @@ final class ProgressLayoutBuilder {
       if (length == null) {
         continue;
       }
+      final evidence = _captionFieldEvidence(field);
       fields.add(
         FieldDescriptor(
           FieldId('caption.${field.name}'),
@@ -101,8 +102,25 @@ final class ProgressLayoutBuilder {
           field.name,
           _captionKind(field.type),
           ByteSpan(field.offset, length),
-          _captionConfidence(field.provenance),
-          'caption:${field.provenance}',
+          evidence.confidence,
+          evidence.source,
+          readOnly: evidence.readOnly,
+        ),
+      );
+    }
+    for (final date in CaptionLayout.dateFields) {
+      fields.add(
+        FieldDescriptor(
+          FieldId('caption.savedAt.${date.field.name}'),
+          slot,
+          'savedAt.${date.field.name}',
+          FieldKind.integer,
+          ByteSpan(date.sampleOffset + 4, 4),
+          FieldConfidence.verified,
+          'caption:docs/SAVE-FORMAT.md',
+          // [date.sampleOffset] is a sample observation, not an invariant:
+          // the codec finds each entry by its key, so a fixed value span
+          // cannot be rewritten safely.
           readOnly: true,
         ),
       );
@@ -205,6 +223,32 @@ final class ProgressLayoutBuilder {
     CaptionFieldType.ascii => FieldKind.string,
     CaptionFieldType.jpeg => FieldKind.list,
     CaptionFieldType.magic || CaptionFieldType.unsignedInt => FieldKind.integer,
+  };
+
+  /// Evidence for one `CaptionLayout.fields` entry.
+  ///
+  /// Scene and map names are host-cited and length-preserving 64-byte ASCII
+  /// slots, so they are editable. The JPEG length is host-cited but stays
+  /// read-only: it must equal the JPEG blob length, and a lone edit would
+  /// corrupt the file. Everything else keeps its own provenance and is
+  /// conservative.
+  static ({FieldConfidence confidence, String source, bool readOnly})
+  _captionFieldEvidence(CaptionFieldDescriptor field) => switch (field.name) {
+    'sceneName' || 'mapPath' => (
+      confidence: FieldConfidence.verified,
+      source: 'caption:control.c:1885',
+      readOnly: false,
+    ),
+    'jpegLength' => (
+      confidence: FieldConfidence.verified,
+      source: 'caption:control.c:1894',
+      readOnly: true,
+    ),
+    _ => (
+      confidence: _captionConfidence(field.provenance),
+      source: 'caption:${field.provenance}',
+      readOnly: true,
+    ),
   };
 
   static FieldConfidence _captionConfidence(String provenance) =>
