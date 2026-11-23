@@ -158,6 +158,14 @@ Future<void> pumpTitleBar(
   await tester.pump();
 }
 
+/// Taps [finder] and lets the title bar's ancestor double-tap recognizer lose
+/// the gesture arena before settling.
+Future<void> tapAction(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pumpAndSettle();
+}
+
 /// The icon button behind one action key.
 ControlIconButton buttonFor(WidgetTester tester, String key) {
   return tester.widget<ControlIconButton>(
@@ -222,7 +230,7 @@ void main() {
     expect(buttonFor(tester, 'shell-action-save').tooltip, 'Save');
 
     harness.cubit.edit(const SetScalar(healthId, 42));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(buttonFor(tester, 'shell-action-save').onPressed, isNotNull);
   });
@@ -238,8 +246,7 @@ void main() {
     expect(buttonFor(tester, 'shell-action-undo').onPressed, isNotNull);
     expect(buttonFor(tester, 'shell-action-redo').onPressed, isNull);
 
-    await tester.tap(find.byKey(const Key('shell-action-undo')));
-    await tester.pumpAndSettle();
+    await tapAction(tester, find.byKey(const Key('shell-action-undo')));
 
     expect(buttonFor(tester, 'shell-action-undo').onPressed, isNull);
     expect(buttonFor(tester, 'shell-action-redo').onPressed, isNotNull);
@@ -261,14 +268,12 @@ void main() {
       recentPaths: recentPaths,
     );
 
-    await tester.tap(find.byKey(const Key('shell-action-open')));
-    await tester.pumpAndSettle();
+    await tapAction(tester, find.byKey(const Key('shell-action-open')));
 
     expect(find.byType(OpenSaveDialog), findsOneWidget);
     expect(recentPaths.reads, greaterThan(0));
 
-    await tester.tap(find.byKey(const Key('open-save-cancel')));
-    await tester.pumpAndSettle();
+    await tapAction(tester, find.byKey(const Key('open-save-cancel')));
 
     expect(find.byType(OpenSaveDialog), findsNothing);
   });
@@ -290,8 +295,7 @@ void main() {
     expect(find.byKey(const Key('file-action-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-action-overflow')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-action-overflow')));
-    await tester.pumpAndSettle();
+    await tapAction(tester, find.byKey(const Key('shell-action-overflow')));
 
     expect(tester.takeException(), isNull);
     for (final key in actionKeys) {

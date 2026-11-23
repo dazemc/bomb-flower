@@ -88,13 +88,17 @@ class _AppTitleBarState extends State<AppTitleBar> {
   }
 
   /// The injected session, else the ambient one, else null when neither exists.
+  ///
+  /// `BlocProvider.of` rewraps a miss in a [FlutterError], so this uses
+  /// [ReadContext.read], which throws the typed [ProviderNotFoundException]
+  /// that means "this bar was pumped without a session".
   SaveSessionCubit? _sessionOf(BuildContext context) {
     final injected = widget.session;
     if (injected != null) {
       return injected;
     }
     try {
-      return BlocProvider.of<SaveSessionCubit>(context);
+      return context.read<SaveSessionCubit>();
     } on ProviderNotFoundException {
       return null;
     }
