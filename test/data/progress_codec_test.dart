@@ -165,7 +165,7 @@ void main() {
         final bytes = Uint8List.fromList(file.readAsBytesSync());
         final save = _ok(bytes);
         final life = save.recordByHash(_lifeKey)!;
-        final edited = save.setInt(_lifeKey, life.asInt() + 1).encode();
+        final edited = save.setInt(_lifeKey, 0x12345678).encode();
 
         expectOnlyRegionsChanged(bytes, edited, <ByteRegion>[
           ByteRegion(
@@ -174,7 +174,11 @@ void main() {
             'PlayerStatus.Life value',
           ),
         ]);
-        expect(_ok(edited).recordByHash(_lifeKey)!.asInt(), life.asInt() + 1);
+        final runs = ByteRegionDiff.diff(bytes, edited).runs;
+        expect(runs.length, 1);
+        expect(runs.single.start, life.valueOffset);
+        expect(runs.single.length, 4);
+        expect(_ok(edited).recordByHash(_lifeKey)!.asInt(), 0x12345678);
       }, skip: skipReason);
     }
   });
@@ -603,21 +607,25 @@ void main() {
 
     test('setInt changes exactly its four value bytes', () {
       final life = save.recordByHash(_lifeKey)!;
-      final after = save.setInt(_lifeKey, 99);
+      final after = save.setInt(_lifeKey, 0x12345678);
       final edited = after.encode();
 
       expect(edited.length, before.length);
       expectOnlyRegionsChanged(before, edited, <ByteRegion>[
         ByteRegion(life.valueOffset, life.valueOffset + 4, 'Life value'),
       ]);
-      expect(_u32(edited, life.valueOffset), 99);
-      expect(after.recordByHash(_lifeKey)!.asInt(), 99);
-      expect(after.recordByHash(_lifeKey)!.rawValue, 99);
+      final runs = ByteRegionDiff.diff(before, edited).runs;
+      expect(runs.length, 1);
+      expect(runs.single.start, life.valueOffset);
+      expect(runs.single.length, 4);
+      expect(_u32(edited, life.valueOffset), 0x12345678);
+      expect(after.recordByHash(_lifeKey)!.asInt(), 0x12345678);
+      expect(after.recordByHash(_lifeKey)!.rawValue, 0x12345678);
       expect(after.isEdited, isTrue);
       expect(save.encode(), before);
 
       final reread = _ok(edited);
-      expect(reread.recordByHash(_lifeKey)!.asInt(), 99);
+      expect(reread.recordByHash(_lifeKey)!.asInt(), 0x12345678);
       _expectOnlyRecordChanged(save, reread, life);
     });
 
