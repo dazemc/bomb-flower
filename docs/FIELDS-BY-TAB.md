@@ -190,7 +190,7 @@ Progression's `IsGet` view).
 
 ## Equipment
 
-**Editable (24).**
+**Editable (24; slots without a verified actor rule are read-only).**
 
 - Slots (9): `PlayerStatus.EquipWeapon`, `EquipShield`, `EquipHeadArmor`,
   `EquipArmor`, `EquipBoot`, `EquipOcarina`, `EquipHandArmor`,
@@ -198,6 +198,11 @@ Progression's `IsGet` view).
 - Acquisition (11): `IsGet.Weapon_*` and `IsGet.Armor_*`.
 - State (4): `PlayerStatus.IsActiveHeadArmor`, `IsEquipAgonyStone`,
   `IsDefenseUP`, `WeaponSwordGiantLife`.
+
+Head armor, a slot with no decoded value, and a slot with no verified actor
+rule render read-only with the reason shown
+(`lib/presentation/shell/tabs/equipment_tab.dart`, `_headArmorNote` and
+`_readOnly`).
 
 **Read-only / unavailable.** Slots are `String64` asset/identifier text, not
 numeric item ids. There is no equipment enum and no verified gauntlet field.
