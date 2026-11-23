@@ -65,6 +65,14 @@ records); a six-slot folder totals 49,968. The former eleven sentinel
 `field.out_of_range` warnings were removed by `1b387db`. A successful build or
 analyzer run says nothing about those save-level results.
 
+Three `jev_gate` calls on the same class of command — a pinned `git push` to
+`origin/main` from this repository — returned `confirm` (confidence 0.77, risk
+1.88), then `allow` (0.89, 0.70), then `block` (0.24, 2.27), with the commit SHA
+as the only material variable. For git pushes, the deterministic safeguards are
+therefore the gate: a pinned refspec, a fast-forward precondition, and an empty
+working tree before and after. `jev_gate` is advisory signal for these commands
+rather than a gate.
+
 ## Build
 
 ```sh
