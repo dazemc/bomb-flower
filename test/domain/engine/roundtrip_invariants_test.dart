@@ -26,6 +26,23 @@
 ///   "opens read-only and creates no sidecar or pending manifest".
 /// * (f) reject never partially writes: `test/data/io/atomic_file_writer_test.dart`
 ///   and `test/data/io/file_save_repository_test.dart`.
+///
+/// Real-save availability has three states, and each is handled differently:
+///
+/// * **Found** — `resolveRealSaves()` found at least one
+///   `slot_NN/progress.sav`; both real-save tests run and assert real bytes.
+/// * **Absent** — no `BOMB_FLOWER_REAL_SAVES` override is set and neither
+///   candidate root holds a slot: a cold clone. The two real-save tests carry
+///   a declarative `skip:` whose reason begins `SKIPPED, NOT PASSED:` and names
+///   every path tried. A green run with `~N > 0` is not coverage: those tests
+///   did not execute.
+/// * **Misconfigured** — the override *is* set but resolves to no slot. An
+///   explicit path that does not work must not pass silently, so the tests are
+///   not skipped; each body fails at once with `MISCONFIGURED: ...`.
+///
+/// The resolution-policy test at the end of this file proves the two non-found
+/// branches with injected candidates, so a cold clone still contributes a
+/// passing test while the two real-save tests skip.
 library;
 
 import 'dart:io';
@@ -37,25 +54,32 @@ import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration/support/progress_chain.dart';
+import '../../integration/support/real_save_loader.dart';
 import '../../support/byte_assert.dart';
 
 /// Scratch root: holds the two real fixture slots and receives the artifacts.
 const String fixtureRoot = '.tmp/rt';
 
-/// The read-only retail save tree. Never written; only copied out of.
-const String realSaveRoot =
-    '/home/daze/.local/share/longshot/save/5a3c9e1f0b7d24680000000000000001';
-
 /// The two real slots this proof round-trips, in layout order.
 const List<String> fixtureSlots = <String>['slot_00', 'slot_01'];
 
 void main() {
+  final resolution = resolveRealSaves();
+  final skipReason = switch (resolution) {
+    RealSaveAbsent(:final reason) => reason,
+    _ => null,
+  };
   late GameDataSchema schema;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    if (resolution is! RealSaveFound) {
+      // Absent is declaratively skipped; misconfigured fails in the bodies so
+      // the message is the MISCONFIGURED one, not a missing-fixture one.
+      return;
+    }
     for (final slot in fixtureSlots) {
-      _ensureFixture(slot);
+      _ensureFixture(slot, resolution);
       expect(
         File(_fixturePath(slot)).existsSync(),
         isTrue,
@@ -65,8 +89,9 @@ void main() {
     }
   });
 
-  group('(a) zero-edit round-trip is byte-identical', () {
+  group('(a) zero-edit round-trip is byte-identical', skip: skipReason, () {
     test('should re-serialize both real slots byte for byte', () async {
+      _requireRealSaves(resolution);
       final repo = createProgressRepository(schema);
       final open = await repo.open(fixtureRoot);
       chainLog('(a) open $fixtureRoot -> ${describeParseResult(open)}');
@@ -121,154 +146,197 @@ void main() {
     });
   });
 
-  group('(b) a field edit changes only its declared span plus integrity bytes', () {
-    test('should change exactly one Life byte and nothing else', () async {
-      final repo = createProgressRepository(schema);
-      final engine = createProgressEngine();
-      final project = _projectOf(await repo.open(fixtureRoot));
+  group(
+    '(b) a field edit changes only its declared span plus integrity bytes',
+    skip: skipReason,
+    () {
+      test('should change exactly one Life byte and nothing else', () async {
+        _requireRealSaves(resolution);
+        final repo = createProgressRepository(schema);
+        final engine = createProgressEngine();
+        final project = _projectOf(await repo.open(fixtureRoot));
 
-      // `SetScalar(lifeFieldId, ...)` resolves through
-      // `LayoutDescriptor.descriptor`, which returns the first declared match:
-      // the `PlayerStatus.Life` of slot_00.
-      final targetSlot = progressSlotId;
-      final targetName = targetSlot.value;
-      final original = project.document(targetSlot)!.snapshot.materialize();
-      final lifeOffset = lifeValueOffset(schema);
+        // `SetScalar(lifeFieldId, ...)` resolves through
+        // `LayoutDescriptor.descriptor`, which returns the first declared match:
+        // the `PlayerStatus.Life` of slot_00.
+        final targetSlot = progressSlotId;
+        final targetName = targetSlot.value;
+        final original = project.document(targetSlot)!.snapshot.materialize();
+        final lifeOffset = lifeValueOffset(schema);
 
-      final descriptor = project.layout.descriptor(lifeFieldId);
-      expect(descriptor, isNotNull);
-      expect(descriptor!.slot, targetSlot);
-      expect(descriptor.span.offset, lifeOffset);
-      expect(descriptor.span.length, ProgressLayout.valueWordSize);
-      expect(fieldInt(project, lifeFieldId), isNot(20));
+        final descriptor = project.layout.descriptor(lifeFieldId);
+        expect(descriptor, isNotNull);
+        expect(descriptor!.slot, targetSlot);
+        expect(descriptor.span.offset, lifeOffset);
+        expect(descriptor.span.length, ProgressLayout.valueWordSize);
+        expect(fieldInt(project, lifeFieldId), isNot(20));
 
-      final editedProject = engine.apply(
-        project,
-        const SetScalar(lifeFieldId, 20),
-      );
-      expect(fieldInt(editedProject, lifeFieldId), 20);
-      final edited = editedProject.document(targetSlot)!.snapshot.materialize();
+        final editedProject = engine.apply(
+          project,
+          const SetScalar(lifeFieldId, 20),
+        );
+        expect(fieldInt(editedProject, lifeFieldId), 20);
+        final edited = editedProject
+            .document(targetSlot)!
+            .snapshot
+            .materialize();
 
-      final diff = ByteRegionDiff.diff(original, edited);
-      chainLog('(b) diff runs=${diff.runs}');
-      expect(
-        diff.runs,
-        hasLength(1),
-        reason:
-            'a scalar edit may only touch its own value word, saw '
-            '${diff.runs}',
-      );
-      expect(diff.runs.single.start, lifeOffset);
-      expect(diff.runs.single.length, 1);
-      expect(editedProject.dirty.changedByteCount, 1);
+        final diff = ByteRegionDiff.diff(original, edited);
+        chainLog('(b) diff runs=${diff.runs}');
+        expect(
+          diff.runs,
+          hasLength(1),
+          reason:
+              'a scalar edit may only touch its own value word, saw '
+              '${diff.runs}',
+        );
+        expect(diff.runs.single.start, lifeOffset);
+        expect(diff.runs.single.length, 1);
+        expect(editedProject.dirty.changedByteCount, 1);
 
-      // No integrity scheme exists, so nothing may change because of one.
-      // docs/SAVE-FORMAT.md §7: "No checksum was found."
-      expect(
-        editedProject.layout.slot(targetSlot)!.integrity,
-        isEmpty,
-        reason:
-            'SAVE-FORMAT.md §7 found no checksum, so an edit may not '
-            'change integrity bytes',
-      );
+        // No integrity scheme exists, so nothing may change because of one.
+        // docs/SAVE-FORMAT.md §7: "No checksum was found."
+        expect(
+          editedProject.layout.slot(targetSlot)!.integrity,
+          isEmpty,
+          reason:
+              'SAVE-FORMAT.md §7 found no checksum, so an edit may not '
+              'change integrity bytes',
+        );
 
-      // The reserved header gap must be unclaimed and preserved.
-      // docs/SAVE-FORMAT.md §2: "0x0c | 28 | all zero | Reserved";
-      // §9.2: "bytes 0x0c-0x27 are zero in every sample and must stay zero".
-      const gap = ByteSpan(
-        ProgressLayout.reservedOffset,
-        ProgressLayout.reservedLength,
-      );
-      expect(gap.offset, 0x0C);
-      expect(gap.end, 0x28);
-      expect(gap.length, 28);
+        // The reserved header gap must be unclaimed and preserved.
+        // docs/SAVE-FORMAT.md §2: "0x0c | 28 | all zero | Reserved";
+        // §9.2: "bytes 0x0c-0x27 are zero in every sample and must stay zero".
+        const gap = ByteSpan(
+          ProgressLayout.reservedOffset,
+          ProgressLayout.reservedLength,
+        );
+        expect(gap.offset, 0x0C);
+        expect(gap.end, 0x28);
+        expect(gap.length, 28);
 
-      final claimants = <String>[
-        for (final field in project.layout.allFields)
-          if (field.span.overlaps(gap))
-            '${field.label} ${field.id.value} ${field.span}',
-      ];
-      expect(
-        claimants,
-        isEmpty,
-        reason:
-            'the reserved header gap $gap must be unmapped, but these '
-            'descriptors claim it: $claimants',
-      );
-      expect(
-        edited.sublist(gap.offset, gap.end),
-        orderedEquals(original.sublist(gap.offset, gap.end)),
-        reason: 'the reserved header gap must be preserved verbatim',
-      );
-      chainLog(
-        'original 0x0C..0x28:\n${hexWindow(original, 0x0C, radius: 28)}',
-      );
-      chainLog('edited   0x0C..0x28:\n${hexWindow(edited, 0x0C, radius: 28)}');
+        final claimants = <String>[
+          for (final field in project.layout.allFields)
+            if (field.span.overlaps(gap))
+              '${field.label} ${field.id.value} ${field.span}',
+        ];
+        expect(
+          claimants,
+          isEmpty,
+          reason:
+              'the reserved header gap $gap must be unmapped, but these '
+              'descriptors claim it: $claimants',
+        );
+        expect(
+          edited.sublist(gap.offset, gap.end),
+          orderedEquals(original.sublist(gap.offset, gap.end)),
+          reason: 'the reserved header gap must be preserved verbatim',
+        );
+        chainLog(
+          'original 0x0C..0x28:\n${hexWindow(original, 0x0C, radius: 28)}',
+        );
+        chainLog(
+          'edited   0x0C..0x28:\n${hexWindow(edited, 0x0C, radius: 28)}',
+        );
 
-      // One opaque, unverified tail span must survive too: SAVE-FORMAT.md §9.8
-      // "Preserve unknown fields and unknown tail bytes".
-      final tailStart = _readU32(
-        original,
-        ProgressLayout.dataOffsetFieldOffset,
-      );
-      final opaque = project.layout.allFields.firstWhere(
-        (field) =>
-            field.span.offset >= tailStart &&
-            field.span.length >= 16 &&
-            field.confidence != FieldConfidence.verified,
-        orElse: () => fail(
-          'the layout declares no opaque tail span at or after '
-          '0x${tailStart.toRadixString(16)} to assert preservation of',
-        ),
-      );
-      expect(opaque.span.overlaps(ByteSpan(lifeOffset, 1)), isFalse);
-      expect(
-        edited.sublist(opaque.span.offset, opaque.span.end),
-        orderedEquals(original.sublist(opaque.span.offset, opaque.span.end)),
-        reason:
-            'opaque span ${opaque.span} of ${opaque.id.value} must be '
-            'preserved',
-      );
-      chainLog(
-        'opaque ${opaque.label} ${opaque.id.value} kind=${opaque.kind.name} '
-        'confidence=${opaque.confidence.name} span=${opaque.span} '
-        'length=${opaque.span.length} identical=true',
-      );
+        // One opaque, unverified tail span must survive too: SAVE-FORMAT.md §9.8
+        // "Preserve unknown fields and unknown tail bytes".
+        final tailStart = _readU32(
+          original,
+          ProgressLayout.dataOffsetFieldOffset,
+        );
+        final opaque = project.layout.allFields.firstWhere(
+          (field) =>
+              field.span.offset >= tailStart &&
+              field.span.length >= 16 &&
+              field.confidence != FieldConfidence.verified,
+          orElse: () => fail(
+            'the layout declares no opaque tail span at or after '
+            '0x${tailStart.toRadixString(16)} to assert preservation of',
+          ),
+        );
+        expect(opaque.span.overlaps(ByteSpan(lifeOffset, 1)), isFalse);
+        expect(
+          edited.sublist(opaque.span.offset, opaque.span.end),
+          orderedEquals(original.sublist(opaque.span.offset, opaque.span.end)),
+          reason:
+              'opaque span ${opaque.span} of ${opaque.id.value} must be '
+              'preserved',
+        );
+        chainLog(
+          'opaque ${opaque.label} ${opaque.id.value} kind=${opaque.kind.name} '
+          'confidence=${opaque.confidence.name} span=${opaque.span} '
+          'length=${opaque.span.length} identical=true',
+        );
 
-      // Editing slot_00 must not touch the other open slot.
-      final otherSlot = SaveSlotId.progress(1);
-      expectByteIdentical(
-        project.document(otherSlot)!.snapshot.materialize(),
-        editedProject.document(otherSlot)!.snapshot.materialize(),
-        reason: 'a slot_00 edit must leave slot_01 byte-identical',
-      );
+        // Editing slot_00 must not touch the other open slot.
+        final otherSlot = SaveSlotId.progress(1);
+        expectByteIdentical(
+          project.document(otherSlot)!.snapshot.materialize(),
+          editedProject.document(otherSlot)!.snapshot.materialize(),
+          reason: 'a slot_00 edit must leave slot_01 byte-identical',
+        );
 
-      chainLog(
-        'original Life @0x${lifeOffset.toRadixString(16)}:\n'
-        '${hexWindow(original, lifeOffset, radius: 8)}',
-      );
-      chainLog(
-        'edited   Life @0x${lifeOffset.toRadixString(16)}:\n'
-        '${hexWindow(edited, lifeOffset, radius: 8)}',
-      );
+        chainLog(
+          'original Life @0x${lifeOffset.toRadixString(16)}:\n'
+          '${hexWindow(original, lifeOffset, radius: 8)}',
+        );
+        chainLog(
+          'edited   Life @0x${lifeOffset.toRadixString(16)}:\n'
+          '${hexWindow(edited, lifeOffset, radius: 8)}',
+        );
 
-      final artifact = _writeArtifact(
-        targetName,
-        'edited-progress.sav',
-        edited,
+        final artifact = _writeArtifact(
+          targetName,
+          'edited-progress.sav',
+          edited,
+        );
+        expectByteIdentical(edited, artifact);
+        expect(
+          ByteRegionDiff.diff(original, artifact).runs,
+          hasLength(1),
+          reason: 'the written artifact must differ in exactly one byte',
+        );
+        chainLog(
+          '(b) edited artifact bytes=${artifact.length} '
+          'out=${_outPath(targetName, 'edited-progress.sav')}',
+        );
+      });
+    },
+  );
+
+  group('real-save resolution policy', () {
+    test('should report absent and misconfigured without retail saves', () {
+      final absent = resolveRealSaves(
+        overrideValue: '',
+        candidates: const <String>[
+          '.tmp/e2e/final19/no-such-root-a',
+          '.tmp/e2e/final19/no-such-root-b',
+        ],
       );
-      expectByteIdentical(edited, artifact);
-      expect(
-        ByteRegionDiff.diff(original, artifact).runs,
-        hasLength(1),
-        reason: 'the written artifact must differ in exactly one byte',
+      expect(absent, isA<RealSaveAbsent>());
+      final absentReason = (absent as RealSaveAbsent).reason;
+      expect(absentReason, contains('SKIPPED, NOT PASSED'));
+      expect(absentReason, contains('.tmp/e2e/final19/no-such-root-a'));
+      expect(absentReason, contains('.tmp/e2e/final19/no-such-root-b'));
+
+      final misconfigured = resolveRealSaves(
+        overrideValue: '.tmp/e2e/final19/no-such-override',
+        candidates: const <String>[],
       );
-      chainLog(
-        '(b) edited artifact bytes=${artifact.length} '
-        'out=${_outPath(targetName, 'edited-progress.sav')}',
-      );
+      expect(misconfigured, isA<RealSaveMisconfigured>());
+      final reason = (misconfigured as RealSaveMisconfigured).reason;
+      expect(reason, contains('BOMB_FLOWER_REAL_SAVES'));
+      expect(reason, contains('.tmp/e2e/final19/no-such-override'));
     });
   });
+}
+
+/// Fails the calling test when an explicit override resolved to nothing.
+void _requireRealSaves(RealSaveResolution resolution) {
+  if (resolution case RealSaveMisconfigured(:final reason)) {
+    fail(reason);
+  }
 }
 
 /// Root plus slot name of the real fixture, e.g. `.tmp/rt/slot_00/progress.sav`.
@@ -281,24 +349,39 @@ String _outPath(String slot, String name) => '$fixtureRoot/out/$slot/$name';
 SaveSlotId _slotIdOf(String slot) =>
     SaveSlotId.progress(int.parse(slot.substring('slot_'.length)));
 
-/// Copies a fixture out of the read-only retail tree when the copy is absent.
+/// Copies a resolved real slot into `.tmp/rt/` when the copy is absent.
 ///
-/// The source is opened for reading only. A machine without the retail save
-/// fails with the two paths named rather than skipping the assertion.
-void _ensureFixture(String slot) {
+/// The source is opened for reading only. A Found resolution that somehow
+/// lacks the requested slot fails with the tried paths named.
+void _ensureFixture(String slot, RealSaveFound found) {
   final target = File(_fixturePath(slot));
   if (target.existsSync()) {
     return;
   }
-  final source = File('$realSaveRoot/$slot/progress.sav');
-  if (!source.existsSync()) {
+  final source = _sourceSlot(found, slot);
+  if (source == null) {
     fail(
-      'no fixture at ${target.path} and no read-only source at '
-      '${source.path}; copy a real progress.sav into ${target.parent.path}',
+      'no fixture at ${target.path} and the resolved slots '
+      '${found.slots.map((directory) => directory.path).toList()} contain no '
+      '$slot; copy a real progress.sav into ${target.parent.path}',
     );
   }
+  final progress = File('${source.path}/progress.sav');
   target.parent.createSync(recursive: true);
-  source.copySync(target.path);
+  progress.copySync(target.path);
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
 }
 
 /// The fixture bytes, as a private copy so no caller can mutate the file view.
