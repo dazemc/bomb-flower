@@ -86,10 +86,15 @@ String formatOpenLogLine({
   required String path,
   required OpenOutcome outcome,
   String? reason,
+  int? unverifiedFieldCount,
 }) {
   final trimmed = reason?.trim() ?? '';
   final suffix = outcome.hasReason && trimmed.isNotEmpty ? ': $trimmed' : '';
-  return 'open $path -> ${outcome.label}$suffix';
+  final count = outcome == OpenOutcome.unverified ? unverifiedFieldCount : null;
+  final counter = count == null
+      ? ''
+      : ' ($count unverified field${count == 1 ? '' : 's'})';
+  return 'open $path -> ${outcome.label}$counter$suffix';
 }
 
 final RegExp _slotDirectoryName = RegExp(r'^slot_\d+$');
