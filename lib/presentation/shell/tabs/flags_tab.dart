@@ -246,11 +246,12 @@ class _FlagsTableState extends State<_FlagsTable> {
         : _showHashOnly
         ? '${formatRupees(stats.named)} named fields · '
               '${formatRupees(stats.unnamed)} hash-only · '
-              '$hashOnlyEditable of ${formatRupees(hashOnly)} hash-only '
-              'editable'
+              '${formatRupees(hashOnlyEditable)} of '
+              '${formatRupees(hashOnly)} hash-only editable'
         : '${formatRupees(stats.named)} named fields · '
               '${formatRupees(stats.unnamed)} hash-only · '
-              '$editable of ${formatRupees(named)} named editable';
+              '${formatRupees(editable)} of ${formatRupees(named)} '
+              'named editable';
 
     return TabPageFrame(
       child: ParchmentPanel(

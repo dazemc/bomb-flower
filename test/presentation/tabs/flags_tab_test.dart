@@ -856,7 +856,7 @@ void main() {
         // The count line always names both halves.
         expect(
           find.text('3,443 named fields · 6,769 hash-only · '
-              '3438 of 3,443 named editable'),
+              '3,438 of 3,443 named editable'),
           findsOneWidget,
         );
 
