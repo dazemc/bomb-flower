@@ -20,15 +20,14 @@ const int _recordCount = 11958;
 const int _fieldCount = 11925;
 const int _sentinelCount = 32;
 const int _dataOffset = 0x175D8; // 95704 == 0x28 + 8 * 11958.
-const int _progressLength = 120164;
-const int _tailLength = 24460;
+const int _progressLength = 120572;
+const int _tailLength = 24868;
 const int _captionLength = 2029;
 const int _noScreenshotCaptionLength = 1400;
 const int _captionJpegOffset = 1396;
 const int _footerIndex = 11957;
 const int _footerKey = 0xA3DB7114;
-const int _footerValue = 0x1D6F4;
-const int _footerGapPastEof = 400;
+const int _footerValue = 0x1D6F4; // 120564 == 120572 - 8.
 
 const int _lifeKey = 0x31AB5580;
 const int _positionKey = 0x960AD56A;
@@ -116,7 +115,16 @@ void main() {
 
       expect(save.records.length, _fieldCount);
       expect(build.progressBytes.length, _progressLength);
+      expect(build.progressBytes.length, 120572);
       expect(save.length, _progressLength);
+      expect(save.footer.index, 11957);
+      expect(save.footer.key, 0xA3DB7114);
+      expect(save.footer.rawValue, 120564);
+      // The samples' zero trailer is the final eight bytes of the file.
+      expect(
+        build.progressBytes.sublist(build.progressBytes.length - 8),
+        everyElement(0),
+      );
 
       for (final entry in _sectionCounts.entries) {
         final type = layout.SaveType.forTypeId(entry.key)!;
@@ -148,84 +156,83 @@ void main() {
       }
     });
 
-    test('record order follows the schema and sentinels close every section', () {
-      final byIndex = <int, ProgressRecord>{
-        for (final record in save.records) record.index: record,
-      };
+    test(
+      'record order follows the schema and sentinels close every section',
+      () {
+        final byIndex = <int, ProgressRecord>{
+          for (final record in save.records) record.index: record,
+        };
 
-      final fieldIndices = <int>{};
-      for (final field in schema.fields) {
-        final index = field.recordIndex;
-        expect(
-          index,
-          isNotNull,
-          reason: '${field.displayName} has no recordIndex',
-        );
-        expect(
-          fieldIndices.add(index!),
-          isTrue,
-          reason: '${field.displayName} repeats recordIndex $index',
-        );
-      }
-      expect(fieldIndices.length, _fieldCount);
-
-      final mismatched = schema.fields
-          .where((field) => byIndex[field.recordIndex]?.key != field.hash)
-          .toList(growable: false);
-      expect(
-        mismatched.length,
-        0,
-        reason: mismatched
-            .take(3)
-            .map((field) => '${field.displayName}@${field.recordIndex}')
-            .join(', '),
-      );
-
-      final sentinelIndices = <int>{
-        for (final sentinel in save.sentinels) sentinel.index,
-      };
-      final nonFieldIndices = <int>{
-        for (var i = 0; i < build.recordCount; i++)
-          if (i != save.footer.index && !sentinelIndices.contains(i)) i,
-      };
-      expect(fieldIndices, nonFieldIndices);
-      expect(<int>{
-        for (final record in save.records) record.index,
-      }, nonFieldIndices);
-
-      expect(save.sentinels.length, _sentinelCount);
-      var previousSentinelIndex = -1;
-      for (var i = 0; i < save.sentinels.length; i++) {
-        final sentinel = save.sentinels[i];
-        final typeId = i + 1;
-        expect(sentinel.type.typeId, typeId);
-        expect(sentinel.key, 0);
-        expect(sentinel.rawValue, typeId);
-        expect(sentinel.isSentinel, isTrue);
-        expect(sentinel.index, greaterThan(previousSentinelIndex));
-        final section = schema.section(typeId);
-        if (section == null) {
-          // Empty sections have no schema SectionDef, so the sentinel is the
-          // bare record immediately after the previous section's sentinel.
-          expect(sentinel.index, previousSentinelIndex + 1);
-        } else {
-          expect(sentinel.index, section.sentinelRecordIndex);
+        final fieldIndices = <int>{};
+        for (final field in schema.fields) {
+          final index = field.recordIndex;
+          expect(
+            index,
+            isNotNull,
+            reason: '${field.displayName} has no recordIndex',
+          );
+          expect(
+            fieldIndices.add(index!),
+            isTrue,
+            reason: '${field.displayName} repeats recordIndex $index',
+          );
         }
-        previousSentinelIndex = sentinel.index;
-      }
+        expect(fieldIndices.length, _fieldCount);
 
-      expect(save.footer.index, _footerIndex);
-      expect(save.footer.key, _footerKey);
-      // The opaque footer value stays verbatim. In this build the tail ends
-      // 400 bytes before it: the samples' three Binary spans are the 400 bytes
-      // the builder deliberately does not invent.
-      expect(save.footer.rawValue, _footerValue);
-      expect(
-        save.footer.rawValue - build.progressBytes.length,
-        _footerGapPastEof,
-      );
-      expect(save.footer.index, save.recordCount - 1);
-    });
+        final mismatched = schema.fields
+            .where((field) => byIndex[field.recordIndex]?.key != field.hash)
+            .toList(growable: false);
+        expect(
+          mismatched.length,
+          0,
+          reason: mismatched
+              .take(3)
+              .map((field) => '${field.displayName}@${field.recordIndex}')
+              .join(', '),
+        );
+
+        final sentinelIndices = <int>{
+          for (final sentinel in save.sentinels) sentinel.index,
+        };
+        final nonFieldIndices = <int>{
+          for (var i = 0; i < build.recordCount; i++)
+            if (i != save.footer.index && !sentinelIndices.contains(i)) i,
+        };
+        expect(fieldIndices, nonFieldIndices);
+        expect(<int>{
+          for (final record in save.records) record.index,
+        }, nonFieldIndices);
+
+        expect(save.sentinels.length, _sentinelCount);
+        var previousSentinelIndex = -1;
+        for (var i = 0; i < save.sentinels.length; i++) {
+          final sentinel = save.sentinels[i];
+          final typeId = i + 1;
+          expect(sentinel.type.typeId, typeId);
+          expect(sentinel.key, 0);
+          expect(sentinel.rawValue, typeId);
+          expect(sentinel.isSentinel, isTrue);
+          expect(sentinel.index, greaterThan(previousSentinelIndex));
+          final section = schema.section(typeId);
+          if (section == null) {
+            // Empty sections have no schema SectionDef, so the sentinel is the
+            // bare record immediately after the previous section's sentinel.
+            expect(sentinel.index, previousSentinelIndex + 1);
+          } else {
+            expect(sentinel.index, section.sentinelRecordIndex);
+          }
+          previousSentinelIndex = sentinel.index;
+        }
+
+        expect(save.footer.index, _footerIndex);
+        expect(save.footer.key, _footerKey);
+        // The opaque footer value is the samples' trailer offset: 0x1D6F4 is
+        // exactly eight bytes before EOF, where the zero trailer starts.
+        expect(save.footer.rawValue, _footerValue);
+        expect(save.footer.rawValue, build.progressBytes.length - 8);
+        expect(save.footer.index, save.recordCount - 1);
+      },
+    );
 
     test('tail spans are contiguous from dataOffset to EOF', () {
       final tailRecords = save.records
@@ -261,6 +268,40 @@ void main() {
       expect(previousEnd, build.progressBytes.length);
       expect(build.dataOffset + _tailLength, build.progressBytes.length);
       expect(save.tailBytes.length, _tailLength);
+    });
+
+    test('emits the verified Binary spans in record order', () {
+      final binaries = save.records
+          .where((record) => record.type == layout.SaveType.binary)
+          .toList(growable: false);
+      expect(binaries.length, 3);
+      expect(
+        binaries.map((record) => record.key).toList(growable: false),
+        <int>[0x70D7C5CB, 0x3339DF55, 0x1CA26DD7],
+      );
+      for (var i = 1; i < binaries.length; i++) {
+        expect(binaries[i].index, greaterThan(binaries[i - 1].index));
+      }
+
+      const spanLengths = <int>[404, 4, 4];
+      const lengthWords = <int>[400, 0, 0];
+      final spans = <Uint8List>[];
+      for (var i = 0; i < binaries.length; i++) {
+        final record = binaries[i];
+        expect(record.dataOffset, isNotNull);
+        expect(record.dataLength, spanLengths[i]);
+        expect(
+          _readU32le(build.progressBytes, record.dataOffset!),
+          lengthWords[i],
+        );
+        final span = record.copyDataBytes();
+        expect(span.length, spanLengths[i]);
+        expect(_readU32le(span, 0), lengthWords[i]);
+        spans.add(span);
+      }
+      // The first span is a u32 400 length word plus 400 zero payload bytes.
+      expect(spans.first.length - 4, 400);
+      expect(spans.first.sublist(4).every((byte) => byte == 0), isTrue);
     });
 
     test('an unedited decode re-encodes byte-for-byte', () {
@@ -574,3 +615,9 @@ GameDataSchema _schemaWithDefault(String schemaJson, int hash, Object value) {
   field['default'] = value;
   return GameDataSchema.fromJsonString(jsonEncode(root));
 }
+
+int _readU32le(Uint8List bytes, int offset) =>
+    bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24);

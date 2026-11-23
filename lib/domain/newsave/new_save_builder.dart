@@ -67,21 +67,22 @@ final class NewSaveBuildException implements Exception {
 /// Builds the verified `progress.sav` and `caption.sav` layout from a schema.
 ///
 /// The progress file uses the schema's defaults and the verified record order.
-/// Two differences from the 120,572-byte samples are deliberate and documented:
+/// It matches the shipped samples' container arithmetic:
+/// `120,572 = 40 + 8 * 11,958 + 24,868`, where 24,868 is the tail including
+/// the samples' 8-byte zero trailer.
 ///
-/// - Each `Binary` field is emitted as a minimal 4-byte `u32 0` blob. The
-///   schema's Binary defaults (156000, 376, 160000) have no verified byte
-///   meaning, and the sample spans are 404, 4 and 4 bytes. Emitting the zero
-///   length word is the only non-inventing choice; it makes the file 400 bytes
-///   shorter than the samples.
-/// - The samples' 8-byte zero trailer after the last tail span is not
-///   reproduced. Its meaning is unknown, and the verified tail ends at the last
-///   span. This makes the file another 8 bytes shorter.
+/// The first `Binary` field (section 19, lowest record index) is emitted as a
+/// `u32 400` length word plus 400 zero bytes, matching the verified 404-byte
+/// sample span. The other two are the 4-byte `u32 0` empty blobs. The payload
+/// lengths are the verified sample spans; the payload contents are zeros
+/// because the sample bytes are unknown, so this does not claim to reproduce
+/// them.
 ///
-/// The footer value stays exactly `0x1D6F4` (`ProgressLayout.footerValue`).
-/// In a built file the tail ends at `0x1D564`, so that opaque value is 400
-/// bytes past EOF. The codec never follows it, and the samples' own footer
-/// value is not the file length either.
+/// The footer value stays exactly `0x1D6F4` (`ProgressLayout.footerValue`),
+/// which is `120,564 = 120,572 - 8`, the offset of the samples' zero trailer.
+/// The footer is opaque on read and is never followed as a pointer. Real
+/// played saves are larger and carry extra trailing bytes after the footer
+/// value, so the value is not a total-length field.
 ///
 /// The caption file is built directly from [CaptionLayout]: magic, the 1392
 /// marker, the six date entries observed in all three samples, the scene and
@@ -101,13 +102,36 @@ abstract final class NewSaveBuilder {
     final overrides = _startPositionOverrides(schema, plan, spec.startPosition);
 
     final tail = _TailWriter();
+    final binarySpanLengths = <int>[];
     for (final field in plan.fieldOrder) {
       if (!_tailTypes.contains(field.type)) {
         continue;
       }
       final index = field.recordIndex!;
       plan.values[index] = plan.dataOffset + tail.length;
-      _emitTail(tail, field, startPosition: overrides[index]);
+      final binarySpanLength = field.type == SaveType.binary
+          ? (binarySpanLengths.isEmpty
+                ? _firstBinarySpanLength
+                : _emptyBinarySpanLength)
+          : null;
+      if (binarySpanLength != null) {
+        binarySpanLengths.add(binarySpanLength);
+      }
+      _emitTail(
+        tail,
+        field,
+        startPosition: overrides[index],
+        binarySpanLength: binarySpanLength,
+      );
+    }
+    _assertBinarySpans(binarySpanLengths);
+    final tailBeforeTrailer = tail.length;
+    tail.zeros(_sampleTrailerLength);
+    if (tail.length - tailBeforeTrailer != _sampleTrailerLength) {
+      _inconsistent(
+        'The sample trailer is ${tail.length - tailBeforeTrailer} bytes; the '
+        'verified samples have $_sampleTrailerLength.',
+      );
     }
 
     return NewSaveBuild(
@@ -171,6 +195,21 @@ abstract final class NewSaveBuilder {
 
   static Uint8List _buildProgress(_RecordPlan plan, _TailWriter tail) {
     final tailBytes = tail.takeBytes();
+    final expectedTailLength =
+        layout.ProgressLayout.sampleFileLength - plan.dataOffset;
+    if (tailBytes.length != expectedTailLength) {
+      _inconsistent(
+        'The emitted tail is ${tailBytes.length} bytes; the verified samples '
+        'have $expectedTailLength.',
+      );
+    }
+    if (!_hasZeroTrailer(tailBytes, _sampleTrailerLength)) {
+      _inconsistent(
+        'The last $_sampleTrailerLength tail bytes are not the verified zero '
+        'trailer.',
+      );
+    }
+
     final progress = Uint8List(plan.dataOffset + tailBytes.length);
     final data = ByteData.sublistView(progress);
 
@@ -200,7 +239,34 @@ abstract final class NewSaveBuilder {
     }
 
     progress.setRange(plan.dataOffset, progress.length, tailBytes);
+    if (progress.length != layout.ProgressLayout.sampleFileLength) {
+      _inconsistent(
+        'The built progress.sav is ${progress.length} bytes; the verified '
+        'samples are ${layout.ProgressLayout.sampleFileLength}.',
+      );
+    }
+    if (layout.ProgressLayout.footerValue !=
+        progress.length - _sampleTrailerLength) {
+      _inconsistent(
+        'The footer value 0x'
+        '${layout.ProgressLayout.footerValue.toRadixString(16)} is not the '
+        "samples' trailer offset 0x"
+        '${(progress.length - _sampleTrailerLength).toRadixString(16)}.',
+      );
+    }
     return progress;
+  }
+
+  static bool _hasZeroTrailer(Uint8List bytes, int length) {
+    if (bytes.length < length) {
+      return false;
+    }
+    for (var i = bytes.length - length; i < bytes.length; i++) {
+      if (bytes[i] != 0) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static Uint8List _buildCaption(NewSaveSpec spec) {
@@ -274,6 +340,7 @@ abstract final class NewSaveBuilder {
     _TailWriter tail,
     SaveFieldDef field, {
     SavePosition? startPosition,
+    int? binarySpanLength,
   }) {
     switch (field.type) {
       case SaveType.booleanArray:
@@ -363,10 +430,14 @@ abstract final class NewSaveBuilder {
         break;
 
       case SaveType.binary:
-        // The schema's Binary defaults (156000, 376, 160000) have no verified
-        // byte meaning, and the samples' spans (404, 4, 4) are opaque. A
-        // zero-length blob is the only emission that invents no payload.
-        tail.u32(0);
+        final spanLength = binarySpanLength;
+        if (spanLength == null) {
+          _inconsistent(
+            'Field ${_describe(field)} is Binary but no verified span length '
+            'was supplied.',
+          );
+        }
+        _emitBinary(tail, spanLength);
         break;
 
       case SaveType.binaryArray:
@@ -431,6 +502,36 @@ abstract final class NewSaveBuilder {
           'Field ${_describe(field)} has unsupported tail type '
           '${field.type.wireName}.',
         );
+    }
+  }
+
+  /// Emits a `Binary` span: a `u32` payload length followed by zero bytes.
+  ///
+  /// [spanLength] is the verified sample span (404 for the first Binary, 4 for
+  /// the other two). The payload length word is `spanLength - 4`; the payload
+  /// contents are zeros because the sample bytes are unknown. This does not
+  /// claim to reproduce the sample payload.
+  static void _emitBinary(_TailWriter tail, int spanLength) {
+    final payloadLength = spanLength - layout.ProgressLayout.valueWordSize;
+    tail.u32(payloadLength);
+    tail.zeros(payloadLength);
+  }
+
+  static void _assertBinarySpans(List<int> spans) {
+    if (spans.length != _binaryFieldCount) {
+      _inconsistent(
+        'The schema has ${spans.length} Binary fields; the verified layout '
+        'has $_binaryFieldCount.',
+      );
+    }
+    if (spans[0] != _firstBinarySpanLength ||
+        spans[1] != _emptyBinarySpanLength ||
+        spans[2] != _emptyBinarySpanLength) {
+      _inconsistent(
+        'The emitted Binary spans are ${spans.join('/')}; the verified samples '
+        'are $_firstBinarySpanLength/$_emptyBinarySpanLength/'
+        '$_emptyBinarySpanLength in record order.',
+      );
     }
   }
 }
@@ -808,6 +909,22 @@ const Set<SaveType> _tailTypes = <SaveType>{
   SaveType.uint64Array,
   SaveType.wstring16Array,
 };
+
+/// The first `Binary` field's verified sample span: 404 bytes.
+///
+/// The 404 bytes are the verified sample span, but the payload contents are
+/// zeros because the sample bytes are unknown. This is not a claim to
+/// reproduce the sample payload.
+const int _firstBinarySpanLength = 404;
+
+/// The other two `Binary` fields' verified sample span: an empty 4-byte blob.
+const int _emptyBinarySpanLength = 4;
+
+/// The number of `Binary` fields in the verified schema.
+const int _binaryFieldCount = 3;
+
+/// The samples' zero trailer after the last tail span (0x1D6F4..0x1D6FC).
+const int _sampleTrailerLength = 8;
 
 const int _wstring16SlotBytes = 32;
 const int _wstring16CodeUnitsPerSlot = _wstring16SlotBytes ~/ 2;
