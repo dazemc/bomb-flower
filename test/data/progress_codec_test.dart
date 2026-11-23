@@ -71,6 +71,11 @@ void main() {
       expect(ProgressLayout.sectionFor(SaveType.wstring16Array).sampleCount, 2);
     });
 
+    test('exactly 20 sections are populated in the samples', () {
+      expect(ProgressLayout.sections.where((s) => s.sampleCount > 0).length, 20);
+      expect(ProgressLayout.sections.where((s) => s.sampleCount == 0).length, 12);
+    });
+
     test('keeps the verified sample constants', () {
       expect(ProgressLayout.magicValue, 0x01020304);
       expect(ProgressLayout.revision, 2982123);
@@ -297,6 +302,30 @@ void main() {
         <int>[0, 0, 0, 0, 0],
       );
     });
+  });
+
+  group('post-footer tolerance', () {
+    for (final padding in <int>[0, 8, 280, 608]) {
+      test('decodes and re-encodes $padding trailing zero bytes', () {
+        final base = buildSyntheticProgress();
+        final padded = Uint8List(base.length + padding)
+          ..setRange(0, base.length, base);
+
+        final decoded = ProgressCodec.decode(padded);
+        expect(
+          decoded,
+          isA<ProgressDecodeOk>(),
+          reason: '$padding trailing bytes must decode: $decoded',
+        );
+        final save = (decoded as ProgressDecodeOk).save;
+        expect(save.encode(), padded, reason: 'encode must keep the padding');
+        expect(
+          ProgressCodec.encode(save),
+          padded,
+          reason: 'ProgressCodec.encode must keep the padding',
+        );
+      });
+    }
   });
 
   group('validation', () {

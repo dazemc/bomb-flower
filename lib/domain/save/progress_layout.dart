@@ -7,9 +7,9 @@
 /// that matters is recorded on the affected descriptor.
 ///
 /// The record stream has **32** sentinels, not 19: type ids 1..32 each end a
-/// typed section, and 13 of those sections are always empty in the samples.
-/// The "19 typed sections" in the verified notes are the 19 *populated*
-/// sections. The totals reconcile exactly:
+/// typed section. 20 of those sections are populated in the samples and 12 are
+/// sentinel-only (types 9, 10, 12, 13, 14, 16, 24, 27, 29, 30, 31 and 32).
+/// The totals reconcile exactly:
 /// 11,925 fields + 32 sentinels + 1 footer = 11,958 records,
 /// `0x28 + 8 * 11,958 = 0x175D8`, and the sample file is 120,572 bytes.
 library;
