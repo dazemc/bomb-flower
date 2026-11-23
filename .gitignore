@@ -68,5 +68,7 @@ app.*.map.json
 .local-fixtures/
 *.sav
 *.eep
+# Scratch artifacts moved out of /tmp. Local only, never committed.
+/.tmp/
 # Narrow escape hatch for tiny synthetic JSON fixtures added later.
 !/test/fixtures/**
