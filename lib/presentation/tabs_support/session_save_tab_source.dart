@@ -130,6 +130,22 @@ final class SessionSaveTabSource implements SaveTabSource {
   @override
   Listenable get changes => _changes;
 
+  /// A fresh copy of the active slot's current bytes, or `null` when closed.
+  @override
+  Uint8List? get activeSlotBytes {
+    final slot = activeSlot;
+    return slot == null ? null : bytesFor(slot);
+  }
+
+  /// A fresh copy of [slot]'s bytes, or `null` when it is not open.
+  ///
+  /// [ByteRegion.materialize] allocates a new buffer on every call, so callers
+  /// can never mutate an engine-owned region through the returned array.
+  @override
+  Uint8List? bytesFor(SaveSlotId slot) {
+    return _project()?.document(slot)?.snapshot.content.materialize();
+  }
+
   /// Field views for [group].
   ///
   /// Only `overview` and `playerWorld` have a documented mapping: the exact

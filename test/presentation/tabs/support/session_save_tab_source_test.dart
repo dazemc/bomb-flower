@@ -1,9 +1,11 @@
-import 'package:bomb_flower/domain/core/identity.dart';
+import 'package:bomb_flower/domain/core/core.dart';
 import 'package:bomb_flower/domain/fields/field_groups.dart';
 import 'package:bomb_flower/presentation/tabs_support/save_tab_source.dart';
 import 'package:bomb_flower/presentation/tabs_support/session_save_tab_source.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../domain/core/fixtures.dart';
 
 SessionSaveTabSource _emptySource({List<SlotAge>? ages, Listenable? changes}) {
   return SessionSaveTabSource(
@@ -13,6 +15,38 @@ SessionSaveTabSource _emptySource({List<SlotAge>? ages, Listenable? changes}) {
     redo: () {},
     slotAges: ages == null ? null : () => ages,
     changes: changes,
+  );
+}
+
+SessionSaveTabSource _projectSource() {
+  final snapshot = SaveSnapshot(
+    progressSlot,
+    0,
+    ByteRegion.fromBytes(progressBytes()),
+  );
+  final document = SaveDocument(
+    progressSlot,
+    progressLayout(),
+    snapshot,
+    const <SaveField<FieldValue>>[],
+  );
+  final project = SaveProject(
+    'p',
+    '/save',
+    '/save.bombflower-original',
+    testLayout(),
+    7,
+    <SaveSlotId, SaveSnapshot>{progressSlot: snapshot},
+    <SaveSlotId, SaveDocument>{progressSlot: document},
+    <SaveSlotId, int>{progressSlot: 1},
+    EditHistory(),
+    EditLog.empty(),
+  );
+  return SessionSaveTabSource(
+    project: () => project,
+    edit: (_) {},
+    undo: () {},
+    redo: () {},
   );
 }
 
@@ -83,5 +117,28 @@ void main() {
       ],
     );
     expect(untimed.newestSlot, isNull);
+  });
+
+  test('slot bytes are null without a project', () {
+    final source = _emptySource();
+
+    expect(source.activeSlotBytes, isNull);
+    expect(source.bytesFor(SaveSlotId.account), isNull);
+  });
+
+  test('slot bytes are defensive copies of the open document', () {
+    final source = _projectSource();
+    final first = source.activeSlotBytes;
+
+    expect(source.activeSlot, progressSlot);
+    expect(first, isNotNull);
+    expect(first!.length, progressBytes().length);
+    expect(source.bytesFor(SaveSlotId.account), isNull);
+
+    final original = first[0];
+    first[0] = 0xff;
+    final second = source.activeSlotBytes!;
+    expect(second[0], original);
+    expect(identical(first, second), isFalse);
   });
 }

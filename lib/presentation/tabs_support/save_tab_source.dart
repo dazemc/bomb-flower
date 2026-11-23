@@ -60,6 +60,17 @@ abstract interface class SaveTabSource {
   /// Slot the tab is editing, if any.
   SaveSlotId? get activeSlot;
 
+  /// A defensive copy of the active slot's current bytes, or `null` when
+  /// closed.
+  ///
+  /// Read-only by construction: mutating the returned array must never change
+  /// engine state. Every write still goes through [edit].
+  Uint8List? get activeSlotBytes;
+
+  /// A defensive copy of [slot]'s current bytes, or `null` when that slot is
+  /// not open.
+  Uint8List? bytesFor(SaveSlotId slot);
+
   /// Re-render trigger; hosts rebuild the tab when this notifies.
   Listenable get changes;
 
