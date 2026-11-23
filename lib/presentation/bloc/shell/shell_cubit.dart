@@ -45,6 +45,54 @@ class ShellCubit extends Cubit<ShellState> {
     emit(state.copyWith(navCollapsed: collapsed));
   }
 
+  /// Shows an open save in the title bar and status footer.
+  ///
+  /// The session stays the single source of truth: this copies the values it
+  /// reports into the shell state and never derives save data of its own.
+  void showSaveSession({
+    required String saveName,
+    required String filePath,
+    required String revision,
+    required bool isDirty,
+    required String statusMessage,
+    required String validationSummary,
+    required ShellValidationHealth validationHealth,
+  }) {
+    emit(
+      ShellState(
+        activeTab: state.activeTab,
+        navCollapsed: state.navCollapsed,
+        windowChromeEnabled: state.windowChromeEnabled,
+        statusMessage: statusMessage,
+        validationSummary: validationSummary,
+        validationHealth: validationHealth,
+        filePath: filePath,
+        revision: revision,
+        isDirty: isDirty,
+        saveName: saveName,
+      ),
+    );
+  }
+
+  /// Returns the chrome to its no-save wording once no project is open.
+  ///
+  /// Re-emitting the constructor defaults keeps the empty and error states
+  /// worded exactly as they were before any project loaded.
+  void clearSaveSession() {
+    if (state.filePath == null &&
+        state.saveName == null &&
+        state.validationHealth == ShellValidationHealth.unknown) {
+      return;
+    }
+    emit(
+      ShellState(
+        activeTab: state.activeTab,
+        navCollapsed: state.navCollapsed,
+        windowChromeEnabled: state.windowChromeEnabled,
+      ),
+    );
+  }
+
   /// Handles a direct tab jump or Ctrl+Tab cycle. Returns true if consumed.
   ///
   /// Callers are responsible for not forwarding Alt-chords while a text field

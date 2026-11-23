@@ -231,6 +231,27 @@ void main() {
       expect(info.isSaveRoot, isFalse);
     });
 
+    test('reports a slot folder holding progress.sav directly', () async {
+      final slot = Directory('${temp.path}/slot_00')..createSync();
+      File('${slot.path}/progress.sav').writeAsStringSync('save');
+
+      final info = await probe.inspect(slot.path);
+
+      expect(info.isDirectory, isTrue);
+      expect(info.progressSavePresent, isTrue);
+      expect(info.containsSaveSlots, isFalse);
+      expect(info.isSaveRoot, isFalse);
+    });
+
+    test('a save root reports no progress.sav directly', () async {
+      Directory('${temp.path}/slot_00').createSync();
+
+      final info = await probe.inspect(temp.path);
+
+      expect(info.progressSavePresent, isFalse);
+      expect(info.isSaveRoot, isTrue);
+    });
+
     test('reports a file path as non-creatable', () async {
       final file = File('${temp.path}/progress.sav')
         ..writeAsStringSync('not a folder');

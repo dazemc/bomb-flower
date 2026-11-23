@@ -213,6 +213,7 @@ final class SaveFolderInfo {
     required this.isDirectory,
     this.slotDirectories = const <String>[],
     this.parentExists = false,
+    this.progressSavePresent = false,
   });
 
   /// The inspected path as supplied.
@@ -229,6 +230,13 @@ final class SaveFolderInfo {
 
   /// Whether the parent directory currently exists.
   final bool parentExists;
+
+  /// Whether `progress.sav` sits directly in [path].
+  ///
+  /// A save root holds `slot_NN/progress.sav`; a `slot_NN` folder holds
+  /// `progress.sav` itself. This flag is what tells those two shapes apart
+  /// without reading any save bytes.
+  final bool progressSavePresent;
 
   /// Whether at least one `slot_*` directory is present.
   bool get containsSaveSlots => slotDirectories.isNotEmpty;
@@ -277,12 +285,16 @@ final class IoSaveFolderProbe implements SaveFolderProbe {
       }
       final parent = Directory(path).parent.path;
       final parentExists = await Directory(parent).exists();
+      final progress = await FileSystemEntity.type(
+        '$path${Platform.pathSeparator}progress.sav',
+      );
       return SaveFolderInfo(
         path: path,
         exists: exists,
         isDirectory: isDirectory,
         slotDirectories: List<String>.unmodifiable(slots),
         parentExists: parentExists,
+        progressSavePresent: progress == FileSystemEntityType.file,
       );
     } catch (_) {
       return SaveFolderInfo(path: path, exists: false, isDirectory: false);

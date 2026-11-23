@@ -6,8 +6,12 @@ import 'package:material_ui/material_ui.dart';
 import '../bloc/shell/shell_cubit.dart';
 import '../bloc/shell/shell_state.dart';
 import '../bloc/shell/tab_definition.dart';
+import '../theme/bomb_flower_colors.dart';
 import '../theme/bomb_flower_spacing.dart';
+import '../theme/bomb_flower_typography.dart';
 import '../widgets/chrome/app_title_bar.dart';
+import '../widgets/common/brass_button.dart';
+import '../widgets/common/error_state.dart';
 import '../widgets/common/procedural_painters.dart';
 import 'shell_nav_rail.dart';
 import 'shell_status_footer.dart';
@@ -18,15 +22,57 @@ import 'tabs/equipment_tab.dart';
 import 'tabs/flags_tab.dart';
 import 'tabs/inventory_tab.dart';
 import 'tabs/overview_tab.dart';
+import 'tabs/placeholder_tab.dart';
 import 'tabs/player_world_tab.dart';
 import 'tabs/progression_tab.dart';
 import 'tabs/resources_tab.dart';
 import 'tabs/settings_tab.dart';
 
+/// A failed save-open worth a persistent panel instead of the empty state.
+///
+/// [path] is the folder the open targeted, when it can be recovered; it drives
+/// the retry action and the visible folder line. [details] is the session's
+/// technical context, shown verbatim when no path is known.
+final class OpenFailureNotice {
+  /// Creates a notice.
+  const OpenFailureNotice({
+    required this.message,
+    this.details,
+    this.path,
+  });
+
+  /// Friendly, primary explanation.
+  final String message;
+
+  /// Technical context from the session error.
+  final String? details;
+
+  /// The folder the open attempted, when known.
+  final String? path;
+}
+
 /// Application shell: 44 px title bar, 232/64 px navigation rail, scrollable
 /// tab content capped at 1680 px, and a 28 px status footer.
+///
+/// The shell is a pure view: [openFailure] replaces the tab content with a
+/// persistent failure panel, and every action it offers is an optional callback
+/// supplied by whoever owns the session.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({
+    super.key,
+    this.openFailure,
+    this.onRetryOpen,
+    this.onOpenAnotherSave,
+  });
+
+  /// A failed open to render instead of the tab content, or `null`.
+  final OpenFailureNotice? openFailure;
+
+  /// Retries the failed open. A null value disables the retry button.
+  final VoidCallback? onRetryOpen;
+
+  /// Shows the open-save dialog so the user can choose another folder.
+  final Future<void> Function(BuildContext context)? onOpenAnotherSave;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -112,9 +158,16 @@ class _AppShellState extends State<AppShell> {
                             child: RepaintBoundary(
                               child: CustomPaint(
                                 painter: const CanopyTexturePainter(),
-                                child: _ShellTabContent(
-                                  activeTab: state.activeTab,
-                                ),
+                                child: switch (widget.openFailure) {
+                                  final notice? => _OpenFailureView(
+                                    notice: notice,
+                                    onRetry: widget.onRetryOpen,
+                                    onOpenAnotherSave: widget.onOpenAnotherSave,
+                                  ),
+                                  null => _ShellTabContent(
+                                    activeTab: state.activeTab,
+                                  ),
+                                },
                               ),
                             ),
                           ),
@@ -128,6 +181,76 @@ class _AppShellState extends State<AppShell> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _OpenFailureView extends StatelessWidget {
+  const _OpenFailureView({
+    required this.notice,
+    required this.onRetry,
+    required this.onOpenAnotherSave,
+  });
+
+  final OpenFailureNotice notice;
+  final VoidCallback? onRetry;
+  final Future<void> Function(BuildContext context)? onOpenAnotherSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = notice.path;
+    final details = notice.details;
+    final openAnother = onOpenAnotherSave;
+    return TabPageFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          ErrorState(
+            key: const Key('open-failure-panel'),
+            title: 'Could not open save',
+            message: notice.message,
+            details: details,
+            onRetry: onRetry,
+            retryLabel: 'Retry',
+          ),
+          const SizedBox(height: BombFlowerSpacing.xl),
+          if (path != null) ...<Widget>[
+            Text(
+              'Folder attempted',
+              style: BombFlowerTypography.label.copyWith(
+                color: BombFlowerColors.inkSecondary,
+              ),
+            ),
+            const SizedBox(height: BombFlowerSpacing.xs),
+            Text(
+              path,
+              key: const Key('open-failure-path'),
+              style: BombFlowerTypography.body.copyWith(
+                color: BombFlowerColors.ink,
+              ),
+            ),
+          ] else if (details != null)
+            // No path to show, so the technical context stays visible instead
+            // of hiding behind the details expander.
+            Text(
+              details,
+              key: const Key('open-failure-details'),
+              style: BombFlowerTypography.caption.copyWith(
+                color: BombFlowerColors.inkMuted,
+              ),
+            ),
+          const SizedBox(height: BombFlowerSpacing.xl),
+          BrassButton(
+            key: const Key('open-failure-open-another'),
+            label: 'Open another save…',
+            icon: Icons.folder_open,
+            variant: BrassButtonVariant.secondary,
+            onPressed: openAnother == null
+                ? null
+                : () => openAnother(context),
+          ),
+        ],
       ),
     );
   }

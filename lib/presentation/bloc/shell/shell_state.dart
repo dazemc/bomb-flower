@@ -2,6 +2,21 @@ import 'package:equatable/equatable.dart';
 
 import 'tab_definition.dart';
 
+/// Health of the footer validation summary, which colours the status dot.
+enum ShellValidationHealth {
+  /// No session has reported yet; the placeholder wording is still showing.
+  unknown,
+
+  /// The session validated with no issues.
+  ok,
+
+  /// Non-blocking issues exist.
+  warnings,
+
+  /// At least one blocking error exists.
+  errors,
+}
+
 /// Shell presentation state. Placeholder strings are explicit; no save values
 /// are invented here.
 class ShellState extends Equatable {
@@ -11,6 +26,7 @@ class ShellState extends Equatable {
     this.windowChromeEnabled = true,
     this.statusMessage = 'Engine pending — no save engine connected',
     this.validationSummary = 'Validation: engine pending',
+    this.validationHealth = ShellValidationHealth.unknown,
     this.filePath,
     this.revision = '—',
     this.isDirty = false,
@@ -26,6 +42,9 @@ class ShellState extends Equatable {
 
   /// Footer validation summary. Not a count until the engine exists.
   final String validationSummary;
+
+  /// Health behind [validationSummary], used to colour the status dot.
+  final ShellValidationHealth validationHealth;
 
   /// Absolute or display path of the open save, null when none is open.
   final String? filePath;
@@ -45,6 +64,7 @@ class ShellState extends Equatable {
     bool? windowChromeEnabled,
     String? statusMessage,
     String? validationSummary,
+    ShellValidationHealth? validationHealth,
     String? filePath,
     String? revision,
     bool? isDirty,
@@ -56,6 +76,7 @@ class ShellState extends Equatable {
       windowChromeEnabled: windowChromeEnabled ?? this.windowChromeEnabled,
       statusMessage: statusMessage ?? this.statusMessage,
       validationSummary: validationSummary ?? this.validationSummary,
+      validationHealth: validationHealth ?? this.validationHealth,
       filePath: filePath ?? this.filePath,
       revision: revision ?? this.revision,
       isDirty: isDirty ?? this.isDirty,
@@ -70,6 +91,7 @@ class ShellState extends Equatable {
     windowChromeEnabled,
     statusMessage,
     validationSummary,
+    validationHealth,
     filePath,
     revision,
     isDirty,

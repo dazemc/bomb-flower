@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:bomb_flower/app.dart';
+import 'package:bomb_flower/data/system/directory_picker.dart';
 import 'package:bomb_flower/data/system/startup_open.dart';
 import 'package:bomb_flower/domain/core/core.dart';
 import 'package:bomb_flower/domain/engine/ports.dart';
 import 'package:bomb_flower/domain/engine/save_engine.dart';
 import 'package:bomb_flower/presentation/bloc/save_session/save_session_cubit.dart';
 import 'package:bomb_flower/presentation/bloc/save_session/save_session_ui_state.dart';
+import 'package:bomb_flower/presentation/dialogs/open_save_dialog.dart';
 import 'package:bomb_flower/presentation/shell/app_shell.dart';
 import 'package:bomb_flower/presentation/tabs_support/save_tab_scope.dart';
 import 'package:bomb_flower/presentation/tabs_support/session_save_tab_source.dart';
@@ -98,6 +100,60 @@ final class _FakeRepository implements SaveRepository {
     resolveLayout: (_) async => const LayoutSelection(_layout, 1),
   );
   return (cubit: cubit, repository: repository);
+}
+
+/// A session whose repository rejects every folder: nothing is ever open.
+({SaveSessionCubit cubit, _FakeRepository repository}) _failingSession() {
+  final repository = _FakeRepository();
+  final cubit = SaveSessionCubit(
+    engine: const SaveEngine(
+      SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
+    ),
+    repository: repository,
+    resolveLayout: (_) async => const LayoutSelection(_layout, 1),
+  );
+  return (cubit: cubit, repository: repository);
+}
+
+/// An inspector that never touches the filesystem.
+final class _FakeProbe implements SaveFolderProbe {
+  @override
+  Future<SaveFolderInfo> inspect(String path) async =>
+      SaveFolderInfo(path: path, exists: false, isDirectory: false);
+}
+
+/// An inspector that reports a `slot_NN` folder holding `progress.sav`.
+final class _SlotFolderProbe implements SaveFolderProbe {
+  const _SlotFolderProbe();
+
+  @override
+  Future<SaveFolderInfo> inspect(String path) async => SaveFolderInfo(
+    path: path,
+    exists: true,
+    isDirectory: true,
+    parentExists: true,
+    progressSavePresent: true,
+  );
+}
+
+/// An in-memory recent-folder port.
+final class _FakeRecentPaths implements RecentPathsStore {
+  @override
+  Future<List<String>> read() async => const <String>[];
+
+  @override
+  Future<void> add(String path) async {}
+
+  @override
+  Future<void> clear() async {}
+}
+
+void _closeOnTeardown(SaveSessionCubit cubit) {
+  addTearDown(() async {
+    if (!cubit.isClosed) {
+      await cubit.close(force: true);
+    }
+  });
 }
 
 void _prepareView(WidgetTester tester) {
@@ -234,6 +290,232 @@ void main() {
         resolveStartupOpenFor(_join(root.path, 'missing')),
         isA<StartupOpenInvalid>(),
       );
+    },
+  );
+
+  testWidgets(
+    'a failed open shows the open-failure panel with its path and both actions',
+    (tester) async {
+      _prepareView(tester);
+      final session = _failingSession();
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(enableWindowChrome: false, session: cubit),
+      );
+      await tester.pumpAndSettle();
+
+      await cubit.openPath('/wiring/missing');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('open-failure-panel')), findsOneWidget);
+      expect(find.text('Could not open save'), findsOneWidget);
+      expect(
+        find.text('This save folder is not supported by this version.'),
+        findsOneWidget,
+      );
+      expect(find.text('/wiring/missing'), findsOneWidget);
+      expect(find.text('Open another save…'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.byType(EmptyState), findsNothing);
+      expect(find.text('Open a save to begin'), findsNothing);
+    },
+  );
+
+  testWidgets('a closed session still shows the empty state and no failure text', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final session = _openingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+
+    await tester.pumpWidget(
+      BombFlowerApp(enableWindowChrome: false, session: cubit),
+    );
+    await tester.pumpAndSettle();
+
+    expect(cubit.state, isA<SaveSessionClosed>());
+    expect(find.byType(EmptyState), findsOneWidget);
+    expect(find.text('Open a save to begin'), findsOneWidget);
+    expect(find.byKey(const Key('open-failure-panel')), findsNothing);
+    expect(find.text('Could not open save'), findsNothing);
+  });
+
+  testWidgets('a successful open never shows the failure panel', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final session = _openingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+
+    await tester.pumpWidget(
+      BombFlowerApp(enableWindowChrome: false, session: cubit),
+    );
+    await tester.pumpAndSettle();
+
+    await cubit.openPath('/wiring/save');
+    await tester.pumpAndSettle();
+
+    expect(cubit.state, isA<SaveSessionReady>());
+    expect(find.byKey(const Key('open-failure-panel')), findsNothing);
+    expect(find.text('Could not open save'), findsNothing);
+    expect(find.textContaining('Read-only dashboard'), findsOneWidget);
+  });
+
+  testWidgets('the failure actions retry the open and open the save dialog', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final session = _failingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+
+    await tester.pumpWidget(
+      BombFlowerApp(
+        enableWindowChrome: false,
+        session: cubit,
+        saveFolderProbe: _FakeProbe(),
+        recentPaths: _FakeRecentPaths(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await cubit.openPath('/wiring/missing');
+    await tester.pumpAndSettle();
+    expect(session.repository.openCalls, 1);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(session.repository.openCalls, 2);
+    expect(find.byKey(const Key('open-failure-panel')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('open-failure-open-another')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OpenSaveDialog), findsOneWidget);
+    expect(find.text('Open save folder'), findsOneWidget);
+  });
+
+  testWidgets(
+    'an unsupported folder reports its attempted path from the failure details',
+    (tester) async {
+      _prepareView(tester);
+      final repository = _FakeRepository();
+      final cubit = SaveSessionCubit(
+        engine: const SaveEngine(
+          SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
+        ),
+        repository: repository,
+        resolveLayout: (_) async => null,
+      );
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(enableWindowChrome: false, session: cubit),
+      );
+      await tester.pumpAndSettle();
+
+      await cubit.openPath('/nope/folder');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Could not open save'), findsOneWidget);
+      expect(
+        find.text('No supported save layout was found in this folder.'),
+        findsOneWidget,
+      );
+      expect(find.text('/nope/folder'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+    },
+  );
+
+  testWidgets('the chrome reflects the open project, not the placeholders', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final session = _openingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+
+    await tester.pumpWidget(
+      BombFlowerApp(enableWindowChrome: false, session: cubit),
+    );
+    await tester.pumpAndSettle();
+
+    // Nothing is open yet, so the empty wording is unchanged.
+    expect(find.text('No save open'), findsOneWidget);
+    expect(find.textContaining('No save file open'), findsWidgets);
+
+    await cubit.openPath('/wiring/save');
+    await tester.pumpAndSettle();
+
+    final title = tester.widget<Text>(
+      find.byKey(const Key('title-bar-save-name')),
+    );
+    expect(title.data, 'save');
+    expect(find.text('/wiring/save'), findsWidgets);
+    expect(find.text('rev 1'), findsOneWidget);
+    expect(find.text('No validation issues'), findsOneWidget);
+    expect(find.text('Validation: engine pending'), findsNothing);
+    expect(find.text('No save open'), findsNothing);
+    expect(find.textContaining('No save file open'), findsNothing);
+    expect(find.textContaining('engine pending'), findsNothing);
+  });
+
+  testWidgets(
+    'a slot folder root names its parent and never blames the save data',
+    (tester) async {
+      _prepareView(tester);
+
+      final logged = <String>[];
+      final previousDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) {
+          logged.add(message);
+        }
+      };
+      addTearDown(() => debugPrint = previousDebugPrint);
+
+      final session = _failingSession();
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(
+          enableWindowChrome: false,
+          session: cubit,
+          saveFolderProbe: const _SlotFolderProbe(),
+          initialOpenPath: '/saves/kokiri-start/slot_00',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The engine never saw the folder: the shape was classified first.
+      expect(session.repository.openCalls, 0);
+      expect(find.byKey(const Key('open-failure-panel')), findsOneWidget);
+      expect(
+        find.text(
+          'That is a slot folder. Choose the folder that contains it '
+          '(/saves/kokiri-start).',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('This save folder is damaged or incomplete.'),
+        findsNothing,
+      );
+
+      // Exactly one line per attempt, with the reason and no save values.
+      expect(logged, hasLength(1));
+      expect(
+        logged.single,
+        startsWith(
+          'open /saves/kokiri-start/slot_00 -> ParseUnsupported: ',
+        ),
+      );
+      expect(logged.single, contains('That is a slot folder.'));
     },
   );
 }

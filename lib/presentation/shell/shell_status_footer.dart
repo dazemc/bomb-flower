@@ -17,6 +17,13 @@ class ShellStatusFooter extends StatelessWidget {
     final semantics =
         '${state.validationSummary}. ${state.statusMessage}. '
         'File: $path. Revision ${state.revision}.';
+    // Never paint a healthy dot while the session reports issues.
+    final dotColor = switch (state.validationHealth) {
+      ShellValidationHealth.unknown => BombFlowerColors.warningLight,
+      ShellValidationHealth.ok => BombFlowerColors.successLight,
+      ShellValidationHealth.warnings => BombFlowerColors.warningLight,
+      ShellValidationHealth.errors => BombFlowerColors.dangerLight,
+    };
 
     return Semantics(
       container: true,
@@ -36,8 +43,8 @@ class ShellStatusFooter extends StatelessWidget {
               child: Container(
                 width: BombFlowerSpacing.sm,
                 height: BombFlowerSpacing.sm,
-                decoration: const BoxDecoration(
-                  color: BombFlowerColors.warningLight,
+                decoration: BoxDecoration(
+                  color: dotColor,
                   shape: BoxShape.circle,
                 ),
               ),

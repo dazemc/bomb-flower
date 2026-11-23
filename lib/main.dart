@@ -48,16 +48,13 @@ Future<void> main() async {
     resolveLayout: resolver.call,
   );
 
-  runApp(BombFlowerApp(session: session));
+  // A bad or missing folder must not block startup: the app opens it through
+  // its single open path, which surfaces a typed error state instead.
+  final initialOpenPath = switch (resolveStartupOpen()) {
+    StartupOpenRequested(:final path) => path,
+    StartupOpenInvalid(:final path) => path,
+    StartupOpenAbsent() => null,
+  };
 
-  // A bad or missing folder must not block startup: opening it surfaces the
-  // cubit's typed error state instead.
-  switch (resolveStartupOpen()) {
-    case StartupOpenRequested(:final path):
-      await session.openPath(path);
-    case StartupOpenInvalid(:final path):
-      await session.openPath(path);
-    case StartupOpenAbsent():
-      break;
-  }
+  runApp(BombFlowerApp(session: session, initialOpenPath: initialOpenPath));
 }

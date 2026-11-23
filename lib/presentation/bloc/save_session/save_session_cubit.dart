@@ -64,6 +64,13 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
   /// through this cubit so validation, history and logging stay authoritative.
   SaveProject? get openProject => _controller?.state.project;
 
+  /// The engine's parse result for the most recent open attempt.
+  ///
+  /// `null` when the last attempt was refused before it reached the engine
+  /// (empty path, dirty project, disabled session) or when the session is
+  /// disabled. Read-only: the cubit still owns the attempt itself.
+  ParseResult? get lastOpenResult => _recorder?.lastOpenResult;
+
   /// Opens [path] read-only.
   Future<void> openPath(String path) async {
     final controller = _controller;
