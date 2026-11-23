@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'data/system/directory_picker.dart';
+import 'data/system/dropped_folder.dart';
 import 'data/system/open_diagnostics.dart';
 import 'domain/core/validation.dart';
 import 'presentation/bloc/save_session/save_session_cubit.dart';
@@ -16,12 +18,19 @@ import 'presentation/tabs_support/save_tab_scope.dart';
 import 'presentation/tabs_support/save_tab_source.dart';
 import 'presentation/tabs_support/session_save_tab_source.dart';
 import 'presentation/theme/bomb_flower_theme.dart';
+import 'presentation/widgets/common/open_save_scope.dart';
 
 /// Prefix the save-session cubit writes before the attempted folder.
 const String _folderLinePrefix = 'Folder: ';
 
 /// The layout-resolver failure wording that names the attempted folder.
 final RegExp _layoutPathPattern = RegExp(r'no layout for "([^"]+)"');
+
+/// Channel the native runner reports dropped paths on.
+///
+/// One method, `folderDropped`, with the absolute path of the first dropped
+/// file or folder as its only argument.
+const MethodChannel _dropChannel = MethodChannel('bomb_flower/drop');
 
 /// Root widget.
 ///
@@ -88,6 +97,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
     super.initState();
     _shell = ShellCubit(windowChromeEnabled: widget.enableWindowChrome);
     _attach(widget.session);
+    _dropChannel.setMethodCallHandler(_handleDropCall);
     final initial = widget.initialOpenPath?.trim();
     if (initial != null && initial.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -238,6 +248,47 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
     );
   }
 
+  /// Handles one path dropped onto the window. Never throws to the platform.
+  ///
+  /// The platform reply is sent before any filesystem work. The native runner
+  /// fires and forgets, and a reply that waited on real I/O would never be
+  /// pumped by the widget-test binding's fake clock.
+  Future<void> _handleDropCall(MethodCall call) async {
+    if (call.method != 'folderDropped') {
+      return;
+    }
+    final argument = call.arguments;
+    if (argument is! String) {
+      return;
+    }
+    unawaited(_openDroppedPath(argument));
+  }
+
+  /// Resolves one dropped path, then opens the root or reports the refusal.
+  ///
+  /// A save root opens through the existing [_openPath], which writes exactly
+  /// one log line. A refusal never reaches the engine, so it only sets the
+  /// preflight notice the existing failure panel renders; no path content is
+  /// read or logged beyond the path itself.
+  Future<void> _openDroppedPath(String rawPath) async {
+    final result = await resolveDroppedFolder(rawPath);
+    if (!mounted) {
+      return;
+    }
+    switch (result) {
+      case DroppedFolderRoot(:final path):
+        unawaited(_openPath(path));
+      case DroppedFolderInvalid(:final path, :final reason):
+        setState(() {
+          _preflightFailure = OpenFailureNotice(
+            message: reason,
+            details: 'Dropped: $path',
+            path: path,
+          );
+        });
+    }
+  }
+
   /// A fresh source per session state.
   ///
   /// [SaveTabScope.updateShouldNotify] compares source identity, so a new
@@ -267,6 +318,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
 
   @override
   void dispose() {
+    _dropChannel.setMethodCallHandler(null);
     _detach();
     unawaited(_shell.close());
     super.dispose();
@@ -394,14 +446,18 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
               final retryPath = sessionFailure == null ? null : failure?.path;
               return SaveTabScope(
                 source: _createSource(),
-                child: AppShell(
-                  saveFolderProbe: widget.saveFolderProbe,
-                  openFailure: failure,
-                  onRetryOpen: retryPath == null
-                      ? null
-                      : () => unawaited(_openPath(retryPath)),
-                  onOpenAnotherSave: (shellContext) =>
+                child: OpenSaveScope(
+                  open: (shellContext) =>
                       _openAnotherSave(shellContext, failure?.path),
+                  child: AppShell(
+                    saveFolderProbe: widget.saveFolderProbe,
+                    openFailure: failure,
+                    onRetryOpen: retryPath == null
+                        ? null
+                        : () => unawaited(_openPath(retryPath)),
+                    onOpenAnotherSave: (shellContext) =>
+                        _openAnotherSave(shellContext, failure?.path),
+                  ),
                 ),
               );
             },
