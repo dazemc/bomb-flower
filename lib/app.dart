@@ -282,7 +282,10 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
   /// Every attempt is logged exactly once, including refusals that never reach
   /// the engine. Only the path and the engine's own reason text are logged;
   /// save bytes and field values are never in scope here.
-  Future<void> _openPath(String rawPath) async {
+  Future<void> _openPath(
+    String rawPath, {
+    bool discardUnsavedChanges = false,
+  }) async {
     final path = rawPath.trim();
     if (path.isEmpty) {
       return;
@@ -314,7 +317,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
     }
 
     final before = _session.lastOpenResult;
-    await _session.openPath(path);
+    await _session.openPath(path, discardUnsavedChanges: discardUnsavedChanges);
     if (!mounted) {
       return;
     }
@@ -602,6 +605,10 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
                     openFailure: failure,
                     unverifiedFieldCount: unverifiedCount,
                     onOpenPath: _openPath,
+                    // Only the new-save flow's confirmed Discard reaches this;
+                    // every other open keeps `_openPath`'s refusal.
+                    onOpenPathDiscardingUnsavedChanges: (String path) =>
+                        _openPath(path, discardUnsavedChanges: true),
                     onRetryOpen: retryPath == null
                         ? null
                         : () => unawaited(_openPath(retryPath)),

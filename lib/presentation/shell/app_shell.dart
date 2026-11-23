@@ -9,10 +9,12 @@ import '../../data/system/directory_lister.dart';
 import '../../data/system/directory_picker.dart';
 import '../../data/system/longshot_launcher.dart';
 import '../bloc/save_session/save_session_cubit.dart';
+import '../bloc/save_session/save_session_ui_state.dart';
 import '../bloc/shell/shell_cubit.dart';
 import '../bloc/shell/shell_state.dart';
 import '../bloc/shell/tab_definition.dart';
 import '../dialogs/new_save_dialog.dart';
+import '../dialogs/unsaved_changes_dialog.dart';
 import '../theme/bomb_flower_colors.dart';
 import '../theme/bomb_flower_spacing.dart';
 import '../theme/bomb_flower_typography.dart';
@@ -21,6 +23,7 @@ import '../widgets/common/banner.dart';
 import '../widgets/common/brass_button.dart';
 import '../widgets/common/error_state.dart';
 import '../widgets/common/procedural_painters.dart';
+import '../widgets/controls/toast.dart';
 import '../widgets/help/help_scope.dart';
 import '../widgets/help/help_surface.dart';
 import 'shell_nav_rail.dart';
@@ -70,6 +73,7 @@ class AppShell extends StatefulWidget {
     this.onRetryOpen,
     this.onOpenAnotherSave,
     this.onOpenPath,
+    this.onOpenPathDiscardingUnsavedChanges,
     this.unverifiedFieldCount = 0,
     this.saveFolderProbe,
     this.directoryLister,
@@ -92,6 +96,13 @@ class AppShell extends StatefulWidget {
   /// The app's single open path, used by the title bar so its Open action
   /// writes the same `open <path> -> …` line as every other entry point.
   final Future<void> Function(String path)? onOpenPath;
+
+  /// [onOpenPath] with unsaved changes explicitly discarded.
+  ///
+  /// Only the new-save flow's confirmed-discard branch supplies and calls this,
+  /// after the user chose Discard in the unsaved-changes dialog. Every other
+  /// open keeps [onOpenPath], whose refusal is unchanged.
+  final Future<void> Function(String path)? onOpenPathDiscardingUnsavedChanges;
 
   /// How many fields opened read-only because their meaning is unverified.
   ///
@@ -140,6 +151,14 @@ class _AppShellState extends State<AppShell> {
   /// One launcher seam for the title bar.
   late final LongshotLauncher _launcher =
       widget.longshotLauncher ?? const IoLongshotLauncher();
+
+  /// Hosts the shell's transient notices, such as the path a new save was
+  /// written to when the user chose to keep editing the current one.
+  final GlobalKey<ToastHostState> _toastKey = GlobalKey<ToastHostState>();
+
+  void _toast(String message, {StoneToastTone tone = StoneToastTone.info}) {
+    _toastKey.currentState?.show(message, tone: tone);
+  }
 
   /// Whether the unverified-fields notice was dismissed for this open.
   bool _unverifiedDismissed = false;
@@ -202,35 +221,91 @@ class _AppShellState extends State<AppShell> {
     return consumed ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
-  /// Opens the in-app new-save dialog, then reopens the created save through
-  /// [AppShell.onOpenPath].
+  /// Opens the in-app new-save dialog, then opens the created save.
   ///
-  /// The session is read only to pre-fill the destination folder; the shell
-  /// writes no save bytes and sends the result back through the app's single
-  /// open path. A missing [SaveSessionCubit] provider is not an error: the
-  /// dialog simply opens with an empty destination field.
+  /// The dialog is never told the open save's folder as a starting point: the
+  /// live root is passed as a *reserved* destination instead, so "create here"
+  /// is refused before anything is written rather than offered as a replacement
+  /// of the bytes being edited.
+  ///
+  /// Creating is always create-then-open, and opening is only asked about when
+  /// it would lose work: a clean project opens the new save directly, a dirty
+  /// one gets the existing unsaved-changes dialog. Cancel keeps the current save
+  /// open and says where the new files went, because they are already on disk.
+  /// A missing [SaveSessionCubit] provider is not an error: the dialog simply
+  /// opens with no reserved destination, and a shell with no open path (tests)
+  /// stops after the success panel, which already printed the written paths.
   Future<void> _showNewSave() async {
-    String? root;
+    SaveSessionCubit? session;
     try {
-      root = context.read<SaveSessionCubit>().openProject?.rootPath;
+      session = context.read<SaveSessionCubit>();
     } on ProviderNotFoundException {
-      root = null;
+      session = null;
     }
+    final reserved = session?.openProject?.rootPath;
     final outcome = await NewSaveDialog.show(
       context,
       schemaLoader: widget.newSaveSchemaLoader,
       persist: widget.newSavePersist,
       directoryPicker: widget.newSaveDirectoryPicker,
-      initialRoot: root,
+      reservedRoot: reserved,
     );
     if (!mounted || outcome == null) {
       return;
     }
+    final root = outcome.rootDirectory;
     final open = widget.onOpenPath;
-    if (open != null) {
-      // The root directly holds slot_00, the shape the save-root resolver
-      // accepts, so the created save reopens through the normal open path.
-      await open(outcome.rootDirectory);
+    if (open == null) {
+      // A hermetic shell (tests) has no open path; the success panel already
+      // printed the written paths, so nothing is lost and nothing is claimed.
+      return;
+    }
+    // A shell that wires no discard-aware path falls back to the ordinary one,
+    // whose refusal is correct: it must not discard edits on its own.
+    final openDiscarding = widget.onOpenPathDiscardingUnsavedChanges ?? open;
+    // Re-read after the dialog: the session is the authority on what is open.
+    final project = session?.openProject;
+    if (project == null) {
+      await open(root);
+      return;
+    }
+    final dirty = project.dirty;
+    if (!dirty.hasUnsavedChanges) {
+      await open(root);
+      return;
+    }
+    final choice = await UnsavedChangesDialog.show(
+      context,
+      changedFieldCount: dirty.changedFieldCount,
+      changedByteCount: dirty.changedByteCount,
+      path: project.rootPath,
+    );
+    if (!mounted) {
+      return;
+    }
+    switch (choice) {
+      case UnsavedChangesChoice.cancel:
+        _toast(
+          'New save written to $root. The save you had open is unchanged.',
+          tone: StoneToastTone.info,
+        );
+      case UnsavedChangesChoice.save:
+        await session?.save();
+        if (!mounted) {
+          return;
+        }
+        final error = session?.state;
+        if (error is SaveSessionError) {
+          _toast(
+            'The open save could not be saved: ${error.message} '
+            'The new save is at $root.',
+            tone: StoneToastTone.danger,
+          );
+          return;
+        }
+        await open(root);
+      case UnsavedChangesChoice.discard:
+        await openDiscarding(root);
     }
   }
 
@@ -255,97 +330,100 @@ class _AppShellState extends State<AppShell> {
       onKeyEvent: _handleKey,
       child: BlocBuilder<ShellCubit, ShellState>(
         builder: (context, state) {
-          return Scaffold(
-            body: Column(
-              children: <Widget>[
-                AppTitleBar(
-                  interactive: state.windowChromeEnabled,
-                  isDirty: state.isDirty,
-                  saveName: state.saveName,
-                  saveFolderProbe: widget.saveFolderProbe,
-                  directoryLister: widget.directoryLister,
-                  settingsStore: _settingsStore,
-                  launcher: _launcher,
-                  onOpenPath: widget.onOpenPath,
-                  onHelp: () => unawaited(HelpSurface.show(context)),
-                  onNewSave: () => unawaited(_showNewSave()),
-                ),
-                if (widget.unverifiedFieldCount > 0 && !_unverifiedDismissed)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      BombFlowerSpacing.md,
-                      BombFlowerSpacing.sm,
-                      BombFlowerSpacing.md,
-                      0,
-                    ),
-                    child: Banner(
-                      key: const Key('open-unverified-banner'),
-                      variant: BannerVariant.warning,
-                      title:
-                          'Opened with ${widget.unverifiedFieldCount} '
-                          'unverified fields — those fields are read-only',
-                      onDismiss: () =>
-                          setState(() => _unverifiedDismissed = true),
-                    ),
+          return ToastHost(
+            key: _toastKey,
+            child: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  AppTitleBar(
+                    interactive: state.windowChromeEnabled,
+                    isDirty: state.isDirty,
+                    saveName: state.saveName,
+                    saveFolderProbe: widget.saveFolderProbe,
+                    directoryLister: widget.directoryLister,
+                    settingsStore: _settingsStore,
+                    launcher: _launcher,
+                    onOpenPath: widget.onOpenPath,
+                    onHelp: () => unawaited(HelpSurface.show(context)),
+                    onNewSave: () => unawaited(_showNewSave()),
                   ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final autoCollapsed =
-                          constraints.maxWidth <
-                          ShellCubit.navCollapseBreakpoint;
-                      final collapsed = autoCollapsed || state.navCollapsed;
-                      _maybeSyncViewport(constraints.maxWidth);
+                  if (widget.unverifiedFieldCount > 0 && !_unverifiedDismissed)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        BombFlowerSpacing.md,
+                        BombFlowerSpacing.sm,
+                        BombFlowerSpacing.md,
+                        0,
+                      ),
+                      child: Banner(
+                        key: const Key('open-unverified-banner'),
+                        variant: BannerVariant.warning,
+                        title:
+                            'Opened with ${widget.unverifiedFieldCount} '
+                            'unverified fields — those fields are read-only',
+                        onDismiss: () =>
+                            setState(() => _unverifiedDismissed = true),
+                      ),
+                    ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final autoCollapsed =
+                            constraints.maxWidth <
+                            ShellCubit.navCollapseBreakpoint;
+                        final collapsed = autoCollapsed || state.navCollapsed;
+                        _maybeSyncViewport(constraints.maxWidth);
 
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          SizedBox(
-                            key: const Key('shell-nav-rail'),
-                            width: collapsed
-                                ? BombFlowerSpacing.navRailIconOnlyWidth
-                                : BombFlowerSpacing.navRailWidth,
-                            child: ShellNavRail(
-                              activeTab: state.activeTab,
-                              collapsed: collapsed,
-                              onSelect: (tab) {
-                                context.read<ShellCubit>().selectTab(tab);
-                              },
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            SizedBox(
+                              key: const Key('shell-nav-rail'),
+                              width: collapsed
+                                  ? BombFlowerSpacing.navRailIconOnlyWidth
+                                  : BombFlowerSpacing.navRailWidth,
+                              child: ShellNavRail(
+                                activeTab: state.activeTab,
+                                collapsed: collapsed,
+                                onSelect: (tab) {
+                                  context.read<ShellCubit>().selectTab(tab);
+                                },
+                              ),
                             ),
-                          ),
-                          Expanded(
-                            child: RepaintBoundary(
-                              child: CustomPaint(
-                                painter: const CanopyTexturePainter(),
-                                child: HelpScope(
-                                  open: (helpContext) =>
-                                      HelpSurface.show(helpContext),
-                                  child: NewSaveScope(
-                                    create: (_) => _showNewSave(),
-                                    child: switch (widget.openFailure) {
-                                      final notice? => _OpenFailureView(
-                                        notice: notice,
-                                        onRetry: widget.onRetryOpen,
-                                        onOpenAnotherSave:
-                                            widget.onOpenAnotherSave,
-                                      ),
-                                      null => _ShellTabContent(
-                                        activeTab: state.activeTab,
-                                        settingsStore: _settingsStore,
-                                      ),
-                                    },
+                            Expanded(
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  painter: const CanopyTexturePainter(),
+                                  child: HelpScope(
+                                    open: (helpContext) =>
+                                        HelpSurface.show(helpContext),
+                                    child: NewSaveScope(
+                                      create: (_) => _showNewSave(),
+                                      child: switch (widget.openFailure) {
+                                        final notice? => _OpenFailureView(
+                                          notice: notice,
+                                          onRetry: widget.onRetryOpen,
+                                          onOpenAnotherSave:
+                                              widget.onOpenAnotherSave,
+                                        ),
+                                        null => _ShellTabContent(
+                                          activeTab: state.activeTab,
+                                          settingsStore: _settingsStore,
+                                        ),
+                                      },
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-                ShellStatusFooter(state: state),
-              ],
+                  ShellStatusFooter(state: state),
+                ],
+              ),
             ),
           );
         },

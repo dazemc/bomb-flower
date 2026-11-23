@@ -72,7 +72,16 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
   ParseResult? get lastOpenResult => _recorder?.lastOpenResult;
 
   /// Opens [path] read-only.
-  Future<void> openPath(String path) async {
+  ///
+  /// [discardUnsavedChanges] exists for exactly one caller: the new-save flow,
+  /// after the user answered the unsaved-changes dialog with Discard, because
+  /// the create has already written real files and the user agreed to lose the
+  /// current edits. Every other caller keeps the refusal below; there is no
+  /// default and no silent bypass.
+  Future<void> openPath(
+    String path, {
+    bool discardUnsavedChanges = false,
+  }) async {
     final controller = _controller;
     if (controller == null) {
       _emitDisabled();
@@ -91,7 +100,9 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
       return;
     }
     final current = controller.state.project;
-    if (current != null && current.dirty.hasUnsavedChanges) {
+    if (!discardUnsavedChanges &&
+        current != null &&
+        current.dirty.hasUnsavedChanges) {
       _emitFailure(
         message: 'Save or close the current project before opening another.',
         kind: SaveSessionErrorKind.refused,

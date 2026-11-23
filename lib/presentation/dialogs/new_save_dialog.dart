@@ -59,6 +59,10 @@ final class NewSaveOutcome {
 /// The dialog never inspects folders itself: the [`NewSaveWriter`] refuses a
 /// non-empty destination with [NewSaveWriteException.destinationNotEmpty], and
 /// this dialog asks before retrying with `allowOverwrite: true`.
+///
+/// A [reservedRoot] is refused before anything is written. The shell passes the
+/// save the user currently has open, so "create here" cannot replace the bytes
+/// being edited and then ask whether to replace them.
 class NewSaveDialog extends StatefulWidget {
   /// Creates the dialog.
   const NewSaveDialog({
@@ -67,6 +71,7 @@ class NewSaveDialog extends StatefulWidget {
     this.persist,
     this.directoryPicker,
     this.initialRoot = '',
+    this.reservedRoot,
   });
 
   /// Loads the schema; defaults to the bundled `gamedata_110.json` asset.
@@ -81,6 +86,18 @@ class NewSaveDialog extends StatefulWidget {
   /// Pre-fills the destination field.
   final String initialRoot;
 
+  /// A folder this dialog must never write to, or `null`.
+  ///
+  /// The new-save flow passes the open project's root: creating there would
+  /// overwrite the save the user is editing, so the dialog refuses it before
+  /// calling the writer instead of offering to replace it afterwards.
+  final String? reservedRoot;
+
+  /// The refusal shown when the destination is [reservedRoot].
+  static const String reservedRootError =
+      'That is the folder of the save you have open; creating here would '
+      'replace the bytes you are editing. Choose another folder.';
+
   /// Shows the dialog and returns the outcome, or `null` when it is dismissed.
   static Future<NewSaveOutcome?> show(
     BuildContext context, {
@@ -88,6 +105,7 @@ class NewSaveDialog extends StatefulWidget {
     NewSavePersist? persist,
     DirectoryPicker? directoryPicker,
     String? initialRoot,
+    String? reservedRoot,
   }) {
     return showDialog<NewSaveOutcome>(
       context: context,
@@ -97,6 +115,7 @@ class NewSaveDialog extends StatefulWidget {
         persist: persist,
         directoryPicker: directoryPicker,
         initialRoot: initialRoot ?? '',
+        reservedRoot: reservedRoot,
       ),
     );
   }
@@ -168,6 +187,14 @@ class _NewSaveDialogState extends State<NewSaveDialog> {
     if (root.isEmpty) {
       setState(() {
         _error = 'Enter a destination folder.';
+        _info = null;
+      });
+      return;
+    }
+    final reserved = widget.reservedRoot;
+    if (reserved != null && _isSameRoot(root, reserved)) {
+      setState(() {
+        _error = NewSaveDialog.reservedRootError;
         _info = null;
       });
       return;
@@ -471,6 +498,42 @@ class _NewSaveDialogState extends State<NewSaveDialog> {
 
 /// Exposes an optional creator for a new save to the subtree below it.
 ///
+/// Whether [a] and [b] name the same folder.
+///
+/// Mirrors `openPath`'s normalisation and the domain engine's: trim, treat
+/// `\\` as `/`, and drop trailing separators. This is deliberately the same
+/// three transforms rather than an absolute-path resolution, so a destination
+/// the session would consider identical is considered identical here.
+bool _isSameRoot(String a, String b) => _normalizeRoot(a) == _normalizeRoot(b);
+
+String _normalizeRoot(String path) {
+  var normalized = path.trim().replaceAll('\\', '/');
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.substring(0, normalized.length - 1);
+  }
+  final absolute = normalized.startsWith('/');
+  final segments = <String>[];
+  for (final segment in normalized.split('/')) {
+    if (segment.isEmpty || segment == '.') {
+      continue;
+    }
+    if (segment == '..') {
+      if (segments.isNotEmpty && segments.last != '..') {
+        segments.removeLast();
+      } else if (!absolute) {
+        segments.add('..');
+      }
+      continue;
+    }
+    segments.add(segment);
+  }
+  final joined = segments.join('/');
+  if (absolute) {
+    return '/$joined';
+  }
+  return joined.isEmpty ? '.' : joined;
+}
+
 /// The empty state uses this seam so a first-run page can offer "Create a new
 /// save" without importing the shell. A missing scope simply returns `null`.
 class NewSaveScope extends InheritedWidget {
