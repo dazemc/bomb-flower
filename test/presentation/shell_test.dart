@@ -222,9 +222,10 @@ void main() {
       }
 
       expect(find.byKey(const Key('tab-page-overview')), findsOneWidget);
-      expect(find.text('ENGINE PENDING'), findsOneWidget);
-      expect(find.text('At a glance'), findsOneWidget);
-      expect(find.text('Unavailable'.toUpperCase()), findsNWidgets(3));
+      // No save is open in the shell, so the real overview renders its
+      // open-a-save empty state rather than the dashboard.
+      expect(find.byType(EmptyState), findsOneWidget);
+      expect(find.text('Open a save to begin'), findsOneWidget);
 
       expect(find.byType(ShellStatusFooter), findsOneWidget);
       expect(tester.getSize(find.byType(ShellStatusFooter)).height, 28);
@@ -243,8 +244,7 @@ void main() {
 
       expect(find.byKey(const Key('tab-page-inventory')), findsOneWidget);
       expect(find.byKey(const Key('tab-page-overview')), findsNothing);
-      expect(find.text('What this tab will show'), findsOneWidget);
-      expect(find.text('ENGINE PENDING'), findsOneWidget);
+      expect(find.text('Inventory'), findsWidgets);
 
       final cubit = BlocProvider.of<ShellCubit>(
         tester.element(find.byType(AppShell)),
@@ -287,6 +287,11 @@ void main() {
       tester.view.physicalSize = const Size(2560, 1440);
       await tester.pumpAndSettle();
 
+      // The overview's empty state has no parchment panel, so switch to a tab
+      // that renders one (Settings is a placeholder tab) before measuring.
+      await tester.tap(find.byKey(const Key('nav-tab-settings')));
+      await tester.pumpAndSettle();
+
       final panel = tester.getSize(find.byType(ParchmentPanel).first);
       expect(panel.width, lessThanOrEqualTo(1680));
       expect(tester.takeException(), isNull);
@@ -312,7 +317,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('every tab renders its page and engine-pending chip', (
+    testWidgets('every tab renders its page and real content', (
       tester,
     ) async {
       await _pumpApp(tester);
@@ -325,12 +330,18 @@ void main() {
           findsOneWidget,
           reason: '${definition.title} page should be mounted',
         );
+        // Save-backed tabs show the open-a-save empty state with no save open;
+        // placeholder tabs still show their design purpose line.
+        final rendersPurpose = find.text(definition.purpose).evaluate().isNotEmpty;
+        final rendersEmpty =
+            find.text('Open a save to begin').evaluate().isNotEmpty;
         expect(
-          find.text('ENGINE PENDING'),
-          findsOneWidget,
-          reason: '${definition.title} should state the engine is pending',
+          rendersPurpose || rendersEmpty,
+          isTrue,
+          reason:
+              '${definition.title} should render either its purpose or the '
+              'open-a-save empty state',
         );
-        expect(find.text(definition.purpose), findsWidgets);
       }
       expect(tester.takeException(), isNull);
     });
