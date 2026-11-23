@@ -1,9 +1,7 @@
 import 'package:bomb_flower/presentation/bloc/shell/tab_definition.dart';
 import 'package:bomb_flower/presentation/shell/tabs/collectibles_tab.dart';
-import 'package:bomb_flower/presentation/shell/tabs/dungeons_tab.dart';
 import 'package:bomb_flower/presentation/shell/tabs/flags_tab.dart';
 import 'package:bomb_flower/presentation/shell/tabs/placeholder_tab.dart';
-import 'package:bomb_flower/presentation/shell/tabs/progression_tab.dart';
 import 'package:bomb_flower/presentation/shell/tabs/v1_gap_panel.dart';
 import 'package:bomb_flower/presentation/widgets/common/banner.dart';
 import 'package:bomb_flower/presentation/widgets/common/section_header.dart';
@@ -37,20 +35,6 @@ final class _GapCase {
 }
 
 const List<_GapCase> _cases = <_GapCase>[
-  _GapCase(
-    name: 'Progression',
-    tab: ShellTab.progression,
-    widget: ProgressionTab(),
-    count: '297',
-    keyword: 'medallion',
-  ),
-  _GapCase(
-    name: 'Dungeons',
-    tab: ShellTab.dungeons,
-    widget: DungeonsTab(),
-    count: '42',
-    keyword: 'DungeonInfo',
-  ),
   _GapCase(
     name: 'Collectibles',
     tab: ShellTab.collectibles,

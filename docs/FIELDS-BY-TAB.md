@@ -3,8 +3,8 @@
 This describes the generated field catalogue in `assets/fields/groups.json`,
 produced from the hash-verified schema `assets/schema/gamedata_110.json` by
 `tool/gen_field_groups.dart`, and what v1 actually surfaces. Player/World,
-Inventory, Equipment and Resources edit verified save fields; Overview is a
-read-only summary; Progression, Dungeons, Collectibles and Flags are
+Inventory, Equipment, Resources, Progression and Dungeons edit verified save
+fields; Overview is a read-only summary; Collectibles and Flags are
 **read-only gap panels** that report the verified counts; Advanced Data is the
 raw hex view behind its unlock gate; Settings edits application preferences, not
 save fields.
@@ -47,8 +47,8 @@ than one group on the same tab.
 | `inventory` | 4 | 71 | 0 | verified, inferred | editable |
 | `equipment` | 3 | 24 | 0 | verified, inferred | editable |
 | `resources` | 5 | 19 | 0 | verified, inferred | editable |
-| `progression` | 8 | 297 | 0 | observed, inferred | read-only (gap panel) |
-| `dungeons` | 7 | 42 | 0 | inferred | read-only (gap panel) |
+| `progression` | 8 | 297 | 0 | observed, inferred | editable |
+| `dungeons` | 7 | 42 | 0 | inferred | editable |
 | `collectibles` | 6 | 159 | 0 | inferred | read-only (gap panel) |
 | `flags` | 1 | 3,443 | 6,769 | observed | read-only (gap panel) |
 | `advanced` | 1 | 0 | 8,317 | inferred | read-only (hex; unlock gate) |
@@ -234,10 +234,13 @@ There are no arrow/bomb/ammo count fields.
 
 ## Progression
 
-**Read-only (297 distinct; 335 group memberships).** These fields are not
-editable from the Progression tab in v1; the tab is a gap panel with the
-verified count; the only raw path is Advanced Data's hex view (behind its unlock
-gate), and this tab offers no editor.
+**Editable (297 distinct; 335 group memberships; 297 of 297 editable on the
+`kokiri-start` sample).** Every row is one catalogue field, resolved against the
+save's own descriptors by name. The measured kinds are **288 Bool, 8 Int, and
+1 Enum**, and every span is 4 bytes. Boolean and integer cells commit
+`SetScalar`, an enumeration cell commits `SetEnum`, and a text cell commits
+`SetBytes` inside the declared span with a zero-filled tail, so a write never
+changes the file length.
 
 - `HavePlayedEvent.*` (164)
 - `Get_*` (19)
@@ -248,22 +251,35 @@ gate), and this tab offers no editor.
 - Melody/song flags (21)
 - Medallions (0)
 
-Memberships exceed distinct fields because the stone, melody, and `IsGet`
-views overlap the event/get groups. A future editor must de-duplicate by hash
-if it combines groups.
+Memberships exceed distinct fields because the stone, melody, and `IsGet` views
+overlap the event/get groups. The tab de-duplicates by name, so its 297 rows are
+distinct fields.
 
-**Read-only / unavailable.** There is no medallion bitmask and no single
-songs-learned mask. The six `HavePlayedEvent.Dm_MelodyGet_*` fields are the
-clearest individual song flags. Stone progress is spread across flags and
-dialogue flags. The 164 event flags mix true progression with room, cutscene,
-and hint state; do not label the whole group "quests complete".
+**A row can still be read-only.** The table shows the reason on the row:
+`Not stored in this save` when the save does not store the field,
+`Field name is prefix-derived (inferred), so the meaning is not verified` or
+`Field has no verified name` when the resolved descriptor is not verified for
+that save, `Fixed-width rule: this span cannot be rewritten without resizing`
+when it is marked fixed-width, and `No decoded value` when nothing could be
+decoded. Editability is `descriptor.isEditable` on the resolved layout, not the
+catalogue's `provenance` tag: `groups.json` records how the generator matched a
+name (several Progression groups are `inferred` because they come from prefix
+rules), while the production `ProgressLayoutBuilder` resolves each name through
+hash-checked schema literals and reports the confidence it actually found.
+
+**Still true.** There is no medallion bitmask and no single songs-learned mask.
+The six `HavePlayedEvent.Dm_MelodyGet_*` fields are the clearest individual song
+flags. Stone progress is spread across flags and dialogue flags. The 164 event
+flags mix true progression with room, cutscene, and hint state; do not label the
+whole group "quests complete".
 
 ## Dungeons
 
-**Read-only (42 distinct).** These fields are not editable from the Dungeons
-tab in v1; the tab is a gap panel with the verified count; the only raw path is
-Advanced Data's hex view (behind its unlock gate), and this tab offers no
-editor.
+**Editable (42 distinct; 42 of 42 editable on the `kokiri-start` sample).** Every
+row is one catalogue field, and every one is a **Bool** with a 4-byte span. A
+boolean toggle commits `SetScalar` with `0` or `1`, replacing exactly the
+declared 4-byte span, so a write never changes the file length; undo, dirty
+tracking, validation, and backups stay in the save session.
 
 - Named `DungeonInfo.*` item flags (5), grouped per dungeon:
   - `DodongoCavern` (1): compass
@@ -275,7 +291,24 @@ editor.
 - Map items (6): verified map/map-icon flags outside `DungeonInfo`.
 - Heart containers (1): `InsideTheDekuTree_Heart_Container_Obtained`.
 
-**Read-only / unavailable.** Only three dungeons have named `DungeonInfo.*`
+**A row can still be read-only.** The table shows the reason on the row:
+`Not stored in this save` when the save does not store the field,
+`Field name is prefix-derived (inferred), so the meaning is not verified` or
+`Field has no verified name` when the resolved descriptor is not verified for
+that save, `Fixed-width rule: this span cannot be rewritten without resizing`
+when it is marked fixed-width, and `No decoded value` when nothing could be
+decoded.
+
+**Provenance nuance.** `groups.json` tags every Dungeons group `inferred`: the
+generator matched the names by documented prefix/pattern rules, so the catalogue
+records name-pattern evidence only. The production `ProgressLayoutBuilder`
+resolves those same names through hash-checked `schema:string` / `schema:struct`
+literals and reports `verified`, which is why the engine permits the write.
+Editability is decided by the save's `descriptor.isEditable`; the catalogue's
+provenance is not an editing gate, and this tab does not claim more semantic
+certainty than that.
+
+**Still true / unavailable.** Only three dungeons have named `DungeonInfo.*`
 item flags in this revision. `DungeonInfo.*.BossRetryNum` declarations are
 runtime-only (`SaveFileIndex -1`) and are not in `progress.sav`. Small keys are
 per-room flags, not one inventory count. Only one heart-container flag is named;
