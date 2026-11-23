@@ -15,23 +15,23 @@ A successful run writes:
 
 | File | Length | Notes |
 | --- | ---: | --- |
-| `<out>/slot_00/progress.sav` | 120,164 bytes | Schema defaults, verified record order. |
+| `<out>/slot_00/progress.sav` | 120,572 bytes | Schema defaults, verified record order. |
 | `<out>/slot_00/caption.sav` | 2,029 bytes | 1,396-byte header plus a 633-byte JPEG. |
 | `<out>/slot_00/caption.sav` with `--no-screenshot` | 1,400 bytes | 1,396-byte header plus `FF D8 FF D9`. |
 
-The verified sample `progress.sav` files are 120,572 bytes. The built file is
-408 bytes shorter for two reasons:
+The shipped sample `progress.sav` files and the built file are both 120,572
+bytes:
 
-- The samples' `Binary` spans are 404, 4 and 4 bytes. The schema's `Binary`
-  defaults (156000, 376 and 160000) are meaningless scalars, not verified byte
-  lengths, so the builder emits a well-formed empty blob (`u32 0`) for each
-  field. The 404-byte span becomes 4 bytes: **400 bytes shorter**.
-- The samples have 8 zero bytes after the last tail payload (the last
-  `WString16Array` payload runs to 120,564, and the file is 120,572). Their
-  meaning is unknown, so the builder does not reproduce them: **another 8
-  bytes shorter**.
+```text
+120,572 = 40-byte header + 8 × 11,958 records + 24,868-byte tail
+```
 
-120,572 − 400 − 8 = 120,164. The footer is still emitted verbatim; see
+The tail is 24,868 bytes: 24,860 bytes of pointed-to payloads plus the
+samples' 8-byte zero trailer (`0x1D6F4..0x1D6FC`). The first `Binary` field
+is a 404-byte span (`u32 400` plus 400 zero bytes); the other two are 4-byte
+spans (`u32 0`). The span lengths match the verified samples; the payload
+contents are zeros because the sample bytes are unknown, so the payloads are
+not reproduced. See [Shape versus values](#shape-versus-values) and
 [Limitations](#limitations-and-unknowns).
 
 The verified caption samples are 4,741 bytes and carry a 3,345-byte JPEG. The
@@ -55,6 +55,7 @@ pointer-referenced tail. All multi-byte values are **little-endian**.
 | `0x08` | 4 | Tail/data offset `0x175D8` (95,704) |
 | `0x0C` | 28 | All zero |
 | `0x28` | 95,664 | 11,958 records, each `{u32 key, u32 value}` |
+| `0x175D8` | 24,868 | Tail: 24,860 bytes of payloads plus 8 zero trailer bytes |
 
 The record table is:
 
@@ -62,7 +63,8 @@ The record table is:
 - **32 sentinel records**, one `{0, typeId}` per typed section, type ids 1–32;
 - **1 footer record**, `{0xA3DB7114, 0x1D6F4}`.
 
-11,925 + 32 + 1 = 11,958 records. `0x28 + 8 × 11,958 = 0x175D8`.
+11,925 + 32 + 1 = 11,958 records. `0x28 + 8 × 11,958 = 0x175D8`. The
+24,868-byte tail then reaches 120,572.
 
 There are **20 populated sections and 12 sentinel-only sections**. The
 frequently quoted “19 populated” count is off by one: `WString16Array`
@@ -99,6 +101,20 @@ A field's record key is `Murmur3_x86_32(name, seed 0)`. The schema contains
 hash alone. There is **no checksum** in either save file. The footer value is
 opaque, not a checksum.
 
+### Shape versus values
+
+Compared with a shipped sample, the built progress save has the same
+120,572-byte length, the same 40-byte header, the same 11,958 record keys in
+the same positions, the same 32 sentinels, the same tail pointer offsets
+(because every span length now matches), the same footer, and the same 8-byte
+zero trailer. It differs only in field values (schema defaults instead of the
+sample's values) and in the unknown `Binary` payload contents (zeros instead
+of the sample bytes). A direct comparison with `kokiri-start` confirms the
+keys, sentinels, pointers, footer and trailer match.
+
+This is a shape comparison, not a byte-identical copy: it does **not** claim
+byte-identical output, and it does not prove in-game acceptance.
+
 ## Which values are written
 
 Every progress field takes its own `default` from
@@ -122,7 +138,7 @@ The default is encoded according to the field type:
 | `UInt64Array` | Offset to `u32 arrayLen`, then `arrayLen` × 8-byte defaults. |
 | `Int64` / `UInt64` | Offset to 8 bytes. |
 | `WString16Array` | Offset to `u32 arrayLen`, then `arrayLen` × 32-byte UTF-16LE slots. |
-| `Binary` | Offset to `u32 0` (an empty blob), as described above. |
+| `Binary` | Offset to a verified span: 404 bytes for the first Binary (`u32 400` + 400 zero bytes), 4 bytes for the other two (`u32 0`). Payload contents are zeros because the sample bytes are unknown. |
 
 Examples:
 
@@ -210,7 +226,7 @@ dart run tool/create_save.dart --out /tmp/opencode/newsave-doc-example
 ```
 
 ```text
-progress.sav 120164 bytes fnv1a32=0x2457304c
+progress.sav 120572 bytes fnv1a32=0x49ad06e5
 caption.sav 2029 bytes fnv1a32=0x446b2890
 records=11958 fields=11925 sentinels=32 dataOffset=0x000175d8
 section 1 count=10212
@@ -247,15 +263,18 @@ fnv1a32=0x8b00ce25` and `jpeg=4 bytes`.
 ## Limitations and unknowns
 
 - **`Binary` fields.** The three `Binary` fields have schema defaults 156000,
-  376 and 160000. Those values are not verified byte lengths; the sample spans
-  are 404, 4 and 4 bytes. The builder emits `u32 0` for each field, a
-  well-formed empty blob. This is the 400-byte reduction described above. The
-  real payloads are unknown and are not reproduced.
+  376 and 160000. Those values are not verified byte lengths. The verified
+  sample spans are 404, 4 and 4 bytes, and the builder emits those lengths in
+  record order: the first is `u32 400` plus 400 zero bytes; the other two are
+  `u32 0`. The payload contents are zeros because the sample bytes are unknown,
+  so the payloads are not reproduced, only their lengths.
 - **Footer.** The footer record is emitted verbatim as
-  `{0xA3DB7114, 0x1D6F4}`. `0x1D6F4` is 120,564, so in the built
-  120,164-byte file the footer value lies **400 bytes past EOF**. The codec
-  does not follow it. In the samples the same value is 8 bytes before the
-  sample's end, not the file length.
+  `{0xA3DB7114, 0x1D6F4}`. In the built 120,572-byte file, `0x1D6F4` is
+  120,564, so `size − 8 == footerValue`, matching all three shipped samples.
+  This is not a general length rule: real played saves are larger (observed
+  122,444–122,940 bytes) and carry 280–608 trailing bytes after the footer
+  value, so the footer is **not a total-length field**. It is opaque on read
+  and is never followed as a pointer.
 - **Caption header bytes.** The verified samples carry bytes at caption
   offsets 4 and 8 (observed values: 2982123 and 672), and a table of
   hash/value entries between offsets 40 and 367. `CaptionLayout` describes only
@@ -280,10 +299,11 @@ fnv1a32=0x8b00ce25` and `jpeg=4 bytes`.
 What the tests currently prove:
 
 - `test/domain/newsave/new_save_builder_test.dart` decodes the built
-  `progress.sav` as `ProgressDecodeOk` with 11,958 records, 11,925 fields and
-  the 32 section sentinels. It checks record order against the schema, checks
-  that every sentinel closes its section, and checks the tail is contiguous
-  from `dataOffset` to EOF.
+  `progress.sav` as `ProgressDecodeOk` with 11,958 records, 11,925 fields,
+  the 32 section sentinels and the 120,572-byte length. It checks record order
+  against the schema, checks that every sentinel closes its section, checks the
+  tail is contiguous from `dataOffset` to EOF, and asserts the 404/4/4
+  `Binary` spans, the 8-byte zero trailer and the footer value `length − 8`.
 - The same test proves an unedited decode re-encodes byte-for-byte, and that
   edits survive encode/decode without changing the file length.
 - It feeds the built bytes to the engine under a test-local container layout
@@ -293,10 +313,11 @@ What the tests currently prove:
   caption byte-for-byte. It also covers the 1,400-byte `--no-screenshot`
   variant.
 - `test/data/newsave/new_save_writer_test.dart` proves the writer creates both
-  files with the reported lengths and byte-identical contents, creates a
-  missing root and `slot_00`, refuses a non-empty root and an existing
-  `slot_00` with `destination_not_empty`, keeps the first `progress.sav` as
-  `progress.sav.bak` when `allowOverwrite` is true, and reports FNV-1a 32
+  files with the reported lengths and contents byte-identical to the in-memory
+  build bytes, creates a missing root and `slot_00`, refuses a non-empty root
+  and an existing `slot_00` with `destination_not_empty`, keeps the first
+  `progress.sav` as `progress.sav.bak` when `allowOverwrite` is true, and
+  reports FNV-1a 32
   fingerprints of the in-memory bytes.
 - The writer hands both files to one `AtomicFileWriter.writeAll` batch.
   `test/data/io/atomic_file_writer_test.dart` covers the underlying staging,
@@ -311,9 +332,8 @@ What the tests do **not** prove:
 - That the schema defaults form a coherent New Game state: inventory, quest
   flags, spawn setup and scene state are not validated against the game's
   initialization code.
-- That the opaque `Binary` payloads, the caption header entries at offsets 4,
-  8 and 40..367, or the samples' trailing 8 bytes are unnecessary. They are
-  omitted or zeroed because their meaning is unverified, not because they are
-  known to be irrelevant.
+- That the zero-filled `Binary` payloads or the caption header entries at
+  offsets 4, 8 and 40..367 are correct. They are zeroed because their meaning
+  is unverified, not because they are known to be irrelevant.
 - That the 633-byte JPEG or the 4-byte marker pair is accepted by the game's
   caption reader. The codec only checks the container and the SOI/EOI markers.
