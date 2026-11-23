@@ -167,17 +167,18 @@ paths can regress without a failing test.
 window-chrome check under Wayland and X11 before a release. Do not claim platform
 support from a headless run. Add a display-backed CI job before widening support.
 
-## 10. Two tabs are read-only gap panels
+## 10. The former gap panels are now editors
 
-**Impact.** Collectibles (159 named fields) and Flags (3,443 named + 6,769
-hash-only) render a `V1GapPanel` with the verified field counts and the reason
-no safe editor exists. They are not editors, and they expose no disabled control
-that implies one. Those fields are inspectable only as raw bytes in Advanced
-Data. Progression and Dungeons became editors in `f4e0499`.
+**Impact.** Progression and Dungeons became editors in `f4e0499`; Collectibles
+and Flags in `3048558`. No tab constructs `V1GapPanel` any more, so the earlier
+limitation — four field sets visible only as verified counts — no longer
+applies. Each tab still exposes only fields the save's own descriptor marks
+editable; hash-only fields remain read-only (section 11) and inspectable only as
+raw bytes in Advanced Data.
 
-**Mitigation.** Do not describe the two tabs as working editors. Add a tab only
-when its field semantics, ownership rules, and write path are verified; a count
-of named fields is not a mapping.
+**Mitigation.** Keep the rule that a tab ships only when its field semantics,
+ownership rules, and write path are verified; a count of named fields is not a
+mapping.
 
 ## 11. 8,317 unnamed fields are read-only
 

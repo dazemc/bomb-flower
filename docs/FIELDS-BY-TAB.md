@@ -315,10 +315,10 @@ do not infer the rest.
 
 ## Collectibles
 
-**Read-only (159 distinct; 166 group memberships).** These fields are not
-editable from the Collectibles tab in v1; the tab is a gap panel with the
-verified count; the only raw path is Advanced Data's hex view (behind its unlock
-gate), and this tab offers no editor.
+**159 named fields (166 group memberships).** The Collectibles tab edits all
+159 named fields; the group memberships overlap, so they are not a partition.
+Any value outside the tab's editable spans is reachable only as raw bytes in
+Advanced Data's hex view behind its unlock gate.
 
 - Gold Skulltula/token fields (20): the stock counter plus
   `GatheringTokenGold*`, `HaveEncountered_Token`, and token-counter flags.
@@ -339,12 +339,12 @@ memberships, not a partition.
 
 ## Flags
 
-**Read-only (3,443 named Bool fields).** These fields are not editable from
-the Flags tab in v1; the tab is a gap panel with the verified count; the only
-raw path is Advanced Data's hex view (behind its unlock gate), and this tab
-offers no editor.
+**3,443 named Bool fields, 3,438 editable.** The Flags tab edits the named
+fields its descriptor marks editable; the five remaining named fields and all
+6,769 hash-only Bools stay read-only and are reachable only as raw bytes in
+Advanced Data's hex view behind its unlock gate.
 
-The gap panel reports **178 named prefix buckets** plus a hash-only bucket. The
+The tab reports **178 named prefix buckets** plus a hash-only bucket. The
 largest prefixes are `HavePlayedNaviBalloonMessage` (512), `HaveTalked_Special`
 (402), `HavePlayedEvent` (165), `Npc` (163), `MiniGame` (147), and
 `InsideJabuJabuBelly` (107). Use `flagBuckets`, `flagBucket(prefix)`, and
@@ -362,10 +362,9 @@ Advanced, not in the Bool bucket.
 **Read-only hex (0 named).** The Advanced Data tab is the raw hex view.
 Inspection is read-only until the explicit **Unlock editing** toggle is on;
 even then each write is mediated through the engine and confined to named,
-editable field spans, and a byte outside them is restored. Two gap-panel field
-sets remain — Collectibles and Flags — and they are inspectable here as raw
-bytes. The raw hex path stays available for every field regardless of which tab
-owns it.
+editable field spans, and a byte outside them is restored. All four former
+gap-panel field sets are editors now; the raw hex path stays available for every
+field regardless of which tab owns it.
 
 **Read-only / raw-only (8,317 hash-only).** Counts by wire type:
 
