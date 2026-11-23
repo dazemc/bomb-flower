@@ -193,11 +193,10 @@ repository may target Longshot. The rules and the reason are in
 
 ## Licence
 
-No licence is committed. The Licence section of [`README.md`](README.md) says
-"TBD before the first release", and that is the current state. Do not add a
-licence file, a licence header, or a CLA on your own; that is a decision for
-the maintainer. Contributions are made into a repository with no licence
-granted yet, which is worth understanding before you send a large change.
+Bomb Flower is released under the MIT License — the full text is in
+[`LICENSE`](LICENSE). Contributions are accepted under the same licence:
+inbound equals outbound, and no CLA is required. If a change cannot be
+contributed on those terms, raise it in the issue before you start on it.
 
 ## Where to discuss and report
 
