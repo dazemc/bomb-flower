@@ -156,6 +156,33 @@ and the two lines in `linux/runner/my_application.cc`. Pin the version. Keep
 `BombFlowerApp(enableWindowChrome: false)` working so widget tests never depend
 on native chrome. Plan a replacement before it blocks a Flutter upgrade.
 
+**Measured 2026-11-23.** Last upstream commit `2023-12-23T14:38:15Z`
+(`978d1ee`), 114 open issues (122 including 8 open PRs), 839 stars, and the
+only published release is `0.1.6` (2023-12-23). It **does build** on Flutter
+3.50.1 / Dart 3.14.0: a scratch Linux app depending on `bitsdojo_window ^0.1.6`
+built in debug and in release, and the debug binary ran. The human decided to
+keep it, because migrating to `window_manager 0.7.1` requires a native-API move
+(`windowManager.*` → `WindowManager.instance.getCurrent()`,
+`setAsFrameless()` → `setFrameless()`) and rewrites a working title bar for no
+user-visible gain. Full record: `docs/RESEARCH-FORMATS.md` §9.2.
+
+### Dependency rulings that are settled
+
+- **Picker — forced choice.** `file_picker >=13.3.3` cannot resolve alongside
+  the mandated `bitsdojo_window ^0.1.6`: `bitsdojo_window_windows` requires
+  `win32 ^5.1.1`, while `windows_file_picker` requires `win32 ^6.3.0`. The
+  solver's suggestion was to downgrade to `file_picker ^11.0.3`; the human
+  rejected pinning an old picker and chose `file_selector ^1.1.0`
+  (`pubspec.yaml:16`), the official Flutter-team GTK path. Recorded at
+  `docs/RESEARCH-FORMATS.md` §9.1.
+- **Hex editor — no supplier.** There is no maintained editable hex widget:
+  `flutter_hex_editor`, `hex_editor`, and `byte_editor` return HTTP 404 on
+  pub.dev, and `hex_viewer 0.2.1` is read-only (its only data hooks are
+  `final List<int> data` and `onSelectionChanged`). The custom editor in
+  `lib/presentation/widgets/hex/` is therefore justified by the rule
+  "third-party where a supplier exists, hand-rolled only where none does".
+  Recorded at `docs/RESEARCH-FORMATS.md` §9.3.
+
 ## 9. Verification is Linux-only; headless CI has no real window manager
 
 **Impact.** Windows and macOS are untested. The Xvfb smoke test proves only that
@@ -233,3 +260,35 @@ consumes engine issues, so this tab banner is not an export refusal.
 **Mitigation.** Read the tab banner as the check for the values that tab covers;
 do not treat the footer as a complete validation report. Confirm cross-field
 values in the tab before exporting. Do not claim the conflict blocks export.
+
+## 15. The system file dialog is structurally fragile on Linux
+
+**Impact.** Opening a save must not depend on the GTK folder chooser. The
+in-app browser (`lib/presentation/dialogs/open_save_browser.dart`) is the
+primary and only open path; the native chooser survives only as the Browse
+fallback in Save As and Duplicate
+(`lib/presentation/dialogs/save_as_dialog.dart:137-171`).
+
+`file_selector_linux 0.9.4+1` uses `GtkFileChooserNative`, not
+`GtkFileChooserDialog`: `gtk_file_chooser_native_new(...)` at
+`file_selector_plugin.cc:59-61`, run through `gtk_native_dialog_run` at
+`:144-145`, with the parent taken implicitly as
+`GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(view)))` at `:135`. The plugin
+contains no `gtk_window_set_transient_for` and no `gtk_window_set_modal`, so
+"make the dialog transient/modal" is not implementable in this repository.
+
+The likely cause of the unclickable-sidebar defect (issue #273) is
+`bitsdojo_window_linux 0.1.4`, not parenting: `setCustomFrame` calls
+`gtk_window_set_decorated(window, FALSE)` (`window_impl.cpp:123`) and registers
+a screen-wide CSS provider with `window { background:none; }` at
+`PRIORITY_APPLICATION` (`:129-137`). That selector reaches every `window` node,
+including the native dialog's own window.
+
+**Mitigation.** Keep the in-app browser as the open path. Keep the native
+chooser opt-in/fallback and warn about it in plain English in Settings
+(`lib/presentation/shell/tabs/settings_tab.dart`, the "System file dialog
+(Linux)" section). Do not pursue plugin-level workarounds such as swapping in
+`GtkFileChooserDialog` or toggling the frame while the dialog is open: both are
+fragile, and the in-app browser sidesteps the whole class. Reviewed 2026-11-23
+against the package versions named above.
+
