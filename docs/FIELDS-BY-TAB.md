@@ -1,8 +1,13 @@
 # Bomb Flower — fields by editor tab
 
-This is the UI contract for the eleven editor tabs. It describes the generated
-catalogue in `assets/fields/groups.json`, produced from the hash-verified schema
-`assets/schema/gamedata_110.json` by `tool/gen_field_groups.dart`.
+This describes the generated field catalogue in `assets/fields/groups.json`,
+produced from the hash-verified schema `assets/schema/gamedata_110.json` by
+`tool/gen_field_groups.dart`, and what v1 actually surfaces. Player/World,
+Inventory, Equipment and Resources edit verified save fields; Overview is a
+read-only summary; Progression, Dungeons, Collectibles and Flags are
+**read-only gap panels** that report the verified counts; Advanced Data is the
+raw hex view behind its unlock gate; Settings edits application preferences, not
+save fields.
 
 The generator derives every membership from the schema's real `name` values. It
 does not type hashes by hand and never invents a label. A group member is always
@@ -15,13 +20,13 @@ Of the **11,925** fields serialized in `progress.sav`:
 
 - **3,608** have a recovered, Murmur3-verified name.
 - **8,317** have `"name": null`. They are reachable only through the
-  **Advanced/raw** view, by hash. The editor must not fabricate labels for them.
+  **Advanced Data** hex view, by hash. No tab may fabricate labels for them.
 - **1,220** additional declarations have `SaveFileIndex -1`; they are runtime-only
   and are **not in `progress.sav`**.
 - **11,657** `Bool64bitKey` declarations are absent from disk entirely.
 
-The flags tab therefore shows **10,212** Bool fields: **3,443 named** and
-**6,769 hash-only**. The advanced tab accounts for all **8,317** unnamed fields,
+The flags gap panel therefore reports **10,212** Bool fields: **3,443 named** and
+**6,769 hash-only**. Advanced Data accounts for all **8,317** unnamed fields,
 including the 6,769 Bools, and lists the **7** opaque binary/wide-string hashes.
 
 The schema has no `MaxRupee`, wallet level, Gold Skulltula total, medallion mask,
@@ -35,18 +40,18 @@ Counts are distinct named fields, except flags/advanced where the hash-only coun
 is shown. "Memberships" can exceed distinct fields when a field appears in more
 than one group on the same tab.
 
-| Tab id | Groups | Named | Hash-only | Provenance mix | Edit surface |
+| Tab id | Groups | Named | Hash-only | Provenance mix | v1 surface |
 | --- | ---: | ---: | ---: | --- | --- |
-| `overview` | 1 | 10 | 0 | observed | headline scalars |
-| `playerWorld` | 3 | 13 | 0 | observed, inferred | position, scene, age, map markers |
-| `inventory` | 4 | 71 | 0 | verified, inferred | item flags, pouch, bottles, upgrades |
-| `equipment` | 3 | 24 | 0 | verified, inferred | slots, acquisition, state |
-| `resources` | 5 | 19 | 0 | verified, inferred | health, magic, rupees, counts, capacity |
-| `progression` | 8 | 297 | 0 | observed, inferred | events, quests, stones, sages, songs |
-| `dungeons` | 7 | 42 | 0 | inferred | dungeon items, keys, bosses, hearts |
-| `collectibles` | 6 | 159 | 0 | inferred | tokens, hearts, beans, poes, fishing, scores |
-| `flags` | 1 | 3,443 | 6,769 | observed | named Bools; counts and query API |
-| `advanced` | 1 | 0 | 8,317 | inferred | hash-only counts and opaque hashes |
+| `overview` | 1 | 10 | 0 | observed | read-only (summary) |
+| `playerWorld` | 3 | 13 | 0 | observed, inferred | editable |
+| `inventory` | 4 | 71 | 0 | verified, inferred | editable |
+| `equipment` | 3 | 24 | 0 | verified, inferred | editable |
+| `resources` | 5 | 19 | 0 | verified, inferred | editable |
+| `progression` | 8 | 297 | 0 | observed, inferred | read-only (gap panel) |
+| `dungeons` | 7 | 42 | 0 | inferred | read-only (gap panel) |
+| `collectibles` | 6 | 159 | 0 | inferred | read-only (gap panel) |
+| `flags` | 1 | 3,443 | 6,769 | observed | read-only (gap panel) |
+| `advanced` | 1 | 0 | 8,317 | inferred | read-only (hex; unlock gate) |
 | `settings` | 1 | 0 | 0 | verified | no save fields |
 
 Provenance means:
@@ -114,9 +119,13 @@ These are the generator's documented rules. The order of tabs is the
 
 ## Overview
 
-**Editable (10).** `PlayerStatus.Life`, `MaxLife`, `MP`, `MPMax`,
+**Read-only (10).** `PlayerStatus.Life`, `MaxLife`, `MP`, `MPMax`,
 `CurrentRupee`; `Sequence_CurrentBanc`, `Sequence_IsChildhood`;
 `AllSage_AwakeSageCount`, `DoorOfTime_GetStoneCount`, `Get_MagicBeans`.
+
+v1's Overview is a read-only summary over this catalogue; it never edits a
+field. The same fields are edited in Resources and Player & World where those
+tabs expose them, not here.
 
 Life and MaxLife are **quarter-hearts**: default 12 = three hearts. Do not
 silently convert to whole hearts. There is no stored rupee maximum.
@@ -216,7 +225,10 @@ There are no arrow/bomb/ammo count fields.
 
 ## Progression
 
-**Editable (297 distinct; 335 group memberships).**
+**Read-only (297 distinct; 335 group memberships).** These fields are not
+editable from the Progression tab in v1; the tab is a gap panel with the
+verified count; the only raw path is Advanced Data's hex view (behind its unlock
+gate), and this tab offers no editor.
 
 - `HavePlayedEvent.*` (164)
 - `Get_*` (19)
@@ -228,8 +240,8 @@ There are no arrow/bomb/ammo count fields.
 - Medallions (0)
 
 Memberships exceed distinct fields because the stone, melody, and `IsGet`
-views overlap the event/get groups. The UI should de-duplicate by hash if it
-combines groups.
+views overlap the event/get groups. A future editor must de-duplicate by hash
+if it combines groups.
 
 **Read-only / unavailable.** There is no medallion bitmask and no single
 songs-learned mask. The six `HavePlayedEvent.Dm_MelodyGet_*` fields are the
@@ -239,7 +251,10 @@ and hint state; do not label the whole group "quests complete".
 
 ## Dungeons
 
-**Editable (42 distinct).**
+**Read-only (42 distinct).** These fields are not editable from the Dungeons
+tab in v1; the tab is a gap panel with the verified count; the only raw path is
+Advanced Data's hex view (behind its unlock gate), and this tab offers no
+editor.
 
 - Named `DungeonInfo.*` item flags (5), grouped per dungeon:
   - `DodongoCavern` (1): compass
@@ -259,7 +274,10 @@ do not infer the rest.
 
 ## Collectibles
 
-**Editable (159 distinct; 166 group memberships).**
+**Read-only (159 distinct; 166 group memberships).** These fields are not
+editable from the Collectibles tab in v1; the tab is a gap panel with the
+verified count; the only raw path is Advanced Data's hex view (behind its unlock
+gate), and this tab offers no editor.
 
 - Gold Skulltula/token fields (20): the stock counter plus
   `GatheringTokenGold*`, `HaveEncountered_Token`, and token-counter flags.
@@ -280,10 +298,14 @@ memberships, not a partition.
 
 ## Flags
 
-**Editable (3,443 named Bool fields).** The tab exposes **178 named prefix
-buckets** plus a hash-only bucket. The largest prefixes are
-`HavePlayedNaviBalloonMessage` (512), `HaveTalked_Special` (402),
-`HavePlayedEvent` (165), `Npc` (163), `MiniGame` (147), and
+**Read-only (3,443 named Bool fields).** These fields are not editable from
+the Flags tab in v1; the tab is a gap panel with the verified count; the only
+raw path is Advanced Data's hex view (behind its unlock gate), and this tab
+offers no editor.
+
+The gap panel reports **178 named prefix buckets** plus a hash-only bucket. The
+largest prefixes are `HavePlayedNaviBalloonMessage` (512), `HaveTalked_Special`
+(402), `HavePlayedEvent` (165), `Npc` (163), `MiniGame` (147), and
 `InsideJabuJabuBelly` (107). Use `flagBuckets`, `flagBucket(prefix)`, and
 `flagFieldsUnder(prefix)` in `FieldGroupsCatalogue`; do not render all 10,212
 rows inline.
@@ -296,7 +318,11 @@ Advanced, not in the Bool bucket.
 
 ## Advanced
 
-**Editable (0 named).** This tab is the honest raw view.
+**Read-only hex (0 named).** The Advanced Data tab is the raw hex view.
+Inspection is read-only until the explicit **Unlock editing** toggle is on;
+even then each write is mediated through the engine and confined to named,
+editable field spans, and a byte outside them is restored. The four gap-panel
+field sets are inspectable here as raw bytes.
 
 **Read-only / raw-only (8,317 hash-only).** Counts by wire type:
 
