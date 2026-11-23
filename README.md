@@ -21,8 +21,8 @@ tests are committed; a gap is listed with the reason it remains a gap.
 | Save engine and adapter | Wired. `SaveEngine` opens `progress.sav` through a per-file `LayoutDescriptor` | `lib/data/adapter/`, `test/data/adapter/` |
 | Save format | 40-byte header, 11,958 records, 32 sentinels, footer, no checksum | `lib/domain/save/progress_layout.dart` |
 | GameData schema | 11,925/11,925 on-disk fields resolved; 3,608 named, 8,317 unnamed; 75 enum tables | `assets/schema/gamedata_110.json` |
-| Real tabs (7) | Overview (read-only), Player/World, Inventory, Equipment, Resources, Advanced Data (gated hex), Settings (in-memory prefs) | `lib/presentation/shell/tabs/` |
-| Gap panels (4) | Progression (297 named fields), Dungeons (42 named), Collectibles (159 named), Flags (3,443 named + 6,769 hash-only); read-only, verified counts | `v1_gap_panel.dart` |
+| Real tabs (9) | Overview (read-only), Player/World, Inventory, Equipment, Resources, Progression, Dungeons, Advanced Data (gated hex), Settings (in-memory prefs) | `lib/presentation/shell/tabs/` |
+| Gap panels (2) | Collectibles (159 named fields), Flags (3,443 named + 6,769 hash-only); read-only, verified counts | `v1_gap_panel.dart` |
 | File actions | Title bar: Open, Save, Save As…, Duplicate, Reset slot…, Undo, Redo, Compare (key `shell-action-compare`); collapse to one overflow menu below 1280 px | `lib/presentation/widgets/chrome/file_action_bar.dart` |
 | New save creation | `tool/create_save.dart` writes a schema-default 120,572-byte save | `test/domain/newsave/` |
 | Edited save loads in game | One external E2E run: a 2-byte `Life`/`MaxLife` edit produced 4 hearts | one-off run, not CI |

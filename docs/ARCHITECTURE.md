@@ -258,20 +258,20 @@ Eleven tabs, of which seven are real:
 | Advanced Data | Hex inspection plus editing behind an explicit **Unlock editing** toggle |
 | Settings | Editor preferences held in an in-memory store; not persisted across launches |
 
-The other four are read-only **gap panels** (`lib/presentation/shell/tabs/
-v1_gap_panel.dart`). Each states why no safe editor exists and shows the
-verified counts that already exist:
+Two field sets remain read-only **gap panels**
+(`lib/presentation/shell/tabs/v1_gap_panel.dart`): Collectibles and Flags. Each
+states why no safe editor exists and shows the verified count that already
+exists:
 
 | Panel | Verified fields |
 |---|---|
-| Progression | 297 named |
-| Dungeons | 42 named |
 | Collectibles | 159 named |
 | Flags | 3,443 named + 6,769 hash-only |
 
 A gap panel has no editable control and no disabled control that implies future
 work; its only affordance points at Advanced Data, where those records are
-inspectable as raw bytes.
+inspectable as raw bytes. Progression and Dungeons became editors in `f4e0499`;
+the field action bar and title bar text that follows is unchanged.
 
 The title bar owns eight file actions: **Open**, **Save**, **Save As…**,
 **Duplicate**, **Reset slot…**, **Undo**, **Redo**, and **Compare**

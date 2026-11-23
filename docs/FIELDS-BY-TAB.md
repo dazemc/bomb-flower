@@ -3,9 +3,8 @@
 This describes the generated field catalogue in `assets/fields/groups.json`,
 produced from the hash-verified schema `assets/schema/gamedata_110.json` by
 `tool/gen_field_groups.dart`, and what v1 actually surfaces. Player/World,
-Inventory, Equipment, Resources, Progression and Dungeons edit verified save
-fields; Overview is a read-only summary; Collectibles and Flags are
-**read-only gap panels** that report the verified counts; Advanced Data is the
+Inventory, Equipment, Resources, Progression, Dungeons, Collectibles and Flags
+edit verified save fields; Overview is a read-only summary; Advanced Data is the
 raw hex view behind its unlock gate; Settings edits application preferences, not
 save fields.
 
@@ -25,7 +24,7 @@ Of the **11,925** fields serialized in `progress.sav`:
   and are **not in `progress.sav`**.
 - **11,657** `Bool64bitKey` declarations are absent from disk entirely.
 
-The flags gap panel therefore reports **10,212** Bool fields: **3,443 named** and
+The Flags tab reports **10,212** Bool fields: **3,443 named** and
 **6,769 hash-only**. Advanced Data accounts for all **8,317** unnamed fields,
 including the 6,769 Bools, and lists the **7** opaque binary/wide-string hashes.
 
@@ -49,8 +48,8 @@ than one group on the same tab.
 | `resources` | 5 | 19 | 0 | verified, inferred | editable |
 | `progression` | 8 | 297 | 0 | observed, inferred | editable |
 | `dungeons` | 7 | 42 | 0 | inferred | editable |
-| `collectibles` | 6 | 159 | 0 | inferred | read-only (gap panel) |
-| `flags` | 1 | 3,443 | 6,769 | observed | read-only (gap panel) |
+| `collectibles` | 6 | 159 | 0 | inferred | editable |
+| `flags` | 1 | 3,443 | 6,769 | observed | editable named; hash-only read-only |
 | `advanced` | 1 | 0 | 8,317 | inferred | read-only (hex; unlock gate) |
 | `settings` | 1 | 0 | 0 | verified | no save fields |
 
@@ -363,8 +362,10 @@ Advanced, not in the Bool bucket.
 **Read-only hex (0 named).** The Advanced Data tab is the raw hex view.
 Inspection is read-only until the explicit **Unlock editing** toggle is on;
 even then each write is mediated through the engine and confined to named,
-editable field spans, and a byte outside them is restored. The four gap-panel
-field sets are inspectable here as raw bytes.
+editable field spans, and a byte outside them is restored. Two gap-panel field
+sets remain — Collectibles and Flags — and they are inspectable here as raw
+bytes. The raw hex path stays available for every field regardless of which tab
+owns it.
 
 **Read-only / raw-only (8,317 hash-only).** Counts by wire type:
 

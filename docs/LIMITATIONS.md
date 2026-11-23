@@ -167,15 +167,15 @@ paths can regress without a failing test.
 window-chrome check under Wayland and X11 before a release. Do not claim platform
 support from a headless run. Add a display-backed CI job before widening support.
 
-## 10. Four tabs are read-only gap panels
+## 10. Two tabs are read-only gap panels
 
-**Impact.** Progression (297 named fields), Dungeons (42 named), Collectibles
-(159 named), and Flags (3,443 named + 6,769 hash-only) render a `V1GapPanel`
-with the verified field counts and the reason no safe editor exists. They are
-not editors, and they expose no disabled control that implies one. Those fields
-are inspectable only as raw bytes in Advanced Data.
+**Impact.** Collectibles (159 named fields) and Flags (3,443 named + 6,769
+hash-only) render a `V1GapPanel` with the verified field counts and the reason
+no safe editor exists. They are not editors, and they expose no disabled control
+that implies one. Those fields are inspectable only as raw bytes in Advanced
+Data. Progression and Dungeons became editors in `f4e0499`.
 
-**Mitigation.** Do not describe the four tabs as working editors. Add a tab only
+**Mitigation.** Do not describe the two tabs as working editors. Add a tab only
 when its field semantics, ownership rules, and write path are verified; a count
 of named fields is not a mapping.
 
