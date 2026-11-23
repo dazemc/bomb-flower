@@ -353,10 +353,13 @@ class _ShellTabContent extends StatelessWidget {
       switchInCurve: BombFlowerMotion.standardCurve,
       switchOutCurve: BombFlowerMotion.standardCurve,
       layoutBuilder: (currentChild, previousChildren) {
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[...previousChildren, ?currentChild],
-        );
+        // Only the incoming page is laid out. Keeping the outgoing page in the
+        // stack cross-fades two transparent pages over the shared canopy,
+        // double-exposing their glyphs; since the page background is the same
+        // canopy either way, dropping the outgoing copy costs nothing visible
+        // and removes the ghosting entirely. Reduced motion already switches
+        // with a zero duration.
+        return currentChild ?? const SizedBox.shrink();
       },
       transitionBuilder: (child, animation) {
         if (reduceMotion) return child;
