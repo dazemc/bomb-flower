@@ -6,11 +6,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../../data/system/directory_picker.dart';
+import '../../../data/system/longshot_launcher.dart';
 import '../../bloc/save_session/save_session_cubit.dart';
 import '../../bloc/save_session/save_session_ui_state.dart';
 import '../../dialogs/open_save_dialog.dart';
 import '../../dialogs/reset_slot_dialog.dart';
 import '../../dialogs/save_as_dialog.dart';
+import '../../shell/tabs/settings_tab.dart';
 import '../../theme/bomb_flower_colors.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_typography.dart';
@@ -42,6 +44,8 @@ class AppTitleBar extends StatefulWidget {
     this.saveFolderProbe,
     this.recentPaths,
     this.directoryPicker,
+    this.settingsStore,
+    this.launcher,
   });
 
   final bool interactive;
@@ -62,6 +66,13 @@ class AppTitleBar extends StatefulWidget {
 
   /// Optional native folder chooser for the dialogs.
   final DirectoryPicker? directoryPicker;
+
+  /// Store the Launch action reads the launcher path from. Null falls back to a
+  /// fresh [InMemorySettingsStore], i.e. the platform default path.
+  final SettingsStore? settingsStore;
+
+  /// Launcher seam. Null falls back to the real detached process starter.
+  final LongshotLauncher? launcher;
 
   @override
   State<AppTitleBar> createState() => _AppTitleBarState();
@@ -200,10 +211,28 @@ class _AppTitleBarState extends State<AppTitleBar> {
     _syncError(cubit);
   }
 
+  /// Starts the configured launcher. Independent of any open save, so the
+  /// action works before a project is loaded.
+  Future<void> _launch() async {
+    final store = widget.settingsStore ?? InMemorySettingsStore();
+    final preferences = await store.load();
+    if (!mounted) {
+      return;
+    }
+    final result = await (widget.launcher ?? const IoLongshotLauncher())
+        .launch(preferences.launcherPath);
+    if (!mounted) {
+      return;
+    }
+    setState(
+      () => _actionError = result.started ? null : result.message,
+    );
+  }
+
   /// The file action group, enabled from the current session state.
   Widget _actionGroup(SaveSessionCubit? cubit, SaveSessionUiState? state) {
     if (cubit == null || state == null) {
-      return const FileActionBar(
+      return FileActionBar(
         onOpen: null,
         onSave: null,
         onSaveAs: null,
@@ -211,6 +240,7 @@ class _AppTitleBarState extends State<AppTitleBar> {
         onReset: null,
         onUndo: null,
         onRedo: null,
+        onLaunch: () => unawaited(_launch()),
         disabledReason: 'Open a save first',
       );
     }
@@ -224,6 +254,7 @@ class _AppTitleBarState extends State<AppTitleBar> {
         onReset: null,
         onUndo: null,
         onRedo: null,
+        onLaunch: () => unawaited(_launch()),
         disabledReason: 'Open a save first',
       );
     }
@@ -237,6 +268,7 @@ class _AppTitleBarState extends State<AppTitleBar> {
       onReset: () => unawaited(_reset(cubit, project)),
       onUndo: project.canUndo ? () => _undo(cubit) : null,
       onRedo: project.canRedo ? () => _redo(cubit) : null,
+      onLaunch: () => unawaited(_launch()),
     );
   }
 

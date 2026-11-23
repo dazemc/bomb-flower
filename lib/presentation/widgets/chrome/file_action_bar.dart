@@ -25,6 +25,7 @@ class FileActionBar extends StatelessWidget {
     required this.onReset,
     required this.onUndo,
     required this.onRedo,
+    this.onLaunch,
     this.disabledReason,
   });
 
@@ -52,6 +53,9 @@ class FileActionBar extends StatelessWidget {
   /// Steps forward through the edit history.
   final VoidCallback? onRedo;
 
+  /// Starts the Longshot launcher. Independent of whether a save is open.
+  final VoidCallback? onLaunch;
+
   /// Why every action is disabled, appended to each tooltip when set.
   final String? disabledReason;
 
@@ -64,7 +68,7 @@ class FileActionBar extends StatelessWidget {
     return label;
   }
 
-  /// The seven actions in display order.
+  /// The eight actions in display order.
   ///
   /// One list feeds both the wide row and the collapsed menu so the keys,
   /// labels and enablement can never drift apart.
@@ -111,6 +115,12 @@ class FileActionBar extends StatelessWidget {
         label: 'Redo',
         icon: Icons.redo,
         onPressed: onRedo,
+      ),
+      _FileAction(
+        key: const Key('shell-action-launch'),
+        label: 'Launch Longshot',
+        icon: Icons.play_arrow_outlined,
+        onPressed: onLaunch,
       ),
     ];
   }

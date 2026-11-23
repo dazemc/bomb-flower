@@ -206,4 +206,65 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expectNoOverflow(tester);
   });
+
+  testWidgets('editing the launcher path saves only that field', (tester) async {
+    const seeded = '/opt/longshot/Launcher.AppImage';
+    final store = FakeSettingsStore(
+      seeded: const EditorPreferences(
+        backupPolicy: BackupPolicy.always,
+        makeNewestSlotDefault: false,
+        reducedMotion: true,
+        textScale: 1.25,
+        launcherPath: seeded,
+      ),
+    );
+    await _pumpSettings(tester, store);
+
+    final field = tester.widget<TextField>(
+      find.byKey(SettingsTab.launcherPathKey),
+    );
+    expect(field.controller!.text, seeded);
+
+    const edited = '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
+    await tester.enterText(
+      find.byKey(SettingsTab.launcherPathKey),
+      edited,
+    );
+    await tester.ensureVisible(find.byKey(SettingsTab.launcherPathSaveKey));
+    await tester.tap(find.byKey(SettingsTab.launcherPathSaveKey));
+    await tester.pump();
+    await tester.pump();
+
+    expect(store.saves, hasLength(1));
+    final saved = store.saves.single;
+    expect(saved.launcherPath, edited);
+    expect(saved.backupPolicy, BackupPolicy.always);
+    expect(saved.makeNewestSlotDefault, isFalse);
+    expect(saved.reducedMotion, isTrue);
+    expect(saved.textScale, 1.25);
+    expectNoOverflow(tester);
+  });
+
+  testWidgets('reset restores the default launcher path', (tester) async {
+    final store = FakeSettingsStore(
+      seeded: const EditorPreferences(
+        launcherPath: '/opt/longshot/Launcher.AppImage',
+      ),
+    );
+    await _pumpSettings(tester, store);
+
+    await tester.ensureVisible(find.byKey(SettingsTab.launcherPathResetKey));
+    await tester.tap(find.byKey(SettingsTab.launcherPathResetKey));
+    await tester.pump();
+    await tester.pump();
+
+    expect(store.saves, hasLength(1));
+    expect(store.saves.single.launcherPath, kDefaultLongshotLauncherPath);
+
+    final field = tester.widget<TextField>(
+      find.byKey(SettingsTab.launcherPathKey),
+    );
+    expect(field.controller!.text, kDefaultLongshotLauncherPath);
+    expectNoOverflow(tester);
+  });
 }

@@ -17,6 +17,13 @@ import '../../widgets/controls/brass_toggle.dart';
 import '../../widgets/selectors/searchable_select.dart';
 import 'placeholder_tab.dart';
 
+/// The executables the editor starts for the user.
+///
+/// Presentation keeps its own default so this file never imports the data-layer
+/// launcher port; the title bar reads the persisted value from here.
+const String kDefaultLongshotLauncherPath =
+    '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
+
 /// What the editor should do when a save is about to be overwritten.
 enum BackupPolicy { always, ask, never }
 
@@ -31,6 +38,7 @@ final class EditorPreferences {
     this.makeNewestSlotDefault = true,
     this.reducedMotion = false,
     this.textScale = 1.0,
+    this.launcherPath = kDefaultLongshotLauncherPath,
   });
 
   /// Recently opened save folders, newest first.
@@ -47,12 +55,16 @@ final class EditorPreferences {
   /// UI text scale applied inside the editor, 1.0 to 1.5.
   final double textScale;
 
+  /// Executable the title-bar Launch action starts.
+  final String launcherPath;
+
   EditorPreferences copyWith({
     List<String>? recentPaths,
     BackupPolicy? backupPolicy,
     bool? makeNewestSlotDefault,
     bool? reducedMotion,
     double? textScale,
+    String? launcherPath,
   }) {
     return EditorPreferences(
       recentPaths: recentPaths ?? this.recentPaths,
@@ -61,6 +73,7 @@ final class EditorPreferences {
           makeNewestSlotDefault ?? this.makeNewestSlotDefault,
       reducedMotion: reducedMotion ?? this.reducedMotion,
       textScale: textScale ?? this.textScale,
+      launcherPath: launcherPath ?? this.launcherPath,
     );
   }
 }
@@ -111,6 +124,9 @@ class SettingsTab extends StatefulWidget {
   static const Key newestDefaultKey = Key('settings-newest-default');
   static const Key reduceMotionKey = Key('settings-reduce-motion');
   static const Key textScaleKey = Key('settings-text-scale');
+  static const Key launcherPathKey = Key('settings-launcher-path');
+  static const Key launcherPathSaveKey = Key('settings-launcher-path-save');
+  static const Key launcherPathResetKey = Key('settings-launcher-path-reset');
   static const Key saveFailedKey = Key('settings-save-failed');
 
   @override
@@ -367,6 +383,19 @@ class _SettingsTabState extends State<SettingsTab> {
           ],
         ),
       ),
+      _SettingSection(
+        title: 'Longshot launcher',
+        caption:
+            'The launcher executable the title-bar Launch action starts. '
+            'Point it at the Longshot Launcher AppImage or its installed '
+            'equivalent.',
+        child: _LauncherPathRow(
+          path: preferences.launcherPath,
+          onSave: (path) {
+            unawaited(_persist(preferences.copyWith(launcherPath: path)));
+          },
+        ),
+      ),
     ];
   }
 }
@@ -385,6 +414,109 @@ String _formatTextScale(double value) {
       ? fixed.substring(0, fixed.length - 1)
       : fixed;
   return '${trimmed}x';
+}
+
+/// Editable launcher path, kept in step with the persisted preference without
+/// overwriting what the user is currently typing.
+class _LauncherPathRow extends StatefulWidget {
+  const _LauncherPathRow({required this.path, required this.onSave});
+
+  /// The persisted path, which seeds the field and drives the reset button.
+  final String path;
+
+  /// Writes the trimmed path once per commit.
+  final void Function(String path) onSave;
+
+  @override
+  State<_LauncherPathRow> createState() => _LauncherPathRowState();
+}
+
+class _LauncherPathRowState extends State<_LauncherPathRow> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.path,
+  );
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void didUpdateWidget(_LauncherPathRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Follow a reloaded or reset value, but never fight the user mid-typing.
+    if (widget.path != oldWidget.path && !_focusNode.hasFocus) {
+      _controller.text = widget.path;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _commit() {
+    widget.onSave(_controller.text.trim());
+  }
+
+  void _reset() {
+    _controller.text = kDefaultLongshotLauncherPath;
+    widget.onSave(kDefaultLongshotLauncherPath);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.bombFlowerTheme;
+    final isDefault = widget.path.trim() == kDefaultLongshotLauncherPath;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: TextField(
+            key: SettingsTab.launcherPathKey,
+            controller: _controller,
+            focusNode: _focusNode,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _commit(),
+            decoration: const InputDecoration(
+              labelText: 'Launcher executable',
+              hintText: '/path/to/LongshotLauncher-x86_64.AppImage',
+            ),
+          ),
+        ),
+        const SizedBox(height: BombFlowerSpacing.md),
+        Wrap(
+          spacing: BombFlowerSpacing.md,
+          runSpacing: BombFlowerSpacing.sm,
+          children: <Widget>[
+            BrassButton(
+              key: SettingsTab.launcherPathSaveKey,
+              label: 'Use this path',
+              icon: Icons.check,
+              variant: BrassButtonVariant.secondary,
+              onPressed: _commit,
+            ),
+            BrassButton(
+              key: SettingsTab.launcherPathResetKey,
+              label: 'Reset to default',
+              icon: Icons.settings_backup_restore,
+              variant: BrassButtonVariant.text,
+              onPressed: isDefault ? null : _reset,
+            ),
+          ],
+        ),
+        const SizedBox(height: BombFlowerSpacing.sm),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Text(
+            'Default: $kDefaultLongshotLauncherPath',
+            style: BombFlowerTypography.caption.copyWith(
+              color: palette.textMuted,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// One titled preference group inside the settings panel.

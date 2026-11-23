@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../data/system/directory_picker.dart';
+import '../../data/system/longshot_launcher.dart';
 import '../bloc/shell/shell_cubit.dart';
 import '../bloc/shell/shell_state.dart';
 import '../bloc/shell/tab_definition.dart';
@@ -65,6 +66,8 @@ class AppShell extends StatefulWidget {
     this.onRetryOpen,
     this.onOpenAnotherSave,
     this.saveFolderProbe,
+    this.settingsStore,
+    this.longshotLauncher,
   });
 
   /// A failed open to render instead of the tab content, or `null`.
@@ -80,11 +83,28 @@ class AppShell extends StatefulWidget {
   /// substitute a fake. A null value falls back to the real IO probe there.
   final SaveFolderProbe? saveFolderProbe;
 
+  /// Preferences store shared by the Settings tab and the title bar, so a path
+  /// edited there reaches the Launch action without a restart. A null value
+  /// makes the shell own one [InMemorySettingsStore].
+  final SettingsStore? settingsStore;
+
+  /// Launcher used by the title bar. A null value uses the real detached
+  /// process starter.
+  final LongshotLauncher? longshotLauncher;
+
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
+  /// One store for the whole shell: Settings writes it, the title bar reads it.
+  late final SettingsStore _settingsStore =
+      widget.settingsStore ?? InMemorySettingsStore();
+
+  /// One launcher seam for the title bar.
+  late final LongshotLauncher _launcher =
+      widget.longshotLauncher ?? const IoLongshotLauncher();
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -135,6 +155,8 @@ class _AppShellState extends State<AppShell> {
                   isDirty: state.isDirty,
                   saveName: state.saveName,
                   saveFolderProbe: widget.saveFolderProbe,
+                  settingsStore: _settingsStore,
+                  launcher: _launcher,
                 ),
                 Expanded(
                   child: LayoutBuilder(
@@ -173,6 +195,7 @@ class _AppShellState extends State<AppShell> {
                                   ),
                                   null => _ShellTabContent(
                                     activeTab: state.activeTab,
+                                    settingsStore: _settingsStore,
                                   ),
                                 },
                               ),
@@ -264,9 +287,12 @@ class _OpenFailureView extends StatelessWidget {
 }
 
 class _ShellTabContent extends StatelessWidget {
-  const _ShellTabContent({required this.activeTab});
+  const _ShellTabContent({required this.activeTab, required this.settingsStore});
 
   final ShellTab activeTab;
+
+  /// Shared with the title bar so an edit in Settings applies immediately.
+  final SettingsStore settingsStore;
 
   Widget _pageFor(ShellTab tab) {
     return switch (tab) {
@@ -288,7 +314,10 @@ class _ShellTabContent extends StatelessWidget {
       ShellTab.advancedData => const AdvancedDataTab(
         key: Key('tab-page-advancedData'),
       ),
-      ShellTab.settings => const SettingsTab(key: Key('tab-page-settings')),
+      ShellTab.settings => SettingsTab(
+        key: const Key('tab-page-settings'),
+        store: settingsStore,
+      ),
     };
   }
 
