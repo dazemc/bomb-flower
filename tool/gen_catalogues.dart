@@ -8,7 +8,7 @@
 ///
 /// ```sh
 /// dart run tool/gen_catalogues.dart \
-///   --scenes /tmp/opencode/catalogue/scenes/scenes.longshot.json \
+///   --scenes .tmp/catalogue/scenes/scenes.longshot.json \
 ///   --area-names /home/daze/GitHub/Longshot/host/oot_area_names.c \
 ///   --cheat-items /home/daze/GitHub/Longshot/gpu/vk/oot_cheat_items.h \
 ///   --heart-containers /home/daze/GitHub/Longshot/host/oot_heart_containers.c \
@@ -25,24 +25,76 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+/// The repository root derived from this script's own location, or `null` when
+/// `Platform.script` does not name a real file (e.g. a compiled snapshot).
+String? get _scriptRepoRoot {
+  final script = Platform.script;
+  if (script.scheme != 'file') {
+    return null;
+  }
+  final scriptFile = File(script.toFilePath()).absolute;
+  if (!scriptFile.existsSync()) {
+    return null;
+  }
+  // `tool/` sits directly under the repository root.
+  return scriptFile.parent.parent.path;
+}
+
 /// The validated scene extraction, resolved from this script's own location so
 /// the default holds for any working directory.
 String get _defaultScenes {
   const relative = '.tmp/catalogue/scenes/scenes.longshot.json';
-  final script = Platform.script;
-  if (script.scheme == 'file') {
-    // `tool/` sits directly under the repository root.
-    final scriptFile = File(script.toFilePath()).absolute;
-    if (scriptFile.existsSync()) {
-      final fromRepoRoot = '${scriptFile.parent.parent.path}/$relative';
-      if (File(fromRepoRoot).existsSync()) {
-        return fromRepoRoot;
-      }
+  final repoRoot = _scriptRepoRoot;
+  if (repoRoot != null) {
+    final fromRepoRoot = '$repoRoot/$relative';
+    if (File(fromRepoRoot).existsSync()) {
+      return fromRepoRoot;
     }
   }
   // `Platform.script` does not name the real file (e.g. a compiled snapshot or
   // AOT binary), so fall back to the process working directory.
   return relative;
+}
+
+/// Returns [resolvedPath] in repository-root-relative form when it lies inside
+/// [repoRoot], and the absolute path when it lies outside.
+///
+/// Provenance in the generated asset must stay byte-identical across machines,
+/// so a path inside the repository is recorded relative to its root.
+String catalogueProvenancePath(
+  String resolvedPath, {
+  required String repoRoot,
+}) {
+  final path = _normalizedPath(resolvedPath);
+  if (!path.startsWith('/')) {
+    return path;
+  }
+  final root = _normalizedPath(repoRoot);
+  if (root == '/') {
+    return path.substring(1);
+  }
+  if (path == root) {
+    return '.';
+  }
+  if (path.startsWith('$root/')) {
+    return path.substring(root.length + 1);
+  }
+  return path;
+}
+
+/// The `RANGES.md` that sits beside [scenesPath], in the same directory.
+String catalogueRangesPath(String scenesPath) {
+  final path = _normalizedPath(scenesPath);
+  final slash = path.lastIndexOf('/');
+  return slash < 0 ? 'RANGES.md' : '${path.substring(0, slash)}/RANGES.md';
+}
+
+String _normalizedPath(String path) {
+  var normalized = path.replaceAll('\\', '/');
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.substring(0, normalized.length - 1);
+  }
+  return normalized;
 }
 
 const String _defaultLongshotRoot = '/home/daze/GitHub/Longshot';
@@ -100,6 +152,7 @@ Future<void> main(List<String> args) async {
       scenesJson,
       areaNames: areaNames,
       heartDungeons: heartDungeons,
+      scenesPath: paths.scenes,
     );
     final actors = _buildActors(actorRows);
 
@@ -334,6 +387,7 @@ Map<String, Object?> _buildWorld(
   Map<String, Object?> source, {
   required _AreaNames? areaNames,
   required Set<String>? heartDungeons,
+  required String scenesPath,
 }) {
   final mapRows = _objects(source['known_map_names'], 'known_map_names');
   final sceneRows = _objects(source['known_scene_names'], 'known_scene_names');
@@ -531,6 +585,7 @@ Map<String, Object?> _buildWorld(
     'provenance': _worldProvenance(
       areaNamesAvailable: areaNames != null,
       heartContainersAvailable: heartDungeons != null,
+      scenesPath: scenesPath,
     ),
     'counts': <String, Object?>{
       'maps': maps.length,
@@ -594,7 +649,13 @@ String _bossLabel(Map<String, Object?> row, _AreaNames? areaNames) {
 Map<String, Object?> _worldProvenance({
   required bool areaNamesAvailable,
   required bool heartContainersAvailable,
+  required String scenesPath,
 }) {
+  final repoRoot = _scriptRepoRoot ?? Directory.current.path;
+  final scenesProvenance = catalogueProvenancePath(
+    scenesPath,
+    repoRoot: repoRoot,
+  );
   return <String, Object?>{
     'title': 'Longshot map, start-position and dungeon catalogue',
     'generatedBy': 'tool/gen_catalogues.dart',
@@ -667,14 +728,14 @@ Map<String, Object?> _worldProvenance({
       },
       <String, Object?>{
         'id': 'scratch-scenes',
-        'path': '/tmp/opencode/catalogue/scenes/scenes.longshot.json',
+        'path': scenesProvenance,
         'usedFor':
             'the validated extraction of 80 maps, 62 base scenes, 415 start '
             'positions, 10 dungeons and 3 observations',
       },
       <String, Object?>{
         'id': 'ranges',
-        'path': '/tmp/opencode/catalogue/scenes/RANGES.md',
+        'path': catalogueRangesPath(scenesProvenance),
         'lines': 'sections 1.3, 2, 3.1, 3.2 and 6',
         'usedFor': 'validation policy and the explicit uncertainty list',
       },

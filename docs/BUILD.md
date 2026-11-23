@@ -220,3 +220,10 @@ and it cannot run in CI here without the game binary and assets.
   rebuild. Do not hand-edit `linux/flutter/generated_plugin_registrant.cc`.
 - **Native title bar** — confirm both bitsdojo lines are still in
   `linux/runner/my_application.cc`.
+
+## Catalogue generation
+
+The committed `assets/world/scenes.json` still records the pre-move
+`/tmp/opencode` provenance at lines 8150 and 8156 and must be regenerated when
+Longshot access is available; `tool/gen_catalogues.dart` now emits the resolved
+scene path, repo-relative when it lies inside the repository.
