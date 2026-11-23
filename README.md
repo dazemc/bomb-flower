@@ -184,11 +184,8 @@ game-acceptance result rather than a repeatable test, partly opaque
 
 ## Brand mark
 
-The Bomb Flower mark is the application's visual identity. The shell renders it in
-the title bar (`lib/presentation/widgets/chrome/app_title_bar.dart`) and in the
-empty-state panel (`lib/presentation/widgets/common/empty_state.dart`), and is
-intended as the documentation header. Artwork provenance and attribution are
-recorded with the asset itself.
+The Bomb Flower mark appears in the title bar at 32 px and as the empty-state
+motif at 48 px.
 
 ## Licence
 
