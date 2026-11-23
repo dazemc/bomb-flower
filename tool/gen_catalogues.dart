@@ -25,8 +25,26 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-const String _defaultScenes =
-    '/tmp/opencode/catalogue/scenes/scenes.longshot.json';
+/// The validated scene extraction, resolved from this script's own location so
+/// the default holds for any working directory.
+String get _defaultScenes {
+  const relative = '.tmp/catalogue/scenes/scenes.longshot.json';
+  final script = Platform.script;
+  if (script.scheme == 'file') {
+    // `tool/` sits directly under the repository root.
+    final scriptFile = File(script.toFilePath()).absolute;
+    if (scriptFile.existsSync()) {
+      final fromRepoRoot = '${scriptFile.parent.parent.path}/$relative';
+      if (File(fromRepoRoot).existsSync()) {
+        return fromRepoRoot;
+      }
+    }
+  }
+  // `Platform.script` does not name the real file (e.g. a compiled snapshot or
+  // AOT binary), so fall back to the process working directory.
+  return relative;
+}
+
 const String _defaultLongshotRoot = '/home/daze/GitHub/Longshot';
 const String _defaultOut = 'assets';
 
@@ -56,7 +74,11 @@ Future<void> main(List<String> args) async {
     final paths = options.resolvePaths();
     final scenesFile = File(paths.scenes);
     if (!scenesFile.existsSync()) {
-      throw StateError('scene catalogue not found: ${paths.scenes}');
+      throw StateError(
+        'scene catalogue not found: ${scenesFile.absolute.path}\n'
+        'That file comes from the validated Longshot scene extraction. Point '
+        'at a copy with --scenes <path> or BOMB_FLOWER_SCENES.',
+      );
     }
     final scenesJson = _readObject(scenesFile);
 
