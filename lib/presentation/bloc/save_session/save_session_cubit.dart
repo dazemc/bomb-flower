@@ -108,20 +108,18 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
     _openingPath = trimmed;
     _recorder?.resetRecording();
     try {
-      final selection = await _resolveLayout?.call(trimmed);
-      if (selection == null) {
-        _emitFailure(
-          message: 'No supported save layout was found in this folder.',
-          kind: SaveSessionErrorKind.unsupportedLayout,
-          details:
-              'The layout resolver returned no layout for "$trimmed". The '
-              'save engine is not wired for this folder yet.',
-          recoverable: controller.state.project != null,
-        );
-        return;
+      final resolution = await _resolveLayout!.call(trimmed);
+      switch (resolution) {
+        case LayoutResolved():
+          _pendingStatusMessage = 'Opened $trimmed';
+          await controller.open(trimmed);
+        case LayoutRejected():
+          _emitRejectedLayout(
+            resolution,
+            recoverable: controller.state.project != null,
+          );
+          return;
       }
-      _pendingStatusMessage = 'Opened $trimmed';
-      await controller.open(trimmed);
     } catch (error) {
       _emitFailure(
         message: 'The save folder could not be opened.',
@@ -504,6 +502,38 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
       case SessionStatus.error:
         _emitOpenFailure(state);
     }
+  }
+
+  /// Reports why layout detection refused the folder being opened.
+  ///
+  /// [LayoutRejected.reason] is the detector's or codec's own text, so a
+  /// corrupt container, an unreadable revision and a non-save folder each get
+  /// their own message and detail instead of one generic "unsupported" claim.
+  void _emitRejectedLayout(
+    LayoutRejected rejection, {
+    required bool recoverable,
+  }) {
+    final file = rejection.path;
+    final details = file == null
+        ? rejection.reason
+        : '${rejection.reason}\nFile: $file';
+    _emitFailure(
+      message: switch (rejection.kind) {
+        LayoutRejectionKind.notASave => 'This folder does not contain a save.',
+        LayoutRejectionKind.unsupportedRevision =>
+          'This save uses a game version this build does not support.',
+        LayoutRejectionKind.corrupt =>
+          'This save folder is damaged or incomplete.',
+      },
+      kind: switch (rejection.kind) {
+        LayoutRejectionKind.corrupt => SaveSessionErrorKind.corruptSave,
+        LayoutRejectionKind.notASave ||
+        LayoutRejectionKind.unsupportedRevision =>
+          SaveSessionErrorKind.unsupportedLayout,
+      },
+      details: _withPath(details),
+      recoverable: recoverable,
+    );
   }
 
   void _emitOpenFailure(SaveSessionState state) {

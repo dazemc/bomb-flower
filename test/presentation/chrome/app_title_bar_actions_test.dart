@@ -112,7 +112,8 @@ final class FakeSaveRepository implements SaveRepository {
   final cubit = SaveSessionCubit(
     engine: engine,
     repository: repository,
-    resolveLayout: (path) async => LayoutSelection(project.layout, 7),
+    resolveLayout: (path) async =>
+        LayoutResolved(LayoutSelection(project.layout, 7)),
   );
   return (cubit: cubit, repository: repository);
 }

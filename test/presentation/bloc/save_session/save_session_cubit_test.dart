@@ -112,12 +112,16 @@ final class FakeLayoutResolver {
   int calls = 0;
   bool unsupported = false;
 
-  Future<LayoutSelection?> resolve(String rootPath) async {
+  Future<LayoutResolution> resolve(String rootPath) async {
     calls++;
     if (unsupported) {
-      return null;
+      return LayoutRejected(
+        LayoutRejectionKind.notASave,
+        'no slot_NN/progress.sav was found',
+        path: rootPath,
+      );
     }
-    return LayoutSelection(layout, 7);
+    return LayoutResolved(LayoutSelection(layout, 7));
   }
 }
 
@@ -215,7 +219,7 @@ void main() {
       expect(harness.resolver.calls, 1);
     });
 
-    test('a null layout resolver yields unsupported, not a crash', () async {
+    test('a rejected layout yields unsupported, not a crash', () async {
       final harness = buildCubit();
       disposeCubit(harness.cubit);
       harness.resolver.unsupported = true;
@@ -225,8 +229,13 @@ void main() {
       final error = errorState(harness.cubit);
       expect(error.kind, SaveSessionErrorKind.unsupportedLayout);
       expect(error.recoverable, isFalse);
+      expect(error.message, 'This folder does not contain a save.');
       expect(error.details, contains('/mystery'));
-      expect(error.details, contains('returned no layout'));
+      expect(
+        error.details,
+        contains('no slot_NN/progress.sav was found'),
+        reason: 'the detector reason must reach the user, not a generic claim',
+      );
       expect(harness.repository.openCalls, 0);
     });
 

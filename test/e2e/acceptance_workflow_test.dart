@@ -10,8 +10,8 @@
 ///    `<root>.bombflower-original/` before replacing the target.
 /// 3. a truncated file and a wrong-revision file are rejected. The exact
 ///    resolver reason and the cubit's user-facing message are reported
-///    separately, because `SaveSessionCubit.openPath` drops the typed reason
-///    when the layout resolver returns `null`.
+///    separately; `SaveSessionCubit.openPath` carries the typed resolver reason
+///    into the error details.
 library;
 
 import 'dart:io';
@@ -357,16 +357,23 @@ void main() {
         expect(state, isA<SaveSessionError>());
         final error = state as SaveSessionError;
         expect(error.project, isNull);
-        expect(error.kind, SaveSessionErrorKind.unsupportedLayout);
+        expect(error.kind, SaveSessionErrorKind.corruptSave);
         expect(
           error.message,
-          'No supported save layout was found in this folder.',
+          'This save folder is damaged or incomplete.',
+        );
+        expect(
+          error.details,
+          contains(
+            'the data offset 95704 points past the end of the 100-byte buffer',
+          ),
         );
         expect(
           cubit.lastOpenResult,
           isNull,
           reason:
-              'the controller was never reached, so the typed reason is gone',
+              'the resolver rejected before the repository was reached; the '
+              'typed reason lives in the error details instead',
         );
         stdout.writeln(
           '[e2e] truncated cubit message="${error.message}" '
@@ -426,8 +433,10 @@ void main() {
         expect(error.kind, SaveSessionErrorKind.unsupportedLayout);
         expect(
           error.message,
-          'No supported save layout was found in this folder.',
+          'This save uses a game version this build does not support.',
         );
+        expect(error.details, contains('layout revision 2982124'));
+        expect(error.details, contains('2982123'));
         expect(cubit.lastOpenResult, isNull);
         stdout.writeln(
           '[e2e] revision cubit message="${error.message}" '

@@ -114,13 +114,20 @@ final class FileSaveRepository implements SaveRepository {
     bool preserveUnknown = true,
     bool verifyIntegrity = true,
   }) async {
-    final selection = await resolveLayout(rootPath);
-    if (selection == null) {
-      return ParseUnsupported('No supported layout detected in $rootPath');
+    final resolution = await resolveLayout(rootPath);
+    final LayoutSelection detected;
+    switch (resolution) {
+      case LayoutResolved(:final selection):
+        detected = selection;
+      case LayoutRejected(:final reason, :final detectedVersion, :final path):
+        return ParseUnsupported(
+          path == null ? reason : '$reason (at $path)',
+          detectedVersion: detectedVersion,
+        );
     }
     final source = FileSlotSource(
       rootPath: rootPath,
-      layout: selection.layout,
+      layout: detected.layout,
       writer: writer,
     );
     try {
@@ -136,8 +143,8 @@ final class FileSaveRepository implements SaveRepository {
     return engine.open(
       rootPath: rootPath,
       source: source,
-      layout: selection.layout,
-      detectedVersion: selection.detectedVersion,
+      layout: detected.layout,
+      detectedVersion: detected.detectedVersion,
       preserveUnknown: preserveUnknown,
       verifyIntegrity: verifyIntegrity,
       backupPath: sidecarPathFor(rootPath, policy.sidecarSuffix),

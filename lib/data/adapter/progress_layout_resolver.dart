@@ -304,11 +304,30 @@ final class ProgressLayoutResolver {
     }
   }
 
-  Future<LayoutSelection?> call(String rootPath) async {
+  /// Resolves [rootPath] to a layout, or to the typed reason it cannot.
+  ///
+  /// Never throws for user data: detection failures become [LayoutRejected].
+  Future<LayoutResolution> call(String rootPath) async {
     final detection = await detect(rootPath);
     return switch (detection) {
-      SaveDetected(:final selection) => selection,
-      SaveNotASave() || SaveUnsupportedRevision() || SaveCorrupt() => null,
+      SaveDetected(:final selection) => LayoutResolved(selection),
+      SaveNotASave(:final path, :final reason) => LayoutRejected(
+        LayoutRejectionKind.notASave,
+        reason ?? 'no slot_NN/progress.sav was found',
+        path: path,
+      ),
+      SaveUnsupportedRevision(:final path, :final detected) => LayoutRejected(
+        LayoutRejectionKind.unsupportedRevision,
+        'layout revision $detected is not supported; this build reads '
+            '${ProgressLayout.revision}',
+        detectedVersion: detected,
+        path: path,
+      ),
+      SaveCorrupt(:final path, :final reason) => LayoutRejected(
+        LayoutRejectionKind.corrupt,
+        reason,
+        path: path,
+      ),
     };
   }
 }

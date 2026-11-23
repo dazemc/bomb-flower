@@ -63,7 +63,8 @@ void main() {
     engine = SaveEngine(testFormat(includeUnverified: false));
     repository = FileSaveRepository(
       engine: engine,
-      resolveLayout: (_) async => LayoutSelection(layout, 7),
+      resolveLayout: (_) async =>
+          LayoutResolved(LayoutSelection(layout, 7)),
     );
   });
 
@@ -115,10 +116,19 @@ void main() {
       writeSaveTree(root);
       repository = FileSaveRepository(
         engine: engine,
-        resolveLayout: (_) async => null,
+        resolveLayout: (_) async => const LayoutRejected(
+          LayoutRejectionKind.notASave,
+          'no slot_NN/progress.sav was found',
+        ),
       );
 
-      expect(await repository.open(root), isA<ParseUnsupported>());
+      final result = await repository.open(root);
+      expect(result, isA<ParseUnsupported>());
+      expect(
+        (result as ParseUnsupported).reason,
+        'no slot_NN/progress.sav was found',
+        reason: 'the detector reason must survive into ParseUnsupported',
+      );
     });
 
     test('a path-traversing layout is rejected as corrupt', () async {
@@ -135,7 +145,8 @@ void main() {
         engine: SaveEngine(
           SaveFormat('unsafe', 'Unsafe', <LayoutDescriptor>[unsafe]),
         ),
-        resolveLayout: (_) async => LayoutSelection(unsafe, 7),
+        resolveLayout: (_) async =>
+            LayoutResolved(LayoutSelection(unsafe, 7)),
       );
 
       expect(await repository.open(root), isA<ParseCorrupt>());

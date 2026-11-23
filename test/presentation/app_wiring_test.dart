@@ -93,7 +93,7 @@ FieldDescriptor _unverifiedField(int offset) => FieldDescriptor(
       SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
     ),
     repository: repository,
-    resolveLayout: (_) async => const LayoutSelection(_layout, 1),
+    resolveLayout: (_) async => const LayoutResolved(LayoutSelection(_layout, 1)),
   );
   return (cubit: cubit, repository: repository);
 }
@@ -172,7 +172,7 @@ final class _FakeRepository implements SaveRepository {
       SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
     ),
     repository: repository,
-    resolveLayout: (_) async => const LayoutSelection(_layout, 1),
+    resolveLayout: (_) async => const LayoutResolved(LayoutSelection(_layout, 1)),
   );
   return (cubit: cubit, repository: repository);
 }
@@ -185,7 +185,7 @@ final class _FakeRepository implements SaveRepository {
       SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
     ),
     repository: repository,
-    resolveLayout: (_) async => const LayoutSelection(_layout, 1),
+    resolveLayout: (_) async => const LayoutResolved(LayoutSelection(_layout, 1)),
   );
   return (cubit: cubit, repository: repository);
 }
@@ -572,7 +572,11 @@ void main() {
           SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
         ),
         repository: repository,
-        resolveLayout: (_) async => null,
+        resolveLayout: (_) async => const LayoutRejected(
+          LayoutRejectionKind.notASave,
+          'no slot_NN/progress.sav was found',
+          path: '/nope/folder',
+        ),
       );
       _closeOnTeardown(cubit);
 
@@ -586,7 +590,7 @@ void main() {
 
       expect(find.text('Could not open save'), findsOneWidget);
       expect(
-        find.text('No supported save layout was found in this folder.'),
+        find.text('This folder does not contain a save.'),
         findsOneWidget,
       );
       expect(find.text('/nope/folder'), findsOneWidget);

@@ -146,7 +146,17 @@ void main() {
       final unsupported = open as ParseUnsupported;
       expect(
         unsupported.reason,
-        'No supported layout detected in ${root.path}',
+        contains(
+          'the data offset 95704 points past the end of the 20-byte buffer',
+        ),
+        reason:
+            'FileSaveRepository.open now carries the detector reason, not the '
+            'old generic "No supported layout" sentence',
+      );
+      expect(
+        unsupported.reason,
+        contains('${root.path}/slot_00/progress.sav'),
+        reason: 'the user-visible reason must name the file that failed',
       );
       expect(_entries(root), <String>['caption.sav', 'progress.sav']);
       expect(_sidecarExists(root), isFalse);

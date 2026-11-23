@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:bomb_flower/data/adapter/progress_layout_builder.dart';
 import 'package:bomb_flower/data/adapter/progress_layout_resolver.dart';
 import 'package:bomb_flower/domain/core/identity.dart';
+import 'package:bomb_flower/domain/engine/ports.dart';
 import 'package:bomb_flower/domain/save/progress_layout.dart';
 import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -101,11 +102,14 @@ void main() {
     expect(progress.expectedLength, bytes.length);
 
     final resolved = await resolver.call(root.path);
-    expect(resolved, isNotNull);
-    expect(resolved!.detectedVersion, 2982123);
+    expect(resolved, isA<LayoutResolved>());
+    expect(
+      (resolved as LayoutResolved).selection.detectedVersion,
+      2982123,
+    );
   });
 
-  test('call returns null for every non-save case and never throws', () async {
+  test('call reports a typed rejection for every non-save case', () async {
     final empty = Directory('${root.path}/empty')..createSync();
     final wrongMagic = Directory('${root.path}/wrong')..createSync();
     _writeSlot(wrongMagic, 0, _minimalProgress(magic: 0xDEADBEEF));
@@ -114,10 +118,28 @@ void main() {
     final truncated = Directory('${root.path}/truncated')..createSync();
     _writeSlot(truncated, 0, _minimalProgress().sublist(0, 20));
 
-    expect(await resolver.call(empty.path), isNull);
-    expect(await resolver.call(wrongMagic.path), isNull);
-    expect(await resolver.call(revision.path), isNull);
-    expect(await resolver.call(truncated.path), isNull);
+    final emptyResult = await resolver.call(empty.path);
+    expect(
+      (emptyResult as LayoutRejected).kind,
+      LayoutRejectionKind.notASave,
+    );
+    expect(emptyResult.reason, contains('no slot_NN/progress.sav'));
+
+    final wrongMagicResult =
+        await resolver.call(wrongMagic.path) as LayoutRejected;
+    expect(wrongMagicResult.kind, LayoutRejectionKind.notASave);
+    expect(wrongMagicResult.reason, contains('0xdeadbeef'));
+
+    final revisionResult =
+        await resolver.call(revision.path) as LayoutRejected;
+    expect(revisionResult.kind, LayoutRejectionKind.unsupportedRevision);
+    expect(revisionResult.detectedVersion, 1);
+    expect(revisionResult.reason, contains('2982123'));
+
+    final truncatedResult =
+        await resolver.call(truncated.path) as LayoutRejected;
+    expect(truncatedResult.kind, LayoutRejectionKind.corrupt);
+    expect(truncatedResult.reason, isNotEmpty);
   });
 }
 

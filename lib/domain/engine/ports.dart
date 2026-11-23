@@ -115,8 +115,61 @@ final class const LayoutSelection(
   final int detectedVersion,
 );
 
+/// Why a root did not resolve to a layout.
+///
+/// The data layer detects the cause; the domain owns the vocabulary so a
+/// resolver can report it without importing file or codec code.
+enum LayoutRejectionKind {
+  /// No `slot_NN/progress.sav` was found, or its magic is another format's.
+  notASave,
+
+  /// The file carries a layout revision this build does not read.
+  unsupportedRevision,
+
+  /// The file is save-shaped but its container could not be decoded.
+  corrupt,
+}
+
+/// The outcome of resolving a save root to a layout.
+sealed class LayoutResolution {
+  /// Allows subclasses to be const.
+  const LayoutResolution();
+}
+
+/// Detection found a layout this build can open.
+final class LayoutResolved extends LayoutResolution {
+  /// Records the detected [selection].
+  const LayoutResolved(this.selection);
+
+  /// The layout and revision the save folder holds.
+  final LayoutSelection selection;
+}
+
+/// Detection refused the root, with a typed [kind] and a specific [reason].
+final class LayoutRejected extends LayoutResolution {
+  /// Records [kind], [reason] and, when known, the offending file [path].
+  const LayoutRejected(
+    this.kind,
+    this.reason, {
+    this.detectedVersion,
+    this.path,
+  });
+
+  /// Which rejection this is.
+  final LayoutRejectionKind kind;
+
+  /// What is wrong, in the detector's or codec's own words.
+  final String reason;
+
+  /// The revision read from the file, when [kind] is a revision mismatch.
+  final int? detectedVersion;
+
+  /// The file or folder that failed, when known.
+  final String? path;
+}
+
 /// Resolves a save root to a layout without writing anything.
-typedef LayoutResolver = Future<LayoutSelection?> Function(String rootPath);
+typedef LayoutResolver = Future<LayoutResolution> Function(String rootPath);
 
 /// Data-layer repository facade used by the presentation layer.
 abstract interface class SaveRepository {
