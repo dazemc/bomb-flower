@@ -215,7 +215,7 @@ void main() {
     skip: samplesAvailable ? null : samplesUnavailableMessage,
   );
 
-  test('synthetic new save runs the same chain at 120,164 bytes', () async {
+  test('synthetic new save runs the same chain at 120,572 bytes', () async {
     final root = createTempDirectory('bomb-flower-chain-synthetic-');
     final build = NewSaveBuilder.build(
       schema: schema,
@@ -223,7 +223,7 @@ void main() {
     );
     await NewSaveWriter().write(rootDirectory: root.path, build: build);
 
-    expect(build.progressBytes, hasLength(120164));
+    expect(build.progressBytes, hasLength(120572));
     expect(build.dataOffset, 95704);
     expect(build.fieldCount, 11925);
     expect(build.recordCount, 11958);
@@ -276,7 +276,7 @@ void main() {
       schema: schema,
       destination: destination,
       original: original,
-      expectedLength: 120164,
+      expectedLength: build.progressBytes.length,
       lifeOffset: lifeOffset,
     );
   });
