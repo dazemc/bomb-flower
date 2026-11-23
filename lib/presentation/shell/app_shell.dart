@@ -8,9 +8,11 @@ import 'package:material_ui/material_ui.dart' hide Banner;
 import '../../data/system/directory_lister.dart';
 import '../../data/system/directory_picker.dart';
 import '../../data/system/longshot_launcher.dart';
+import '../bloc/save_session/save_session_cubit.dart';
 import '../bloc/shell/shell_cubit.dart';
 import '../bloc/shell/shell_state.dart';
 import '../bloc/shell/tab_definition.dart';
+import '../dialogs/new_save_dialog.dart';
 import '../theme/bomb_flower_colors.dart';
 import '../theme/bomb_flower_spacing.dart';
 import '../theme/bomb_flower_typography.dart';
@@ -19,6 +21,8 @@ import '../widgets/common/banner.dart';
 import '../widgets/common/brass_button.dart';
 import '../widgets/common/error_state.dart';
 import '../widgets/common/procedural_painters.dart';
+import '../widgets/help/help_scope.dart';
+import '../widgets/help/help_surface.dart';
 import 'shell_nav_rail.dart';
 import 'shell_status_footer.dart';
 import 'tabs/advanced_data_tab.dart';
@@ -71,6 +75,9 @@ class AppShell extends StatefulWidget {
     this.directoryLister,
     this.settingsStore,
     this.longshotLauncher,
+    this.newSaveSchemaLoader,
+    this.newSavePersist,
+    this.newSaveDirectoryPicker,
   });
 
   /// A failed open to render instead of the tab content, or `null`.
@@ -108,6 +115,18 @@ class AppShell extends StatefulWidget {
   /// Launcher used by the title bar. A null value uses the real detached
   /// process starter.
   final LongshotLauncher? longshotLauncher;
+
+  /// Schema loader for the new-save dialog. A null value loads the bundled
+  /// `gamedata_110.json` asset, which is what production uses.
+  final GameDataSchemaLoader? newSaveSchemaLoader;
+
+  /// Writer for the new-save dialog. A null value uses the real
+  /// [NewSaveWriter], so tests must inject one to stay off disk.
+  final NewSavePersist? newSavePersist;
+
+  /// Folder chooser for the new-save dialog. A null value uses the system
+  /// chooser.
+  final DirectoryPicker? newSaveDirectoryPicker;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -154,6 +173,18 @@ class _AppShellState extends State<AppShell> {
       }
     }
 
+    // F1 opens the static help surface. Checked before the text-field guard so
+    // it works even while a field has focus; it is an unmodified function key,
+    // so it cannot collide with typing. Ctrl+O above keeps its own binding.
+    if (!keyboard.isControlPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isMetaPressed &&
+        event.logicalKey == LogicalKeyboardKey.f1) {
+      unawaited(HelpSurface.show(context));
+      return KeyEventResult.handled;
+    }
+
     // Leave editing keys alone while a text field has focus. The shell has no
     // editable placeholder fields yet, but this is the permanent seam.
     final focusedContext = FocusManager.instance.primaryFocus?.context;
@@ -169,6 +200,38 @@ class _AppShellState extends State<AppShell> {
       meta: keyboard.isMetaPressed,
     );
     return consumed ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
+
+  /// Opens the in-app new-save dialog, then reopens the created save through
+  /// [AppShell.onOpenPath].
+  ///
+  /// The session is read only to pre-fill the destination folder; the shell
+  /// writes no save bytes and sends the result back through the app's single
+  /// open path. A missing [SaveSessionCubit] provider is not an error: the
+  /// dialog simply opens with an empty destination field.
+  Future<void> _showNewSave() async {
+    String? root;
+    try {
+      root = context.read<SaveSessionCubit>().openProject?.rootPath;
+    } on ProviderNotFoundException {
+      root = null;
+    }
+    final outcome = await NewSaveDialog.show(
+      context,
+      schemaLoader: widget.newSaveSchemaLoader,
+      persist: widget.newSavePersist,
+      directoryPicker: widget.newSaveDirectoryPicker,
+      initialRoot: root,
+    );
+    if (!mounted || outcome == null) {
+      return;
+    }
+    final open = widget.onOpenPath;
+    if (open != null) {
+      // The root directly holds slot_00, the shape the save-root resolver
+      // accepts, so the created save reopens through the normal open path.
+      await open(outcome.rootDirectory);
+    }
   }
 
   /// Keep cubit state in step with the LayoutBuilder threshold. Post-frame so
@@ -204,6 +267,8 @@ class _AppShellState extends State<AppShell> {
                   settingsStore: _settingsStore,
                   launcher: _launcher,
                   onOpenPath: widget.onOpenPath,
+                  onHelp: () => unawaited(HelpSurface.show(context)),
+                  onNewSave: () => unawaited(_showNewSave()),
                 ),
                 if (widget.unverifiedFieldCount > 0 && !_unverifiedDismissed)
                   Padding(
@@ -252,17 +317,25 @@ class _AppShellState extends State<AppShell> {
                             child: RepaintBoundary(
                               child: CustomPaint(
                                 painter: const CanopyTexturePainter(),
-                                child: switch (widget.openFailure) {
-                                  final notice? => _OpenFailureView(
-                                    notice: notice,
-                                    onRetry: widget.onRetryOpen,
-                                    onOpenAnotherSave: widget.onOpenAnotherSave,
+                                child: HelpScope(
+                                  open: (helpContext) =>
+                                      HelpSurface.show(helpContext),
+                                  child: NewSaveScope(
+                                    create: (_) => _showNewSave(),
+                                    child: switch (widget.openFailure) {
+                                      final notice? => _OpenFailureView(
+                                        notice: notice,
+                                        onRetry: widget.onRetryOpen,
+                                        onOpenAnotherSave:
+                                            widget.onOpenAnotherSave,
+                                      ),
+                                      null => _ShellTabContent(
+                                        activeTab: state.activeTab,
+                                        settingsStore: _settingsStore,
+                                      ),
+                                    },
                                   ),
-                                  null => _ShellTabContent(
-                                    activeTab: state.activeTab,
-                                    settingsStore: _settingsStore,
-                                  ),
-                                },
+                                ),
                               ),
                             ),
                           ),

@@ -1,8 +1,11 @@
 # Creating a new save
 
 Bomb Flower can build a new `slot_00` save pair from the GameData schema and
-write it to a directory. The tool is `tool/create_save.dart`; the bytes come
-from `NewSaveBuilder`, and the filesystem rules come from `NewSaveWriter`.
+write it to a directory. There are two entry points: the CLI
+`tool/create_save.dart`, and an in-app dialog reached from the title bar's
+`New save…` action or the no-save empty state's `Create new save` link. Both
+run the same `NewSaveBuilder`, and the filesystem rules come from the same
+`NewSaveWriter`.
 
 **Whether the game accepts a created save is UNPROVEN.** Creation has never
 been tested in-game. The production codecs and the engine can read the bytes,
@@ -19,6 +22,18 @@ to cloning a slot the game already accepts: the mode applies only
 length-preserving overrides and cannot invent a save from nothing, so it does
 not upgrade the synthesised-defaults warning above. Template mode always writes
 `<out>/slot_00/` unless `--slot-name` overrides the folder name.
+
+## From the app
+
+The title bar's `New save…` action and the no-save empty state's
+`Create new save` link open the same in-app dialog. It runs the same
+`NewSaveBuilder` and `NewSaveWriter` as the CLI, so it produces the same
+schema-default pair, and the folder is fixed to `slot_00`: the dialog has no
+slot-name field. The never-loaded warning sits above the destination field. An
+empty destination is refused without writing; a non-empty folder is written
+only after an explicit "Replace slot_00" confirmation, which keeps `.bak` copies
+of the previous files. After a successful write, "Open this save" reopens the
+created root through the app's normal open path.
 
 ## What is created
 

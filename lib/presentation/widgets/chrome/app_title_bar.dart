@@ -21,6 +21,7 @@ import '../../theme/bomb_flower_typography.dart';
 import '../common/banner.dart';
 import '../common/bomb_flower_mark.dart';
 import '../common/procedural_painters.dart';
+import '../controls/control_icon_button.dart';
 import 'file_action_bar.dart';
 
 /// Height of the custom title bar, in logical pixels.
@@ -50,6 +51,8 @@ class AppTitleBar extends StatefulWidget {
     this.settingsStore,
     this.launcher,
     this.onOpenPath,
+    this.onHelp,
+    this.onNewSave,
   });
 
   final bool interactive;
@@ -83,6 +86,14 @@ class AppTitleBar extends StatefulWidget {
 
   /// The app's single open path. Null keeps this bar's local open-and-log.
   final Future<void> Function(String path)? onOpenPath;
+
+  /// Opens the help surface. Null disables the help button, but the bar is
+  /// still usable: help needs no session and no project.
+  final VoidCallback? onHelp;
+
+  /// Opens the new-save dialog. Null disables the button; like help, it is
+  /// independent of whether a save is currently open.
+  final VoidCallback? onNewSave;
 
   @override
   State<AppTitleBar> createState() => _AppTitleBarState();
@@ -268,14 +279,13 @@ class _AppTitleBarState extends State<AppTitleBar> {
     if (!mounted) {
       return;
     }
-    final result = await (widget.launcher ?? const IoLongshotLauncher())
-        .launch(preferences.launcherPath);
+    final result = await (widget.launcher ?? const IoLongshotLauncher()).launch(
+      preferences.launcherPath,
+    );
     if (!mounted) {
       return;
     }
-    setState(
-      () => _actionError = result.started ? null : result.message,
-    );
+    setState(() => _actionError = result.started ? null : result.message);
   }
 
   /// The file action group, enabled from the current session state.
@@ -309,9 +319,7 @@ class _AppTitleBarState extends State<AppTitleBar> {
     }
     return FileActionBar(
       onOpen: () => unawaited(_open(cubit)),
-      onSave: project.hasUnsavedChanges
-          ? () => unawaited(_save(cubit))
-          : null,
+      onSave: project.hasUnsavedChanges ? () => unawaited(_save(cubit)) : null,
       onSaveAs: () => unawaited(_saveAs(cubit, project)),
       onDuplicate: () => unawaited(_duplicate(cubit, project)),
       onReset: () => unawaited(_reset(cubit, project)),
@@ -321,14 +329,36 @@ class _AppTitleBarState extends State<AppTitleBar> {
     );
   }
 
+  /// One session-independent shell action (new save, help), styled like the
+  /// file-action cluster and wide enough to be an easy title-bar target.
+  Widget _shellAction({
+    required Key key,
+    required IconData icon,
+    required String tooltip,
+    required String semanticsLabel,
+    required VoidCallback? onPressed,
+  }) {
+    return ControlIconButton(
+      key: key,
+      icon: icon,
+      onPressed: onPressed,
+      semanticLabel: semanticsLabel,
+      tooltip: tooltip,
+      size: BombFlowerSpacing.titleBarButtonWidth,
+      iconSize: 15,
+      foregroundColor: BombFlowerColors.bone,
+      borderColor: BombFlowerColors.woodLight,
+      hoverColor: BombFlowerColors.canopyHover,
+      focusColor: BombFlowerColors.brassFocus,
+    );
+  }
+
   /// Save identity, or the last action failure in its place.
   Widget _centreSlot() {
     final error = _actionError;
     if (error != null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: BombFlowerSpacing.lg,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: BombFlowerSpacing.lg),
         child: Banner(
           key: const Key('title-bar-action-error'),
           variant: BannerVariant.danger,
@@ -411,9 +441,7 @@ class _AppTitleBarState extends State<AppTitleBar> {
                           ),
                         ),
                         const SizedBox(width: BombFlowerSpacing.xl),
-                        Expanded(
-                          child: Center(child: _centreSlot()),
-                        ),
+                        Expanded(child: Center(child: _centreSlot())),
                       ],
                     ),
                   ),
@@ -425,6 +453,24 @@ class _AppTitleBarState extends State<AppTitleBar> {
                     bloc: session,
                     builder: (context, state) => _actionGroup(session, state),
                   ),
+                // Session-independent actions: they work before any save is
+                // open, so they sit outside the session-driven group. Both
+                // live outside the drag region above, or a real click would
+                // lose the gesture arena to the window drag recognizer.
+                _shellAction(
+                  key: const Key('shell-action-new-save'),
+                  icon: Icons.add_box_outlined,
+                  tooltip: 'New save…',
+                  semanticsLabel: 'Create a new save',
+                  onPressed: widget.onNewSave,
+                ),
+                _shellAction(
+                  key: const Key('shell-action-help'),
+                  icon: Icons.help_outline,
+                  tooltip: 'Help (F1)',
+                  semanticsLabel: 'Help',
+                  onPressed: widget.onHelp,
+                ),
                 _TitleBarButton(
                   tooltip: 'Minimize',
                   semanticsLabel: 'Minimize window',
