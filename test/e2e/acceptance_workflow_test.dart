@@ -1,7 +1,8 @@
 /// End-to-end acceptance workflow over the production save stack.
 ///
-/// Every byte used here comes from a copied scrubbed sample under
-/// `.tmp/e2e/a2/`; the fixtures in `.local-fixtures/` are never edited.
+/// Every byte used here comes from a copied scrubbed sample under this file's
+/// own unique `.tmp/` root; the fixtures in `.local-fixtures/` are never
+/// edited.
 ///
 /// 1. open a sample, edit one verified field in three different tabs, Save As,
 ///    reopen the export, and prove that only the edited value words differ (no
@@ -33,12 +34,13 @@ import 'package:flutter_test/flutter_test.dart';
 import '../integration/support/progress_chain.dart';
 import '../support/byte_assert.dart';
 import '../support/fixture_loader.dart';
+import '../support/temp_roots.dart';
 
 /// The scrubbed sample used for every case.
 const String fixtureName = 'kokiri-start';
 
-/// Scratch space for this file, under the gitignored `.tmp/` tree.
-const String scratchRootPath = '.tmp/e2e/a2';
+/// Scratch space for this file, under its own unique gitignored `.tmp/` root.
+late String scratchRootPath;
 
 /// Header plus reserved bytes, `[0x00, 0x28)`.
 const int headerLength = 0x28;
@@ -46,6 +48,7 @@ const int headerLength = 0x28;
 void main() {
   late GameDataSchema schema;
   late FieldGroupsCatalogue catalogue;
+  Directory? fileRoot;
 
   final fixturePath =
       '${fixturesDirectory.path}/$fixtureName/slot_00/progress.sav';
@@ -61,9 +64,15 @@ void main() {
     catalogue = FieldGroupsCatalogue.load(
       await File('assets/fields/groups.json').readAsString(),
     );
-    final scratch = Directory(scratchRootPath);
-    if (!scratch.existsSync()) {
-      await scratch.create(recursive: true);
+    fileRoot = createTempRoot('e2e/acceptance-workflow');
+    scratchRootPath = '${fileRoot!.path}/a2';
+    await Directory(scratchRootPath).create(recursive: true);
+  });
+
+  tearDownAll(() {
+    final root = fileRoot;
+    if (root != null) {
+      removeTempRoot(root);
     }
   });
 
@@ -358,10 +367,7 @@ void main() {
         final error = state as SaveSessionError;
         expect(error.project, isNull);
         expect(error.kind, SaveSessionErrorKind.corruptSave);
-        expect(
-          error.message,
-          'This save folder is damaged or incomplete.',
-        );
+        expect(error.message, 'This save folder is damaged or incomplete.');
         expect(
           error.details,
           contains(

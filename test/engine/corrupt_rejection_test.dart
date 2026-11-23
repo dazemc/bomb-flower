@@ -23,16 +23,14 @@ import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../integration/support/progress_chain.dart';
+import '../integration/support/real_save_loader.dart';
+import '../support/temp_roots.dart';
 
-/// Scratch root for the mutated cases.
-const String corruptRoot = '.tmp/rt/corrupt';
+/// Scratch root for the mutated cases, under this file's unique `.tmp/` root.
+late String corruptRoot;
 
-/// Root of the pristine two-slot fixture.
-const String fixtureRoot = '.tmp/rt';
-
-/// The read-only retail save tree. Never written; only copied out of.
-const String realSaveRoot =
-    '/home/daze/.local/share/longshot/save/5a3c9e1f0b7d24680000000000000001';
+/// Root of this file's pristine two-slot fixture copy.
+late String fixtureRoot;
 
 /// The real file every mutation starts from.
 const String pristineSlot = 'slot_00';
@@ -42,9 +40,13 @@ void main() {
   late Uint8List pristine;
   late Uint8List pristineOtherSlot;
   late LayoutDescriptor pristineLayout;
+  late Directory fileRoot;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    fileRoot = createTempRoot('engine/corrupt-rejection');
+    corruptRoot = '${fileRoot.path}/corrupt';
+    fixtureRoot = '${fileRoot.path}/real-save';
     _ensureFixtures();
     pristine = _read('$fixtureRoot/$pristineSlot/progress.sav');
     pristineOtherSlot = _read('$fixtureRoot/slot_01/progress.sav');
@@ -53,6 +55,8 @@ void main() {
     ).layout;
     expect(pristineLayout.slots, hasLength(2));
   });
+
+  tearDownAll(() => removeTempRoot(fileRoot));
 
   group('corrupt input is rejected with no partial project', () {
     test('should reject 4 KiB of 0xFF with no magic', () async {
@@ -219,23 +223,49 @@ void _expectRejected(ParseResult result, String label) {
   );
 }
 
-/// Fails when the expected fixture or its read-only source is absent.
+/// Copies the two pristine real slots into this file's own fixture root.
+///
+/// The source is the read-only retail/Longshot save tree, resolved through
+/// [resolveRealSaves] so no absolute home path is hardcoded. A missing slot
+/// fails rather than skipping: these tests never had a skip branch.
 void _ensureFixtures() {
+  final resolution = resolveRealSaves();
+  if (resolution is RealSaveMisconfigured) {
+    fail(resolution.reason);
+  }
+  if (resolution is! RealSaveFound) {
+    fail(
+      'no real save found, so the two-slot fixture cannot be staged at '
+      '$fixtureRoot; set $realSavesRootEnvVar or place a save at the default '
+      'path ($defaultRealSavesRoot)',
+    );
+  }
   for (final slot in <String>[pristineSlot, 'slot_01']) {
     final target = File('$fixtureRoot/$slot/progress.sav');
-    if (target.existsSync()) {
-      continue;
-    }
-    final source = File('$realSaveRoot/$slot/progress.sav');
-    if (!source.existsSync()) {
+    final source = _sourceSlot(resolution, slot);
+    if (source == null) {
       fail(
-        'no fixture at ${target.path} and no read-only source at '
-        '${source.path}; copy a real progress.sav into ${target.parent.path}',
+        'the resolved slots '
+        '${resolution.slots.map((directory) => directory.path).toList()} '
+        'contain no $slot to stage at ${target.path}',
       );
     }
     target.parent.createSync(recursive: true);
-    source.copySync(target.path);
+    File('${source.path}/progress.sav').copySync(target.path);
   }
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
 }
 
 Uint8List _read(String path) =>

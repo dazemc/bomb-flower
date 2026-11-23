@@ -1,9 +1,11 @@
 /// Audit done-audit-05, criteria 1, 2, 4, 6, 7: the REAL played save.
 ///
-/// Input is a read-only copy at `.tmp/audit/real-save/slot_00/progress.sav`
-/// (sha256 03f4f46a6ba8c71a242cece8982382ccaa8dc5f79775876b45b16ae4c9f9d0ba,
+/// Input is a read-only copy of the resolved `slot_00` staged into this file's
+/// own unique root at `slot_00/progress.sav` (sha256
+/// 03f4f46a6ba8c71a242cece8982382ccaa8dc5f79775876b45b16ae4c9f9d0ba,
 /// 122,852 bytes). The production resolver/codec/engine do every byte read;
-/// nothing here substitutes a fixture.
+/// nothing here substitutes a fixture. With no real save present the groups
+/// carry the loader's `SKIPPED, NOT PASSED:` reason and do not execute.
 library;
 
 import 'dart:io';
@@ -14,10 +16,9 @@ import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../integration/support/progress_chain.dart';
+import '../integration/support/real_save_loader.dart';
 import '../support/byte_assert.dart';
-
-/// Root of the read-only copied save.
-const String realSaveRoot = '.tmp/audit/real-save';
+import '../support/temp_roots.dart';
 
 /// `PlayerStatus.CurrentRupee` — Int, host-cited, tab `resources.rupees`.
 const FieldId rupeeFieldId = FieldId('progress.a77921d7');
@@ -69,10 +70,29 @@ String fieldAt(SaveProject project, int offset) {
 }
 
 void main() {
+  final resolution = resolveRealSaves();
+  final skipReason = switch (resolution) {
+    RealSaveAbsent(:final reason) => reason,
+    _ => null,
+  };
   late GameDataSchema schema;
+  Directory? fileRoot;
+  late String realSaveRoot;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    final root = fileRoot = createTempRoot('audit/real-save-roundtrip');
+    realSaveRoot = '${root.path}/real-save';
+    if (resolution is RealSaveMisconfigured) {
+      // An explicit override that resolves to no slot must fail, not skip.
+      fail(resolution.reason);
+    }
+    if (resolution is! RealSaveFound) {
+      // No real save on this machine: the groups carry the loader's
+      // `SKIPPED, NOT PASSED:` reason and do not execute.
+      return;
+    }
+    _stageRealSlot(resolution, realSaveRoot, 'slot_00');
     expect(
       File('$realSaveRoot/slot_00/progress.sav').existsSync(),
       isTrue,
@@ -80,7 +100,14 @@ void main() {
     );
   });
 
-  group('criterion 1 — real save round trip', () {
+  tearDownAll(() {
+    final root = fileRoot;
+    if (root != null) {
+      removeTempRoot(root);
+    }
+  });
+
+  group('criterion 1 — real save round trip', skip: skipReason, () {
     test('parse -> materialize reproduces the file byte for byte', () async {
       final repo = createProgressRepository(schema);
       final open = await repo.open(realSaveRoot);
@@ -106,7 +133,7 @@ void main() {
       expect(progressRecordCount(onDisk), 11958);
 
       // Emit the re-serialized bytes so the report can quote sha256sum.
-      File('.tmp/audit/reserialized-progress.sav')
+      File('${fileRoot!.path}/reserialized-progress.sav')
         ..createSync(recursive: true)
         ..writeAsBytesSync(parsed);
       chainLog(
@@ -116,7 +143,7 @@ void main() {
     });
   });
 
-  group('criterion 2 — unknown bytes preserved', () {
+  group('criterion 2 — unknown bytes preserved', skip: skipReason, () {
     test('editing Life changes only its byte; header gap and opaque tail '
         'bytes survive', () async {
       final engine = createProgressEngine();
@@ -181,81 +208,83 @@ void main() {
     });
   });
 
-  group('criterion 4 — five verified fields edit correctly', () {
-    test(
-      'set, re-read, assert equality for five fields across four tabs',
-      () async {
-        final engine = createProgressEngine();
-        final repo = createProgressRepository(schema);
-        var project = _projectOf(await repo.open(realSaveRoot));
+  group(
+    'criterion 4 — five verified fields edit correctly',
+    skip: skipReason,
+    () {
+      test(
+        'set, re-read, assert equality for five fields across four tabs',
+        () async {
+          final engine = createProgressEngine();
+          final repo = createProgressRepository(schema);
+          var project = _projectOf(await repo.open(realSaveRoot));
 
-        const intTargets = <FieldId, int>{
-          lifeFieldId: 20,
-          rupeeFieldId: 500,
-        };
-        const boolTargets = <FieldId, int>{
-          defenseFieldId: 1,
-          fireCompassFieldId: 1,
-          sunSongFieldId: 1,
-        };
+          const intTargets = <FieldId, int>{lifeFieldId: 20, rupeeFieldId: 500};
+          const boolTargets = <FieldId, int>{
+            defenseFieldId: 1,
+            fireCompassFieldId: 1,
+            sunSongFieldId: 1,
+          };
 
-        for (final entry in intTargets.entries) {
-          final before = readInt(project, entry.key);
-          project = engine.apply(project, SetScalar(entry.key, entry.value));
-          final after = readInt(project, entry.key);
-          expect(
-            after,
-            entry.value,
-            reason: '${entry.key.value} did not stick',
-          );
-          final descriptor = project.layout.descriptor(entry.key)!;
-          expect(descriptor.confidence.name, 'verified');
-          expect(descriptor.isEditable, isTrue);
-          chainLog(
-            'EDIT ${auditedFields[entry.key]} id=${entry.key.value} '
-            'hash=0x${entry.key.value.substring(8)} span=${descriptor.span} '
-            'before=$before after=$after',
-          );
-        }
+          for (final entry in intTargets.entries) {
+            final before = readInt(project, entry.key);
+            project = engine.apply(project, SetScalar(entry.key, entry.value));
+            final after = readInt(project, entry.key);
+            expect(
+              after,
+              entry.value,
+              reason: '${entry.key.value} did not stick',
+            );
+            final descriptor = project.layout.descriptor(entry.key)!;
+            expect(descriptor.confidence.name, 'verified');
+            expect(descriptor.isEditable, isTrue);
+            chainLog(
+              'EDIT ${auditedFields[entry.key]} id=${entry.key.value} '
+              'hash=0x${entry.key.value.substring(8)} span=${descriptor.span} '
+              'before=$before after=$after',
+            );
+          }
 
-        for (final entry in boolTargets.entries) {
-          final before = readBool(project, entry.key);
-          expect(
-            before,
-            isFalse,
-            reason: '${entry.key.value} must start false for the edit to '
-                'change a byte',
-          );
-          project = engine.apply(project, SetScalar(entry.key, entry.value));
-          final after = readBool(project, entry.key);
-          expect(
-            after,
-            isTrue,
-            reason: '${entry.key.value} did not stick as BoolValue(true)',
-          );
-          expect(
-            project.document(progressSlotId)?.field(entry.key)?.value,
-            isA<BoolValue>(),
-            reason: '${entry.key.value} must stay a BoolValue',
-          );
-          final descriptor = project.layout.descriptor(entry.key)!;
-          expect(descriptor.confidence.name, 'verified');
-          expect(descriptor.isEditable, isTrue);
-          chainLog(
-            'EDIT ${auditedFields[entry.key]} id=${entry.key.value} '
-            'hash=0x${entry.key.value.substring(8)} span=${descriptor.span} '
-            'before=$before after=$after',
-          );
-        }
+          for (final entry in boolTargets.entries) {
+            final before = readBool(project, entry.key);
+            expect(
+              before,
+              isFalse,
+              reason:
+                  '${entry.key.value} must start false for the edit to '
+                  'change a byte',
+            );
+            project = engine.apply(project, SetScalar(entry.key, entry.value));
+            final after = readBool(project, entry.key);
+            expect(
+              after,
+              isTrue,
+              reason: '${entry.key.value} did not stick as BoolValue(true)',
+            );
+            expect(
+              project.document(progressSlotId)?.field(entry.key)?.value,
+              isA<BoolValue>(),
+              reason: '${entry.key.value} must stay a BoolValue',
+            );
+            final descriptor = project.layout.descriptor(entry.key)!;
+            expect(descriptor.confidence.name, 'verified');
+            expect(descriptor.isEditable, isTrue);
+            chainLog(
+              'EDIT ${auditedFields[entry.key]} id=${entry.key.value} '
+              'hash=0x${entry.key.value.substring(8)} span=${descriptor.span} '
+              'before=$before after=$after',
+            );
+          }
 
-        final targets = <FieldId>[...intTargets.keys, ...boolTargets.keys];
-        expect(project.dirty.changedFieldCount, targets.length);
-        expect(project.dirty.changedFields.length, targets.length);
-      },
-    );
-  });
+          final targets = <FieldId>[...intTargets.keys, ...boolTargets.keys];
+          expect(project.dirty.changedFieldCount, targets.length);
+          expect(project.dirty.changedFields.length, targets.length);
+        },
+      );
+    },
+  );
 
-  group('criterion 6 — undo/redo and dirty tracking', () {
+  group('criterion 6 — undo/redo and dirty tracking', skip: skipReason, () {
     test(
       'edit -> dirty -> undo restores bytes -> redo restores value',
       () async {
@@ -311,7 +340,7 @@ void main() {
     );
   });
 
-  group('criterion 7 — original-vs-edited diff, headless', () {
+  group('criterion 7 — original-vs-edited diff, headless', skip: skipReason, () {
     test('SaveProject.changedSpans is the compare dialog data path', () async {
       final engine = createProgressEngine();
       final repo = createProgressRepository(schema);
@@ -352,6 +381,36 @@ void main() {
       chainLog('spans touch fields: ${spansByField.join(' ')}');
     });
   });
+}
+
+/// Copies the resolved [slot] directory into this file's unique root.
+///
+/// The source is the read-only retail/Longshot save tree that
+/// [resolveRealSaves] discovered; a missing slot fails rather than producing a
+/// partial fixture.
+void _stageRealSlot(RealSaveFound found, String root, String slot) {
+  final source = _sourceSlot(found, slot);
+  if (source == null) {
+    fail(
+      'the resolved slots '
+      '${found.slots.map((directory) => directory.path).toList()} '
+      'contain no $slot to stage under $root',
+    );
+  }
+  copyDirectorySync(source, Directory('$root/$slot'));
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
 }
 
 SaveProject _projectOf(ParseResult result) => switch (result) {

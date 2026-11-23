@@ -6,9 +6,10 @@
 /// `SaveEngine` + `FileSaveRepository(resolveLayout:)` +
 /// `ProgressLayoutResolver(ProgressLayoutBuilder(schema))`.
 ///
-/// The fixture is copied to `.tmp/e2e/a3/` so the scrubbed sample under
-/// `.local-fixtures/` is never written to. Every step prints one `[e2e]` line
-/// carrying the measured badge tuple, and asserts the same values.
+/// The fixture is copied to this run's own unique `.tmp/` root so the scrubbed
+/// sample under `.local-fixtures/` is never written to and a concurrent run
+/// cannot delete it. Every step prints one `[e2e]` line carrying the measured
+/// badge tuple, and asserts the same values.
 ///
 /// Coalescing trap (`EditHistory.record`): two `SetScalar` commands on the SAME
 /// field inside 400 ms merge into one entry. The two edits here target DISTINCT
@@ -29,12 +30,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../integration/support/progress_chain.dart';
 import '../support/fixture_loader.dart';
+import '../support/temp_roots.dart';
 
 /// Scrubbed sample the chain opens.
 const String _fixtureName = 'kokiri-start';
 
-/// Task scratch space; outside the repository's tracked tree.
-const String _scratchRoot = '.tmp/e2e/a3/session';
+/// Scratch space for this run, under a unique gitignored `.tmp/` root.
+late String _scratchRoot;
 
 /// The full badge tuple read from the emitted `SaveProjectUi`.
 typedef _Badges = ({
@@ -71,7 +73,9 @@ void main() {
       );
 
       // Fresh copy every run: no state, sidecar or `.bak` from a previous test.
-      _deleteTree(_scratchRoot);
+      final scratch = createTempRoot('e2e/cubit-session');
+      _scratchRoot = '${scratch.path}/session';
+      addTearDown(() => removeTempRoot(scratch));
       Directory('$_scratchRoot/slot_00').createSync(recursive: true);
       for (final entity in fixtureSlot.listSync(followLinks: false)) {
         if (entity is! File) {
@@ -462,14 +466,4 @@ int _differingBytes(int a, int b) {
     }
   }
   return count;
-}
-
-/// Removes [path] and its `.bombflower-original` sidecar, if present.
-void _deleteTree(String path) {
-  for (final suffix in const <String>['', '.bombflower-original']) {
-    final directory = Directory('$path$suffix');
-    if (directory.existsSync()) {
-      directory.deleteSync(recursive: true);
-    }
-  }
 }

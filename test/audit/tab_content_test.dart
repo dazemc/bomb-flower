@@ -2,8 +2,9 @@
 ///
 /// `test/audit/eleven_tabs_test.dart` proves each tab mounts, is tappable, and
 /// is not the retired "Engine pending" placeholder. This file adds the missing
-/// half: with the real two-slot save at `.tmp/rt` open, every tab must render at
-/// least one label or field row from its own domain.
+/// half: with a real two-slot save staged into this file's own `.tmp/` root
+/// open, every tab must render at least one label or field row from its own
+/// domain.
 ///
 /// The save is opened through the production repository wiring and handed to the
 /// tabs through the same [SessionSaveTabSource] + [SaveTabScope] pair the app
@@ -36,15 +37,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../integration/support/progress_chain.dart';
+import '../integration/support/real_save_loader.dart';
 import '../presentation/tabs/support/tab_test_harness.dart';
+import '../support/temp_roots.dart';
 
-/// Real two-slot fixture; both sizes are part of the fixture contract.
-const String _fixtureRoot = '.tmp/rt';
+/// Real two-slot fixture, staged into this file's unique root; both sizes are
+/// part of the fixture contract.
+late String _fixtureRoot;
 const int _slotZeroLength = 122852;
 const int _slotOneLength = 122940;
 
-/// `Sequence_CurrentBanc` in `.tmp/rt/slot_00`, verified against the bundled
-/// map catalogue.
+/// `Sequence_CurrentBanc` in `slot_00`, verified against the bundled map
+/// catalogue.
 const String _storedSceneKey = 'HyruleField_Child';
 
 late SaveProject _project;
@@ -64,7 +68,13 @@ Future<void> _pumpTab(WidgetTester tester, Widget tab) async {
 }
 
 void main() {
+  late Directory fileRoot;
+
   setUpAll(() async {
+    fileRoot = createTempRoot('audit/tab-content');
+    _fixtureRoot = '${fileRoot.path}/rt';
+    _stageRealSlots(_fixtureRoot);
+
     final slotZero = File('$_fixtureRoot/slot_00/progress.sav');
     final slotOne = File('$_fixtureRoot/slot_01/progress.sav');
     expect(
@@ -105,6 +115,8 @@ void main() {
       File('assets/world/scenes.json').readAsStringSync(),
     );
   });
+
+  tearDownAll(() => removeTempRoot(fileRoot));
 
   setUp(() {
     _source = SessionSaveTabSource(
@@ -371,4 +383,49 @@ void main() {
     expect(find.byKey(SettingsTab.backupPolicyKey), findsOneWidget);
     expect(find.text('No recent save folders recorded.'), findsOneWidget);
   });
+}
+
+/// Copies the real `slot_00` and `slot_01` progress files under [root].
+///
+/// The source is opened for reading only. This file stages its own copy so it
+/// neither depends on another test file nor shares a path with a concurrent
+/// run. A missing real save fails instead of skipping: this file never had a
+/// skip branch, and a silent skip would make the tab proof vacuous.
+void _stageRealSlots(String root) {
+  final resolution = resolveRealSaves();
+  if (resolution is RealSaveMisconfigured) {
+    fail(resolution.reason);
+  }
+  if (resolution is! RealSaveFound) {
+    fail(
+      'real-save fixture missing: no real slot_00/slot_01 progress.sav was '
+      'found, so none can be staged at $root',
+    );
+  }
+  for (final slot in const <String>['slot_00', 'slot_01']) {
+    final source = _sourceSlot(resolution, slot);
+    if (source == null) {
+      fail(
+        'no fixture source for $slot at $root; the resolved slots '
+        '${resolution.slots.map((directory) => directory.path).toList()} '
+        'contain no $slot',
+      );
+    }
+    final target = File('$root/$slot/progress.sav')
+      ..createSync(recursive: true);
+    File('${source.path}/progress.sav').copySync(target.path);
+  }
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
 }

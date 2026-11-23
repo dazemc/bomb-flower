@@ -17,19 +17,31 @@ import 'package:bomb_flower/data/newsave/new_save_writer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../integration/support/progress_chain.dart';
-
-/// Destination for the audit build; inside the repo's ignored `.tmp/`.
-const String newSaveRoot = '.tmp/audit/newsave-audit';
-
-/// The real save the audit compares against (read-only copy).
-const String realSaveFile = '.tmp/audit/real-save/slot_00/progress.sav';
+import '../integration/support/real_save_loader.dart';
+import '../support/temp_roots.dart';
 
 void main() {
+  final resolution = resolveRealSaves();
+  final skipReason = switch (resolution) {
+    RealSaveAbsent(:final reason) => reason,
+    _ => null,
+  };
   late GameDataSchema schema;
+  late Directory fileRoot;
+  late String newSaveRoot;
+  late String realSaveFile;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    fileRoot = createTempRoot('audit/new-save');
+    newSaveRoot = '${fileRoot.path}/newsave';
+    realSaveFile = '${fileRoot.path}/real-save/slot_00/progress.sav';
+    if (resolution is RealSaveFound) {
+      _stageRealSlot(resolution, '${fileRoot.path}/real-save', 'slot_00');
+    }
   });
+
+  tearDownAll(() => removeTempRoot(fileRoot));
 
   group('criterion 3 — new save', () {
     late NewSaveBuild build;
@@ -52,8 +64,7 @@ void main() {
       bytes = File('$newSaveRoot/slot_00/progress.sav').readAsBytesSync();
     });
 
-    test('header, magic, revision, tail and size are the verified shape',
-        () async {
+    test('header, magic, revision, tail and size are the verified shape', () async {
       expect(build.progressBytes, hasLength(120572));
       expect(build.dataOffset, 0x175D8);
       expect(build.dataOffset, 95704);
@@ -91,9 +102,7 @@ void main() {
     });
 
     test('parses cleanly through the production repository', () async {
-      final open = await createProgressRepository(
-        schema,
-      ).open(newSaveRoot);
+      final open = await createProgressRepository(schema).open(newSaveRoot);
       expect(open, isA<ParseUnverified>());
       final project = (open as ParseUnverified).project;
       expect(project.slotLayout(progressSlotId)!.fields, hasLength(11925));
@@ -107,6 +116,9 @@ void main() {
     });
 
     test('byte comparison against the real played save', () async {
+      if (resolution is RealSaveMisconfigured) {
+        fail(resolution.reason);
+      }
       final real = File(realSaveFile).readAsBytesSync();
       final common = bytes.length < real.length ? bytes.length : real.length;
       final differing = <int>[];
@@ -150,7 +162,7 @@ void main() {
         'first non-zero real bytes past 0x${common.toRadixString(16)}: '
         '${tailDiff.map((o) => '0x${o.toRadixString(16)}').join(',')}',
       );
-    });
+    }, skip: skipReason);
 
     test('defaults that are asserted WITHOUT in-game evidence', () async {
       // These are asserted as *implementation* facts (schema/sample values),
@@ -165,15 +177,44 @@ void main() {
       ).open(newSaveRoot) as ParseUnverified).project;
       expect(fieldInt(project, lifeFieldId), 12);
       expect(fieldInt(project, maxLifeFieldId), 12);
-      final caption = File(
-        '$newSaveRoot/slot_00/caption.sav',
-      ).readAsBytesSync();
+      final caption = File('$newSaveRoot/slot_00/caption.sav')
+          .readAsBytesSync();
       chainLog(
         'caption bytes=${caption.length} (jpeg=synthetic 1x1); '
         'defaults asserted from schema, in-game acceptance NOT evidenced',
       );
     });
   });
+}
+
+/// Copies the resolved [slot] directory into this file's unique root.
+///
+/// The source is the read-only retail/Longshot save tree that
+/// [resolveRealSaves] discovered; a missing slot fails rather than producing a
+/// partial fixture.
+void _stageRealSlot(RealSaveFound found, String root, String slot) {
+  final source = _sourceSlot(found, slot);
+  if (source == null) {
+    fail(
+      'the resolved slots '
+      '${found.slots.map((directory) => directory.path).toList()} '
+      'contain no $slot to stage under $root',
+    );
+  }
+  copyDirectorySync(source, Directory('$root/$slot'));
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
 }
 
 String _fieldAt(SaveProject project, int offset) {

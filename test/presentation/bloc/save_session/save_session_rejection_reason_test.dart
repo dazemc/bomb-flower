@@ -23,16 +23,14 @@ import 'package:bomb_flower/presentation/bloc/save_session/save_session_ui_state
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../integration/support/progress_chain.dart';
+import '../../../integration/support/real_save_loader.dart';
+import '../../../support/temp_roots.dart';
 
-/// Root of the pristine two-slot fixture.
-const String fixtureRoot = '.tmp/rt';
+/// Root of this file's pristine two-slot fixture copy.
+late String fixtureRoot;
 
-/// Scratch root for the mutated cases.
-const String caseRoot = '.tmp/rt/reject-reason';
-
-/// The read-only retail save tree. Never written; only copied out of.
-const String realSaveRoot =
-    '/home/daze/.local/share/longshot/save/5a3c9e1f0b7d24680000000000000001';
+/// Scratch root for the mutated cases, under this file's unique `.tmp/` root.
+late String caseRoot;
 
 /// The real file every mutation starts from.
 const String pristineSlot = 'slot_00';
@@ -40,32 +38,42 @@ const String pristineSlot = 'slot_00';
 void main() {
   late GameDataSchema schema;
   late Uint8List pristine;
+  late Directory fileRoot;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    fileRoot = createTempRoot('bloc/save-session-rejection-reason');
+    fixtureRoot = '${fileRoot.path}/rt';
+    caseRoot = '${fileRoot.path}/reject-reason';
     _ensureFixtures();
     pristine = _read('$fixtureRoot/$pristineSlot/progress.sav');
   });
 
-  group('SaveSessionCubit rejection reason', () {
-    test('should report a truncated file as corrupt with the codec reason', () async {
-      final root = _stage('truncated', pristine.sublist(0, 100));
-      final cubit = await _open(root, schema);
-      addTearDown(() => cubit.close(force: true));
+  tearDownAll(() => removeTempRoot(fileRoot));
 
-      final error = _error(cubit);
-      expect(error.kind, SaveSessionErrorKind.corruptSave);
-      expect(error.message, 'This save folder is damaged or incomplete.');
-      expect(
-        error.details,
-        contains(
-          'the data offset 95704 points past the end of the 100-byte buffer',
-        ),
-        reason: 'the codec reason must survive, not be collapsed to a category',
-      );
-      expect(error.details, contains('$root/$pristineSlot/progress.sav'));
-      expect(error.details, contains('Folder: $root'));
-    });
+  group('SaveSessionCubit rejection reason', () {
+    test(
+      'should report a truncated file as corrupt with the codec reason',
+      () async {
+        final root = _stage('truncated', pristine.sublist(0, 100));
+        final cubit = await _open(root, schema);
+        addTearDown(() => cubit.close(force: true));
+
+        final error = _error(cubit);
+        expect(error.kind, SaveSessionErrorKind.corruptSave);
+        expect(error.message, 'This save folder is damaged or incomplete.');
+        expect(
+          error.details,
+          contains(
+            'the data offset 95704 points past the end of the 100-byte buffer',
+          ),
+          reason:
+              'the codec reason must survive, not be collapsed to a category',
+        );
+        expect(error.details, contains('$root/$pristineSlot/progress.sav'));
+        expect(error.details, contains('Folder: $root'));
+      },
+    );
 
     test('should report a wrong revision with both version numbers', () async {
       final root = _stage('revision', _wrongRevision(pristine));
@@ -93,9 +101,7 @@ void main() {
       expect(error.message, 'This folder does not contain a save.');
       expect(
         error.details,
-        contains(
-          'the magic at 0x0 is 0xffffffff; expected 0x01020304',
-        ),
+        contains('the magic at 0x0 is 0xffffffff; expected 0x01020304'),
       );
       expect(error.details, contains('Folder: $root'));
     });
@@ -206,23 +212,49 @@ String _stage(String name, List<int> bytes) {
   return root;
 }
 
-/// Copies the pristine slots into `.tmp/rt/` when absent.
+/// Copies the two pristine real slots into this file's own fixture root.
+///
+/// The source is the read-only retail/Longshot save tree, resolved through
+/// [resolveRealSaves] so no absolute home path is hardcoded. A missing slot
+/// fails rather than skipping: this file never had a skip branch.
 void _ensureFixtures() {
+  final resolution = resolveRealSaves();
+  if (resolution is RealSaveMisconfigured) {
+    fail(resolution.reason);
+  }
+  if (resolution is! RealSaveFound) {
+    fail(
+      'no real save found, so the two-slot fixture cannot be staged at '
+      '$fixtureRoot; set $realSavesRootEnvVar or place a save at the default '
+      'path ($defaultRealSavesRoot)',
+    );
+  }
   for (final slot in <String>[pristineSlot, 'slot_01']) {
     final target = File('$fixtureRoot/$slot/progress.sav');
-    if (target.existsSync()) {
-      continue;
-    }
-    final source = File('$realSaveRoot/$slot/progress.sav');
-    if (!source.existsSync()) {
+    final source = _sourceSlot(resolution, slot);
+    if (source == null) {
       fail(
-        'no fixture at ${target.path} and no read-only source at '
-        '${source.path}; copy a real progress.sav into ${target.parent.path}',
+        'the resolved slots '
+        '${resolution.slots.map((directory) => directory.path).toList()} '
+        'contain no $slot to stage at ${target.path}',
       );
     }
     target.parent.createSync(recursive: true);
-    source.copySync(target.path);
+    File('${source.path}/progress.sav').copySync(target.path);
   }
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
 }
 
 /// A copy of [bytes] with the schema revision replaced by `2982124`.

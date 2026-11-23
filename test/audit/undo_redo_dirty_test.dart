@@ -38,9 +38,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../integration/support/progress_chain.dart';
 import '../support/byte_assert.dart';
-
-/// Parent of the per-test synthetic saves; rebuilt by each test.
-const String fixtureParent = '.tmp/audit/undo-redo-dirty';
+import '../support/temp_roots.dart';
 
 /// `PlayerStatus.CurrentRupee` — Int, verified, editable.
 const FieldId rupeeFieldId = FieldId('progress.a77921d7');
@@ -50,10 +48,18 @@ const FieldId defenseFieldId = FieldId('progress.56bbe07c');
 
 void main() {
   late GameDataSchema schema;
+  late Directory fileRoot;
+
+  /// Parent of this file's per-test synthetic saves, rebuilt by each test.
+  late String fixtureParent;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    fileRoot = createTempRoot('audit/undo-redo-dirty');
+    fixtureParent = '${fileRoot.path}/cases';
   });
+
+  tearDownAll(() => removeTempRoot(fileRoot));
 
   /// Builds a fresh schema-default save (Life 12, MaxLife 12, Rupee 0) and
   /// returns its root. Deleting both the root and its sidecar first keeps one

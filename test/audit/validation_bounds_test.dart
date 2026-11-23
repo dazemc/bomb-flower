@@ -17,27 +17,58 @@ import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../integration/support/progress_chain.dart';
+import '../integration/support/real_save_loader.dart';
 import '../support/byte_assert.dart';
+import '../support/temp_roots.dart';
 
-/// Where scratch save roots live; always inside the repo's ignored `.tmp/`.
-const String scratchRoot = '.tmp/audit/bounds';
+/// Where this file's scratch save roots live, inside its own unique `.tmp/`
+/// root so a concurrent run cannot delete or rewrite them.
+late String scratchRoot;
+
+/// This file's read-only copy of the real save.
+late String realSaveRoot;
 
 void main() {
+  final resolution = resolveRealSaves();
+  final skipReason = switch (resolution) {
+    RealSaveAbsent(:final reason) => reason,
+    _ => null,
+  };
   late GameDataSchema schema;
   late Uint8List realProgress;
+  Directory? fileRoot;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
-    realProgress = File('.tmp/audit/real-save/slot_00/progress.sav')
-        .readAsBytesSync();
+    final root = fileRoot = createTempRoot('audit/validation-bounds');
+    scratchRoot = '${root.path}/bounds';
+    realSaveRoot = '${root.path}/real-save';
+    if (resolution is RealSaveMisconfigured) {
+      // An explicit override that resolves to no slot must fail, not skip.
+      fail(resolution.reason);
+    }
+    if (resolution is! RealSaveFound) {
+      // No real save on this machine: the fixture-dependent groups carry the
+      // loader's `SKIPPED, NOT PASSED:` reason and do not execute.
+      return;
+    }
+    _stageRealSlot(resolution, realSaveRoot, 'slot_00');
+    realProgress = File('$realSaveRoot/slot_00/progress.sav').readAsBytesSync();
   });
 
-  group('criterion 5 — out-of-range values', () {
+  tearDownAll(() {
+    final root = fileRoot;
+    if (root != null) {
+      removeTempRoot(root);
+    }
+  });
+
+  group('criterion 5 — out-of-range values', skip: skipReason, () {
     test(
       'Int above its declared 32-bit range is refused, not clamped',
       () async {
         final repo = createProgressRepository(schema);
-        final project = _projectOf(await repo.open('.tmp/audit/real-save'));
+        final project = _projectOf(await repo.open(realSaveRoot));
         final engine = createProgressEngine();
 
         final before = project.document(progressSlotId)!.snapshot.materialize();
@@ -70,7 +101,7 @@ void main() {
 
     test('negative value is refused with the documented message', () async {
       final repo = createProgressRepository(schema);
-      final project = _projectOf(await repo.open('.tmp/audit/real-save'));
+      final project = _projectOf(await repo.open(realSaveRoot));
       final engine = createProgressEngine();
 
       FieldWriteException? thrown;
@@ -90,7 +121,7 @@ void main() {
 
     test('FINDING: Life > MaxLife is accepted silently (no cross-field rule)', () async {
       final repo = createProgressRepository(schema);
-      final project = _projectOf(await repo.open('.tmp/audit/real-save'));
+      final project = _projectOf(await repo.open(realSaveRoot));
       final engine = createProgressEngine();
 
       final maxLife = fieldInt(project, maxLifeFieldId);
@@ -116,7 +147,7 @@ void main() {
         engine
             .planExport(
               edited,
-              destinationRoot: '.tmp/audit/bounds/never-written',
+              destinationRoot: '$scratchRoot/never-written',
               mode: ExportMode.saveAs,
             )
             .isSafe,
@@ -129,7 +160,7 @@ void main() {
     });
   });
 
-  group('criterion 5 — corrupt input', () {
+  group('criterion 5 — corrupt input', skip: skipReason, () {
     test('truncated file is rejected at decode and at open', () async {
       final truncated = Uint8List.sublistView(realProgress, 0, 20);
       final decoded = ProgressCodec.decode(truncated);
@@ -216,6 +247,36 @@ void main() {
   });
 }
 
+/// Copies the resolved [slot] directory into this file's unique root.
+///
+/// The source is the read-only retail/Longshot save tree that
+/// [resolveRealSaves] discovered; a missing slot fails rather than producing a
+/// partial fixture.
+void _stageRealSlot(RealSaveFound found, String root, String slot) {
+  final source = _sourceSlot(found, slot);
+  if (source == null) {
+    fail(
+      'the resolved slots '
+      '${found.slots.map((directory) => directory.path).toList()} '
+      'contain no $slot to stage under $root',
+    );
+  }
+  copyDirectorySync(source, Directory('$root/$slot'));
+}
+
+/// The resolved slot directory whose own name is [slot].
+Directory? _sourceSlot(RealSaveFound found, String slot) {
+  for (final directory in found.slots) {
+    final segments = directory.uri.pathSegments.where(
+      (segment) => segment.isNotEmpty,
+    );
+    if (segments.isNotEmpty && segments.last == slot) {
+      return directory;
+    }
+  }
+  return null;
+}
+
 ProgressLayoutResolver _resolver(GameDataSchema schema) =>
     ProgressLayoutResolver(ProgressLayoutBuilder(schema));
 
@@ -227,7 +288,7 @@ Directory _writeCase(String name, Uint8List progress) {
   final slot = Directory('${root.path}/slot_00')..createSync(recursive: true);
   File('${slot.path}/progress.sav').writeAsBytesSync(progress);
   File('${slot.path}/caption.sav').writeAsBytesSync(
-    File('.tmp/audit/real-save/slot_00/caption.sav').readAsBytesSync(),
+    File('$realSaveRoot/slot_00/caption.sav').readAsBytesSync(),
   );
   return root;
 }

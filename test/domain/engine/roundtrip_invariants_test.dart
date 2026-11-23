@@ -1,11 +1,12 @@
 /// Round-trip invariants (a) and (b), proven against real retail saves.
 ///
 /// Fixtures are copies of two read-only retail `progress.sav` files (122,852
-/// and 122,940 bytes) staged in `.tmp/rt/slot_00/` and `.tmp/rt/slot_01/`.
-/// The open root is the parent `.tmp/rt`: both slots then land in one layout as
-/// `slot_00` and `slot_01`, which is the shape `FileSlotSource` resolves
-/// (`<root>/<slot>/progress.sav`). Opening a root that *is* a `slot_NN`
-/// directory is a different resolver mode and is not this test's subject.
+/// and 122,940 bytes) staged in `slot_00/` and `slot_01/` under this file's own
+/// unique `.tmp/` root. The open root is that parent: both slots then land in
+/// one layout as `slot_00` and `slot_01`, which is the shape `FileSlotSource`
+/// resolves (`<root>/<slot>/progress.sav`). Opening a root that *is* a
+/// `slot_NN` directory is a different resolver mode and is not this test's
+/// subject.
 ///
 /// These two invariants used to be `skip` stubs whose bodies were empty, so
 /// removing the skip alone would have produced a vacuous pass. They now assert
@@ -56,9 +57,12 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../integration/support/progress_chain.dart';
 import '../../integration/support/real_save_loader.dart';
 import '../../support/byte_assert.dart';
+import '../../support/temp_roots.dart';
 
 /// Scratch root: holds the two real fixture slots and receives the artifacts.
-const String fixtureRoot = '.tmp/rt';
+///
+/// Created per run under this file's own unique `.tmp/` root.
+late String fixtureRoot;
 
 /// The two real slots this proof round-trips, in layout order.
 const List<String> fixtureSlots = <String>['slot_00', 'slot_01'];
@@ -70,9 +74,12 @@ void main() {
     _ => null,
   };
   late GameDataSchema schema;
+  late Directory fileRoot;
 
   setUpAll(() async {
     schema = await loadGameDataSchema();
+    fileRoot = createTempRoot('domain/roundtrip-invariants');
+    fixtureRoot = '${fileRoot.path}/rt';
     if (resolution is! RealSaveFound) {
       // Absent is declaratively skipped; misconfigured fails in the bodies so
       // the message is the MISCONFIGURED one, not a missing-fixture one.
@@ -88,6 +95,8 @@ void main() {
       expect(File(_fixturePath(slot)).lengthSync(), greaterThan(0));
     }
   });
+
+  tearDownAll(() => removeTempRoot(fileRoot));
 
   group('(a) zero-edit round-trip is byte-identical', skip: skipReason, () {
     test('should re-serialize both real slots byte for byte', () async {
@@ -339,17 +348,17 @@ void _requireRealSaves(RealSaveResolution resolution) {
   }
 }
 
-/// Root plus slot name of the real fixture, e.g. `.tmp/rt/slot_00/progress.sav`.
+/// Root plus slot name of the real fixture, e.g. `<root>/slot_00/progress.sav`.
 String _fixturePath(String slot) => '$fixtureRoot/$slot/progress.sav';
 
-/// Artifact path under `.tmp/rt/out/<slot>/`.
+/// Artifact path under `<root>/out/<slot>/`.
 String _outPath(String slot, String name) => '$fixtureRoot/out/$slot/$name';
 
 /// `slot_00` -> `SaveSlotId.progress(0)`.
 SaveSlotId _slotIdOf(String slot) =>
     SaveSlotId.progress(int.parse(slot.substring('slot_'.length)));
 
-/// Copies a resolved real slot into `.tmp/rt/` when the copy is absent.
+/// Copies a resolved real slot into this run's fixture root when absent.
 ///
 /// The source is opened for reading only. A Found resolution that somehow
 /// lacks the requested slot fails with the tried paths named.
