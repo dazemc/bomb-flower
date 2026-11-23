@@ -15,7 +15,8 @@ import 'package:bomb_flower/presentation/shell/app_shell.dart';
 import 'package:bomb_flower/presentation/tabs_support/save_tab_scope.dart';
 import 'package:bomb_flower/presentation/tabs_support/session_save_tab_source.dart';
 import 'package:bomb_flower/presentation/widgets/common/empty_state.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart'
+    show MethodCall, StandardMethodCodec, rootBundle;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -50,9 +51,7 @@ SaveProject _projectWithFields(
   final snapshot = SaveSnapshot(
     _slot,
     1,
-    ByteRegion.fromBytes(
-      bytes ?? List<int>.filled(_syntheticSlotLength, 0),
-    ),
+    ByteRegion.fromBytes(bytes ?? List<int>.filled(_syntheticSlotLength, 0)),
   );
   return SaveProject(
     'wiring-project',
@@ -239,6 +238,43 @@ void _prepareView(WidgetTester tester) {
 String _join(String parent, String child) =>
     '$parent${Platform.pathSeparator}$child';
 
+/// Delivers one native drop message exactly as the Linux runner will: the
+/// `folderDropped` method with the dropped absolute path as its only argument.
+///
+/// The channel itself replies before any filesystem work, but the resolver it
+/// starts is real async `dart:io`, and the widget binding's fake clock never
+/// completes real I/O. The dispatch therefore runs on the real event loop
+/// inside [WidgetTester.runAsync] and waits on [until] — the observable effect
+/// of the drop — instead of a fixed delay.
+Future<void> _dispatchDrop(
+  WidgetTester tester,
+  String path, {
+  bool Function()? until,
+}) async {
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  await tester.runAsync(() async {
+    await messenger.handlePlatformMessage(
+      'bomb_flower/drop',
+      const StandardMethodCodec().encodeMethodCall(
+        MethodCall('folderDropped', path),
+      ),
+      (_) {},
+    );
+    // A valid drop prints its one log line after the open completes; a refusal
+    // schedules the frame that shows the failure panel. Either way the effect
+    // arrives within a few event-loop turns.
+    final ready = until ?? (() => tester.binding.hasScheduledFrame);
+    for (var attempt = 0; attempt < 500; attempt++) {
+      if (ready()) {
+        return;
+      }
+      await Future<void>.delayed(Duration.zero);
+    }
+  });
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -396,25 +432,26 @@ void main() {
     },
   );
 
-  testWidgets('a closed session still shows the empty state and no failure text', (
-    tester,
-  ) async {
-    _prepareView(tester);
-    final session = _openingSession();
-    final cubit = session.cubit;
-    _closeOnTeardown(cubit);
+  testWidgets(
+    'a closed session still shows the empty state and no failure text',
+    (tester) async {
+      _prepareView(tester);
+      final session = _openingSession();
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
 
-    await tester.pumpWidget(
-      BombFlowerApp(enableWindowChrome: false, session: cubit),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        BombFlowerApp(enableWindowChrome: false, session: cubit),
+      );
+      await tester.pumpAndSettle();
 
-    expect(cubit.state, isA<SaveSessionClosed>());
-    expect(find.byType(EmptyState), findsOneWidget);
-    expect(find.text('Open a save to begin'), findsOneWidget);
-    expect(find.byKey(const Key('open-failure-panel')), findsNothing);
-    expect(find.text('Could not open save'), findsNothing);
-  });
+      expect(cubit.state, isA<SaveSessionClosed>());
+      expect(find.byType(EmptyState), findsOneWidget);
+      expect(find.text('Open a save to begin'), findsOneWidget);
+      expect(find.byKey(const Key('open-failure-panel')), findsNothing);
+      expect(find.text('Could not open save'), findsNothing);
+    },
+  );
 
   testWidgets('a successful open never shows the failure panel', (
     tester,
@@ -710,11 +747,120 @@ void main() {
       expect(logged, hasLength(1));
       expect(
         logged.single,
-        startsWith(
-          'open /saves/kokiri-start/slot_00 -> ParseUnsupported: ',
-        ),
+        startsWith('open /saves/kokiri-start/slot_00 -> ParseUnsupported: '),
       );
       expect(logged.single, contains('That is a slot folder.'));
+    },
+  );
+
+  testWidgets('a dropped save folder opens it once and logs exactly one line', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final root = Directory.systemTemp.createTempSync('bomb_flower_drop_open_');
+    addTearDown(() {
+      if (root.existsSync()) {
+        root.deleteSync(recursive: true);
+      }
+    });
+    final slot = Directory(_join(root.path, 'slot_00'))..createSync();
+    File(_join(slot.path, 'progress.sav')).writeAsStringSync('save');
+
+    final logged = <String>[];
+    final previousDebugPrint = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) {
+        logged.add(message);
+      }
+    };
+    addTearDown(() => debugPrint = previousDebugPrint);
+
+    final session = _openingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+
+    await tester.pumpWidget(
+      BombFlowerApp(
+        enableWindowChrome: false,
+        session: cubit,
+        saveFolderProbe: _FakeProbe(),
+        recentPaths: _FakeRecentPaths(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(EmptyState), findsOneWidget);
+
+    await _dispatchDrop(tester, root.path, until: () => logged.isNotEmpty);
+    await tester.pumpAndSettle();
+
+    expect(session.repository.openCalls, 1);
+    expect(cubit.state, isA<SaveSessionReady>());
+    expect(find.byKey(const Key('open-failure-panel')), findsNothing);
+    expect(find.byType(EmptyState), findsNothing);
+    expect(logged, hasLength(1));
+    expect(logged.single, startsWith('open ${root.path} -> ParseOk'));
+  });
+
+  testWidgets(
+    'a dropped file is refused, named, and cleared by the next open',
+    (tester) async {
+      _prepareView(tester);
+      final folder = Directory.systemTemp.createTempSync(
+        'bomb_flower_drop_file_',
+      );
+      addTearDown(() {
+        if (folder.existsSync()) {
+          folder.deleteSync(recursive: true);
+        }
+      });
+      final file = File(_join(folder.path, 'notes.txt'))
+        ..writeAsStringSync('not a save');
+
+      final logged = <String>[];
+      final previousDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) {
+          logged.add(message);
+        }
+      };
+      addTearDown(() => debugPrint = previousDebugPrint);
+
+      final session = _openingSession();
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(
+          enableWindowChrome: false,
+          session: cubit,
+          saveFolderProbe: _FakeProbe(),
+          recentPaths: _FakeRecentPaths(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _dispatchDrop(tester, file.path);
+      await tester.pumpAndSettle();
+
+      // Nothing reached the engine and nothing was logged: the drop was
+      // refused before an open was attempted.
+      expect(session.repository.openCalls, 0);
+      expect(logged, isEmpty);
+      expect(find.byKey(const Key('open-failure-panel')), findsOneWidget);
+      expect(find.text('Could not open save'), findsOneWidget);
+      expect(
+        find.text('Drop the profile folder that contains slot_00, not a file.'),
+        findsOneWidget,
+      );
+      expect(find.text(file.path), findsOneWidget);
+
+      // The existing open path clears the refusal on the next attempt.
+      await cubit.openPath('/wiring/save');
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<SaveSessionReady>());
+      expect(find.byKey(const Key('open-failure-panel')), findsNothing);
+      expect(find.textContaining('Read-only dashboard'), findsOneWidget);
     },
   );
 }
