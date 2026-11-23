@@ -341,7 +341,8 @@ memberships, not a partition.
 
 **3,443 named Bool fields, 3,438 editable.** The Flags tab edits the named
 fields its descriptor marks editable; the five remaining named fields and all
-6,769 hash-only Bools stay read-only and are reachable only as raw bytes in
+6,769 hash-only Bools stay read-only. The hash-only records are listed by hash in
+the tab's `Show hash-only records` section, and are editable only as raw bytes in
 Advanced Data's hex view behind its unlock gate.
 
 The tab reports **178 named prefix buckets** plus a hash-only bucket. The

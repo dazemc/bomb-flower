@@ -13,8 +13,9 @@ legally obtained save data.
 
 ## Status
 
-v1 is shipped. An area is listed as working only when both its code and its
-tests are committed; a gap is listed with the reason it remains a gap.
+v1 is in active development. An area is listed as working only when both its
+code and its tests are committed; a gap is listed with the reason it remains a
+gap.
 
 | Area | State | Evidence |
 |---|---|---|
@@ -181,6 +182,15 @@ game-acceptance result rather than a repeatable test, partly opaque
 11,657 `Bool64bitKey` declarations that exist only in the schema, not in
 `progress.sav`.
 
+## Brand mark
+
+The Bomb Flower mark is the application's visual identity. The shell renders it in
+the title bar (`lib/presentation/widgets/chrome/app_title_bar.dart`) and in the
+empty-state panel (`lib/presentation/widgets/common/empty_state.dart`), and is
+intended as the documentation header. Artwork provenance and attribution are
+recorded with the asset itself.
+
 ## Licence
 
-TBD before the first release. No third-party game assets are distributed.
+Released under the MIT License — see `LICENSE`. No third-party game assets are
+distributed.

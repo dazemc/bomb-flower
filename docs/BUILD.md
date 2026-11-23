@@ -48,10 +48,9 @@ flutter test
 ```
 
 `flutter analyze` is expected to report `No issues found!`. `flutter test` runs
-the committed suite. The recorded gate, at commit `491fa3d` with the local
-sample fixtures present, is `+880 ~8 -0` with analyze at 0 issues and exit 0. A
-local run at the shipped tip `1b387db` reports `No issues found!` and
-`+896 ~2: All tests passed!` (the preceding tip `ffa8359` measured `+894 ~2`).
+the committed suite. Later tips have no recorded full gate. The last recorded
+gate is `491fa3d`: `flutter analyze` at 0 issues, `flutter test` `+880 ~8 -0`.
+Re-run the commands above and record the result when you change the suite.
 Two `skip:` stubs remain in
 `test/domain/engine/roundtrip_invariants_test.dart`; the real-format behaviour
 they describe is covered by `test/data/adapter/` and `test/integration/`. Codec
