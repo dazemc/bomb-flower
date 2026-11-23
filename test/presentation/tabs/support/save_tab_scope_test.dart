@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:bomb_flower/domain/core/edit_command.dart';
 import 'package:bomb_flower/domain/core/identity.dart';
 import 'package:bomb_flower/domain/fields/field_groups.dart';
@@ -23,6 +25,15 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
 
   @override
   final SaveSlotId? activeSlot;
+
+  @override
+  String? get rootPath => '/tmp/fake-save';
+
+  @override
+  Uint8List? get activeSlotBytes => null;
+
+  @override
+  Uint8List? bytesFor(SaveSlotId slot) => null;
 
   @override
   final bool isOpen;
@@ -197,6 +208,9 @@ void main() {
     );
 
     expect(source, isA<SaveTabSource>());
+    expect(source.rootPath, '/tmp/fake-save');
+    expect(source.activeSlotBytes, isNull);
+    expect(source.bytesFor(SaveSlotId.account), isNull);
     expect(source.changes, same(source));
     expect(source.activeSlot, SaveSlotId.account);
     expect(source.isOpen, isFalse);
