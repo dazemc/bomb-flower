@@ -373,6 +373,13 @@ final class _Transaction {
     SaveSnapshot entryBefore,
     SaveSnapshot entryAfter,
   ) {
+    final start = before;
+    if (start != null && start.slot != entryBefore.slot) {
+      throw StateError(
+        'A transaction cannot span slots (${start.slot.value} and '
+        '${entryBefore.slot.value})',
+      );
+    }
     before ??= entryBefore;
     after = entryAfter;
     commands.add(command);

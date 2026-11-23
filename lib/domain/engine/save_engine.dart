@@ -89,8 +89,27 @@ final class SaveEngine {
   }) {
     final resolved = layout ?? format.layoutFor(detectedVersion);
     if (resolved == null) {
+      final newest = format.newestVersion;
+      if (newest != null && detectedVersion > newest) {
+        return ParseUnsupported(
+          'layout $detectedVersion newer than supported $newest',
+          detectedVersion: detectedVersion,
+        );
+      }
+      int? minimum;
+      for (final candidate in format.layouts) {
+        if (minimum == null || candidate.minimumVersion < minimum) {
+          minimum = candidate.minimumVersion;
+        }
+      }
+      if (minimum != null && detectedVersion < minimum) {
+        return ParseUnsupported(
+          'layout $detectedVersion older than minimum $minimum',
+          detectedVersion: detectedVersion,
+        );
+      }
       return ParseUnsupported(
-        'No layout for version $detectedVersion',
+        'layout $detectedVersion is not supported',
         detectedVersion: detectedVersion,
       );
     }
@@ -247,6 +266,15 @@ final class SaveEngine {
     var after = before.replace(patch.span, patch.bytes);
     after = _recomputeIntegrity(slotLayout, after, patch.span);
 
+    // Build the decoded view before committing history/log, so a codec failure
+    // cannot leave history ahead of the project.
+    final documents = Map<SaveSlotId, SaveDocument>.of(project.documents);
+    documents[descriptor.slot] = _documentFor(
+      slotLayout,
+      after,
+      project.originals[descriptor.slot] ?? after,
+    );
+
     project.history.record(command, before, after);
     final log = project.editLog.append(
       EditRecord(
@@ -260,13 +288,6 @@ final class SaveEngine {
         command.description,
         _changedByteCount(before, after),
       ),
-    );
-
-    final documents = Map<SaveSlotId, SaveDocument>.of(project.documents);
-    documents[descriptor.slot] = _documentFor(
-      slotLayout,
-      after,
-      project.originals[descriptor.slot] ?? after,
     );
 
     return _copyProject(project, documents: documents, editLog: log);
@@ -338,6 +359,9 @@ final class SaveEngine {
       document.snapshot.revision + 1,
       original.content,
     );
+    final documents = Map<SaveSlotId, SaveDocument>.of(project.documents);
+    documents[slot] = _documentFor(slotLayout, installed, original);
+
     if (clearHistory) {
       project.history.clear();
     } else {
@@ -361,8 +385,6 @@ final class SaveEngine {
         _changedByteCount(document.snapshot, installed),
       ),
     );
-    final documents = Map<SaveSlotId, SaveDocument>.of(project.documents);
-    documents[slot] = _documentFor(slotLayout, installed, original);
     return _copyProject(project, documents: documents, editLog: log);
   }
 

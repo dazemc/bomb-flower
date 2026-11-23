@@ -254,6 +254,29 @@ void main() {
       history.rollbackTransaction();
     });
 
+    test('transactions cannot span slots', () {
+      const other = SaveSlotId('slot_01');
+      final before = snapshot(0, 0);
+      final otherBefore = SaveSnapshot(
+        other,
+        0,
+        ByteRegion.fromBytes(<int>[0]),
+      );
+      history.beginTransaction('Cross-slot');
+      history.record(scalar(1), before, snapshot(1, 1));
+
+      expect(
+        () => history.record(
+          scalar(2),
+          otherBefore,
+          SaveSnapshot(other, 1, ByteRegion.fromBytes(<int>[1])),
+        ),
+        throwsStateError,
+      );
+      expect(history.rollbackTransaction(), before);
+      expect(history.canUndo, isFalse);
+    });
+
     test('transaction edits do not coalesce with later edits', () {
       history.beginTransaction('Group');
       history.record(scalar(1), snapshot(0, 0), snapshot(1, 1));

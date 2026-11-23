@@ -133,7 +133,7 @@ final class const FieldDescriptor(
   bool get isLayoutValid =>
       span.isValid &&
       span.length > 0 &&
-      (isEditable ? source.isNotEmpty : true);
+      (confidence != FieldConfidence.verified || source.isNotEmpty);
 
   @override
   bool operator ==(Object other) =>
