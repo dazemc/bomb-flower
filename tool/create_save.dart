@@ -4,7 +4,9 @@
 ///
 /// - **Template mode** (`--template <slotDir>`, recommended) clones a save slot
 ///   the game already accepts and rewrites only the value word or name slot of
-///   an explicitly requested override. The file length is never changed.
+///   an explicitly requested override. The file length is never changed. The
+///   output folder is always `slot_00` unless `--slot-name` overrides it; the
+///   template folder's own name never reaches the output.
 /// - **Synthesised mode** (`--out <dir>`, no `--template`) builds a
 ///   schema-default save. It is experimental, not game-verified, and not the
 ///   recommended path.
@@ -15,6 +17,8 @@
 ///
 /// ```sh
 /// dart run tool/create_save.dart --template /path/to/slot_00 --out /tmp/clone
+/// dart run tool/create_save.dart --template /path/to/slot_00 --out /tmp/clone \
+///     --slot-name slot_07
 /// dart run tool/create_save.dart --out /tmp/new-save
 /// ```
 library;
@@ -34,6 +38,10 @@ import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 
 const String _schemaPath = 'assets/schema/gamedata_110.json';
 
+const String _defaultSlotName = 'slot_00';
+
+final RegExp _slotNamePattern = RegExp(r'^slot_\d{2}$');
+
 const String _experimentalWarning =
     'create_save: WARNING: synthesised-defaults mode is experimental, not '
     'game-verified, and has crashed the game in testing (SIGSEGV on load with '
@@ -49,6 +57,8 @@ Usage:
 Template mode (recommended) clones a save slot the game already accepts and
 patches only the fields you name. Each override rewrites one value word or name
 slot in place, so the file length never changes. It does not read the schema.
+It writes <dir>/slot_00/ by default; the template folder's own name is never
+used, and --slot-name overrides the folder name.
 
 Synthesised mode builds <dir>/slot_00/progress.sav and caption.sav from the
 GameData schema defaults. It is experimental, is not game-verified, and has
@@ -59,8 +69,11 @@ Options:
   --template <slotDir>     Clone this slot (the directory holding progress.sav
                            and caption.sav). Recommended.
   --out <dir>              Destination root (required in both modes). Template
-                           mode writes <dir>/<slotDir basename>/ and refuses a
-                           non-empty <dir>.
+                           mode writes <dir>/slot_00/ (or <dir>/<slot-name>/)
+                           and refuses a non-empty <dir>.
+  --slot-name <name>       Template mode only. Name the output folder; must
+                           match slot_NN (two digits, e.g. slot_00). Defaults
+                           to slot_00.
   --scene <name>           Template mode: override the caption scene name; at
                            most 63 printable ASCII characters.
   --map <path>             Template mode: override the caption map path.
@@ -169,7 +182,7 @@ Future<void> _runTemplate(_Options options) async {
     return;
   }
 
-  final slotName = _basename(slotDirectory);
+  final slotName = options.slotName;
   final targetDirectory = _join(options.out, slotName);
   final targetProgress = _join(targetDirectory, 'progress.sav');
   final targetCaption = _join(targetDirectory, 'caption.sav');
@@ -404,6 +417,7 @@ final class _Options {
     required this.scene,
     required this.mapPath,
     required this.life,
+    required this.slotName,
   });
 
   final String out;
@@ -416,6 +430,7 @@ final class _Options {
   final String? scene;
   final String? mapPath;
   final int? life;
+  final String slotName;
 }
 
 /// A command-line mistake that maps to exit code 2.
@@ -439,6 +454,7 @@ _Options _parse(List<String> args) {
   String? scene;
   String? mapPath;
   int? life;
+  String? slotName;
 
   for (var index = 0; index < args.length; index++) {
     final argument = args[index];
@@ -464,6 +480,9 @@ _Options _parse(List<String> args) {
     } else if (argument == '--life') {
       index++;
       life = _requireInt(args, index, argument);
+    } else if (argument == '--slot-name') {
+      index++;
+      slotName = _requireValue(args, index, argument);
     } else if (argument == '--max-life' ||
         argument == '--rotation' ||
         argument == '--include-profile-files') {
@@ -536,7 +555,19 @@ _Options _parse(List<String> args) {
         'always refuses a non-empty destination',
       );
     }
+    if (slotName != null && !_slotNamePattern.hasMatch(slotName)) {
+      throw _UsageError(
+        '--slot-name must match slot_NN with exactly two digits (for example '
+        'slot_00); got "$slotName"',
+      );
+    }
   } else {
+    if (slotName != null) {
+      throw const _UsageError(
+        '--slot-name requires --template; synthesised mode already writes '
+        'slot_00',
+      );
+    }
     if (scene != null || mapPath != null || life != null) {
       throw const _UsageError(
         '--scene, --map and --life require --template; synthesised mode has no '
@@ -564,6 +595,7 @@ _Options _parse(List<String> args) {
     scene: scene,
     mapPath: mapPath,
     life: life,
+    slotName: slotName ?? _defaultSlotName,
   );
 }
 
@@ -598,14 +630,6 @@ String _join(String directory, String name) {
   return hasSeparator
       ? '$directory$name'
       : '$directory${Platform.pathSeparator}$name';
-}
-
-String _basename(String path) {
-  final segments = Directory(path).absolute.path
-      .split(Platform.pathSeparator)
-      .where((segment) => segment.isNotEmpty)
-      .toList();
-  return segments.isEmpty ? 'slot_00' : segments.last;
 }
 
 bool _bytesEqual(List<int> a, List<int> b) {

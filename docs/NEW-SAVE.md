@@ -17,7 +17,8 @@ the Continue prompt with one Load row, and the game reached `state=play` at
 `HyruleField_Child` with `life 12 / max_life 16`. That verification is limited
 to cloning a slot the game already accepts: the mode applies only
 length-preserving overrides and cannot invent a save from nothing, so it does
-not upgrade the synthesised-defaults warning above.
+not upgrade the synthesised-defaults warning above. Template mode always writes
+`<out>/slot_00/` unless `--slot-name` overrides the folder name.
 
 ## What is created
 
