@@ -222,6 +222,10 @@ excluded.
 - Capacity upgrades (7): quiver, bullet-bag, bomb-bag, and scale flags outside
   the `IsGet.*` namespace.
 
+The tab also runs cross-field health checks (`Life ≤ MaxLife` and the max-life
+range) and shows their results as a banner; those checks are local to the tab
+and are not part of the footer's engine-level validation summary.
+
 **Read-only / unavailable.** No `MaxRupee`, wallet level, or rupee-capacity
 field exists. Do not clamp `CurrentRupee` to an invented maximum.
 `NaviChat_MaxRupee_Displayed` is a UI-message flag, and

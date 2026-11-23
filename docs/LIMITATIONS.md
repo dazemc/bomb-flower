@@ -214,3 +214,21 @@ is updated.
 **Mitigation.** Treat the rejection as safety, not a bug. Add a new layout only
 with fresh samples and tests; never widen the accepted revision range to "make
 it open". Report the detected revision in diagnostics.
+
+## 14. The footer reports engine validation, not tab-level cross-field rules
+
+**Impact.** The status footer summarises the session's engine `ValidationIssue`
+list (`lib/presentation/bloc/save_session/save_session_cubit.dart`, the
+`_validationSummary` helper). Cross-field rules that a tab evaluates locally are
+not in that list, so a conflict can be visible in a tab while the footer reports
+no blocking issues. Concretely, with `Life=16` and `MaxLife=12`, Resources shows
+**`Health values conflict`** with `Life (16) exceeds MaxLife (12).`
+(`lib/presentation/shell/tabs/resources_tab.dart`,
+`lib/domain/validation/field_validators.dart`) while the footer still reads
+`No blocking issues · 8328 informational notes`. The export gate
+(`SaveEngine.export` → `plan.blockingIssues`, `lib/domain/engine/save_engine.dart`)
+consumes engine issues, so this tab banner is not an export refusal.
+
+**Mitigation.** Read the tab banner as the check for the values that tab covers;
+do not treat the footer as a complete validation report. Confirm cross-field
+values in the tab before exporting. Do not claim the conflict blocks export.
