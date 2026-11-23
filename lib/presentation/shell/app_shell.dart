@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../data/system/directory_picker.dart';
 import '../bloc/shell/shell_cubit.dart';
 import '../bloc/shell/shell_state.dart';
 import '../bloc/shell/tab_definition.dart';
@@ -63,6 +64,7 @@ class AppShell extends StatefulWidget {
     this.openFailure,
     this.onRetryOpen,
     this.onOpenAnotherSave,
+    this.saveFolderProbe,
   });
 
   /// A failed open to render instead of the tab content, or `null`.
@@ -73,6 +75,10 @@ class AppShell extends StatefulWidget {
 
   /// Shows the open-save dialog so the user can choose another folder.
   final Future<void> Function(BuildContext context)? onOpenAnotherSave;
+
+  /// Filesystem probe handed to the title bar's file actions, so tests can
+  /// substitute a fake. A null value falls back to the real IO probe there.
+  final SaveFolderProbe? saveFolderProbe;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -128,6 +134,7 @@ class _AppShellState extends State<AppShell> {
                   interactive: state.windowChromeEnabled,
                   isDirty: state.isDirty,
                   saveName: state.saveName,
+                  saveFolderProbe: widget.saveFolderProbe,
                 ),
                 Expanded(
                   child: LayoutBuilder(

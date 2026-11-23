@@ -395,6 +395,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
               return SaveTabScope(
                 source: _createSource(),
                 child: AppShell(
+                  saveFolderProbe: widget.saveFolderProbe,
                   openFailure: failure,
                   onRetryOpen: retryPath == null
                       ? null
