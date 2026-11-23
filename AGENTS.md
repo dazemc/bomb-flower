@@ -18,11 +18,11 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 
 ## Tests
 
-- 103 files under `test/` (count as of `351e876`), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
+- 110 files under `test/` at the time of writing (103 tracked at `19902c1`; `test/audit/` and `test/engine/` were still uncommitted), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
 - One file: `flutter test test/data/progress_codec_test.dart`. One test: `flutter test test/architecture/layering_test.dart --plain-name 'domain is pure Dart'`.
 - Slowest: every test in `test/presentation/dialogs/open_save_picker_test.dart` and `open_save_dialog_test.dart` sets `Timeout(Duration(seconds: 30))`.
 - `.local-fixtures/` is gitignored yet present here (3 scrubbed samples + `real/`), rebuilt by `dart run tool/make_fixtures.dart`; where it is absent the fixture groups skip, and a lower `+N` with a higher `~N` is not a failure. Override with `BOMB_FLOWER_LONGSHOT_SAVES` / `BOMB_FLOWER_REAL_SAVES`.
-- The two `skip:` stubs in `test/domain/engine/roundtrip_invariants_test.dart` are declared gaps — never report them as passing and never add a third.
+- `test/domain/engine/roundtrip_invariants_test.dart` is no longer skipped: it asserts byte-identical reserialisation of two real slots (120,572 and 122,940 bytes), a one-byte `PlayerStatus.Life` 16→20 diff, and that the reserved `[0x0C, 0x28)` gap no field span claims plus an opaque tail span stay untouched; it copies real saves from `~/.local/share/longshot/...` into `.tmp/rt`. Never weaken, skip, or delete those assertions.
 - Never weaken an assertion, delete a case, or edit a fixture to make a suite pass; report the failure with its output instead.
 - `.tmp/` here holds 3,558 scratch Dart copies: exclude it from every glob, grep, and count or the answer is wrong.
 
