@@ -25,14 +25,28 @@ abstract final class BombFlowerColors {
 
   // Borders, stone, and wood.
   static const stone = Color(0xFF6E6A5C);
-  static const stoneLight = Color(0xFFA39C89);
+
+  /// The light stone hairline.
+  ///
+  /// Darkened from #A39C89 to #87806D so a 1 px border clears 3:1 on parchment
+  /// (2.15:1 -> 3.09:1) while still clearing it on the canopy (5.16:1 ->
+  /// 3.59:1), where it outlines tooltips and snackbars. See
+  /// test/presentation/theme/contrast_test.dart.
+  static const stoneLight = Color(0xFF87806D);
+
   static const stoneDark = Color(0xFF4A473D);
   static const wood = Color(0xFF4A3423);
   static const woodLight = Color(0xFF6B4A2F);
   static const woodDark = Color(0xFF2E2016);
   static const woodEdge = Color(0xFF8A6A45);
   static const divider = Color(0xFFC9BCA1);
-  static const dividerDark = Color(0xFF33463A);
+
+  /// The canopy divider.
+  ///
+  /// Raised from #33463A to #607A69: it is the status footer's top border and
+  /// its inner separators, and 1.60:1 on canopy1 could not show a region edge.
+  /// Now 3.44:1 on canopy1, 3.81:1 on canopy0, and 3.02:1 on canopy2.
+  static const dividerDark = Color(0xFF607A69);
 
   // Brass / gold.
   static const brass = Color(0xFFC9A227);

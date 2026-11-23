@@ -171,9 +171,12 @@ class _DeterminateBar extends StatelessWidget {
           ),
           FractionallySizedBox(
             widthFactor: value,
+            // Brass ink, not brass: the 4 px fill has to identify progress
+            // against the sunken track (brass measured 1.64:1, brassInk
+            // measures 5.23:1). The hue is still the brass family.
             child: const DecoratedBox(
               decoration: BoxDecoration(
-                color: BombFlowerColors.brass,
+                color: BombFlowerColors.brassInk,
                 borderRadius: BorderRadius.all(Radius.circular(2)),
                 border: Border.fromBorderSide(
                   BorderSide(color: BombFlowerColors.brassInk),
