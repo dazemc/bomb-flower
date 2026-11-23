@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../domain/core/edit_command.dart';
 import '../../domain/core/field_metadata.dart';
 import '../../domain/core/field_value.dart';
-import '../../domain/core/save_project.dart';
-import '../../domain/core/validation.dart';
+import '../../domain/core/identity.dart';
 import '../../domain/fields/field_groups.dart';
 
 /// A single field as the save tab should render it.
