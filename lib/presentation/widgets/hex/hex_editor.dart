@@ -230,6 +230,7 @@ class _HexEditorState extends State<HexEditor> {
     _selectionHexController = TextEditingController();
     _lastRevision = widget.controller.revision;
     _lastActiveOffset = widget.controller.activeOffset;
+    _syncSelectionText(force: true);
     widget.controller.addListener(_onControllerChanged);
     _gridFocus.addListener(_onGridFocusChanged);
     _selectionFieldFocus.addListener(_onSelectionFieldFocusChanged);
@@ -246,6 +247,7 @@ class _HexEditorState extends State<HexEditor> {
       _clearSearch();
       _selectionHexController.clear();
       _selectionError = null;
+      _syncSelectionText(force: true);
     }
   }
 

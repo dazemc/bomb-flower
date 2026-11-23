@@ -453,6 +453,13 @@ void main() {
       expect(find.text('Little endian'), findsOneWidget);
       expect(find.textContaining('0xDEADBEEF'), findsOneWidget);
       expect(find.textContaining('0xEFBEADDE'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(HexEditor.selectionFieldKey))
+            .controller
+            ?.text,
+        'DE AD BE EF',
+      );
     });
 
     testWidgets('a 120 KB buffer stays virtualised', (tester) async {
