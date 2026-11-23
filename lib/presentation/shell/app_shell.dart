@@ -423,7 +423,7 @@ class _OpenFailureView extends StatelessWidget {
   }
 }
 
-class _ShellTabContent extends StatelessWidget {
+class _ShellTabContent extends StatefulWidget {
   const _ShellTabContent({
     required this.activeTab,
     required this.settingsStore,
@@ -433,6 +433,73 @@ class _ShellTabContent extends StatelessWidget {
 
   /// Shared with the title bar so an edit in Settings applies immediately.
   final SettingsStore settingsStore;
+
+  @override
+  State<_ShellTabContent> createState() => _ShellTabContentState();
+}
+
+/// Keeps every visited tab mounted and hides it with [Offstage].
+///
+/// The eleven pages are expensive to construct: each derives field views from
+/// the open project and builds its tables from them. Building one lazily on
+/// first visit and then keeping its element subtree alive means a revisit costs
+/// a layout pass instead of a full rebuild, and per-tab state (search text,
+/// page cursor, scroll offset) survives switching away.
+///
+/// Only the active page is on stage, so exactly one page is painted — the same
+/// single-exposure result the previous `AnimatedSwitcher` achieved by dropping
+/// the outgoing page. The incoming page still fades and settles in.
+///
+/// Offstage pages stay out of the focus tree and their tickers are muted, so a
+/// hidden tab cannot steal focus or keep an animation running.
+class _ShellTabContentState extends State<_ShellTabContent>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _transition = AnimationController(
+    vsync: this,
+    duration: BombFlowerMotion.tab,
+    value: 1,
+  );
+  late final Animation<double> _curve = CurvedAnimation(
+    parent: _transition,
+    curve: BombFlowerMotion.standardCurve,
+  );
+  late final Animation<Offset> _settle = Tween<Offset>(
+    begin: const Offset(0, 0.008),
+    end: Offset.zero,
+  ).animate(_curve);
+
+  /// Tabs built so far, in navigation order so stacking is deterministic.
+  final List<ShellTab> _mounted = <ShellTab>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _mounted.add(widget.activeTab);
+  }
+
+  @override
+  void didUpdateWidget(_ShellTabContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeTab == widget.activeTab) {
+      return;
+    }
+    if (!_mounted.contains(widget.activeTab)) {
+      _mounted
+        ..add(widget.activeTab)
+        ..sort((a, b) => a.index.compareTo(b.index));
+    }
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _transition.value = 1;
+    } else {
+      _transition.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _transition.dispose();
+    super.dispose();
+  }
 
   Widget _pageFor(ShellTab tab) {
     return switch (tab) {
@@ -456,7 +523,7 @@ class _ShellTabContent extends StatelessWidget {
       ),
       ShellTab.settings => SettingsTab(
         key: const Key('tab-page-settings'),
-        store: settingsStore,
+        store: widget.settingsStore,
       ),
     };
   }
@@ -464,31 +531,23 @@ class _ShellTabContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return AnimatedSwitcher(
-      duration: reduceMotion ? Duration.zero : BombFlowerMotion.tab,
-      switchInCurve: BombFlowerMotion.standardCurve,
-      switchOutCurve: BombFlowerMotion.standardCurve,
-      layoutBuilder: (currentChild, previousChildren) {
-        // Only the incoming page is laid out. Keeping the outgoing page in the
-        // stack cross-fades two transparent pages over the shared canopy,
-        // double-exposing their glyphs; since the page background is the same
-        // canopy either way, dropping the outgoing copy costs nothing visible
-        // and removes the ghosting entirely. Reduced motion already switches
-        // with a zero duration.
-        return currentChild ?? const SizedBox.shrink();
-      },
-      transitionBuilder: (child, animation) {
-        if (reduceMotion) return child;
-        final settle = Tween<Offset>(
-          begin: const Offset(0, 0.008),
-          end: Offset.zero,
-        ).animate(animation);
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: settle, child: child),
-        );
-      },
-      child: _pageFor(activeTab),
+    final pages = <Widget>[
+      for (final tab in _mounted)
+        Offstage(
+          offstage: tab != widget.activeTab,
+          child: ExcludeFocus(
+            excluding: tab != widget.activeTab,
+            child: _pageFor(tab),
+          ),
+        ),
+    ];
+    final stack = Stack(fit: StackFit.expand, children: pages);
+    if (reduceMotion) {
+      return stack;
+    }
+    return FadeTransition(
+      opacity: _curve,
+      child: SlideTransition(position: _settle, child: stack),
     );
   }
 }
