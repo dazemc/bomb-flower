@@ -27,6 +27,26 @@ final class const ValidationIssue(
   /// Whether this issue blocks export.
   bool get isBlocking => severity == Severity.error;
 
+  /// Whether this issue is a provenance notice rather than a problem.
+  ///
+  /// A [ValidationCodes.fieldUnverified] warning says the field's meaning is
+  /// not backed by research and the field is therefore read-only. Nothing is
+  /// wrong with the save, so a status line must not count it as a warning.
+  /// The same code emitted at [Severity.error] (a verified field with no
+  /// citation) is a real problem and is deliberately not informational.
+  bool get isInformational =>
+      severity == Severity.warning &&
+      code == ValidationCodes.fieldUnverified;
+
+  /// Whether this issue asks the user to act.
+  ///
+  /// [Severity.error] blocking is reported through [isBlocking]; a warning is
+  /// actionable unless it is a provenance notice. `field.out_of_range` stays
+  /// actionable: an out-of-range value is something to look at, while "this
+  /// field is not research-verified" is not.
+  bool get isActionableWarning =>
+      severity == Severity.warning && !isInformational;
+
   @override
   bool operator ==(Object other) =>
       other is ValidationIssue &&

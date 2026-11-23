@@ -718,27 +718,38 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
   }
 }
 
+/// One-line footer summary of [issues].
+///
+/// Provenance notices (`field.unverified` warnings) are reported as
+/// informational notes, never as warnings: on a retail save there are thousands
+/// of them and none is a problem. The reassurance "No blocking issues" appears
+/// only when nothing actionable exists, because that is exactly when the reader
+/// needs to be told the alarm is not real.
 String _validationSummary(List<ValidationIssue> issues) {
   if (issues.isEmpty) {
     return 'No validation issues';
   }
-  var errors = 0;
+  var blocking = 0;
   var warnings = 0;
   var notes = 0;
   for (final issue in issues) {
-    switch (issue.severity) {
-      case Severity.error:
-        errors++;
-      case Severity.warning:
-        warnings++;
-      case Severity.info:
-        notes++;
+    if (issue.isBlocking) {
+      blocking++;
+    } else if (issue.isActionableWarning) {
+      warnings++;
+    } else {
+      notes++;
     }
   }
+  String plural(int count, String singular) =>
+      '$count $singular${count == 1 ? '' : 's'}';
+  if (blocking == 0 && warnings == 0) {
+    return 'No blocking issues · ${plural(notes, 'informational note')}';
+  }
   return <String>[
-    if (errors > 0) '$errors blocking ${errors == 1 ? 'issue' : 'issues'}',
-    if (warnings > 0) '$warnings ${warnings == 1 ? 'warning' : 'warnings'}',
-    if (notes > 0) '$notes ${notes == 1 ? 'note' : 'notes'}',
+    if (blocking > 0) plural(blocking, 'blocking issue'),
+    if (warnings > 0) plural(warnings, 'warning'),
+    if (notes > 0) plural(notes, 'informational note'),
   ].join(' · ');
 }
 

@@ -201,9 +201,21 @@ final class SaveProjectUi extends Equatable {
   int get blockingIssueCount =>
       issues.where((issue) => issue.isBlocking).length;
 
-  /// Number of warning issues.
+  /// Number of warning-severity issues.
+  ///
+  /// This is the engine's raw count and includes provenance notices, so it is
+  /// not a user-facing alarm. Use [actionableWarningCount] to colour the footer
+  /// and [informationalIssueCount] to describe the notices.
   int get warningCount =>
       issues.where((issue) => issue.severity == Severity.warning).length;
+
+  /// Number of warnings that ask the user to act.
+  int get actionableWarningCount =>
+      issues.where((issue) => issue.isActionableWarning).length;
+
+  /// Number of provenance notices, which never block and need no action.
+  int get informationalIssueCount =>
+      issues.where((issue) => issue.isInformational).length;
 
   /// Slots that are open.
   List<SaveSlotUi> get openSlots =>

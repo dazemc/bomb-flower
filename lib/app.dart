@@ -144,7 +144,7 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
       validationSummary: project.validationSummary,
       validationHealth: project.hasBlockingErrors
           ? ShellValidationHealth.errors
-          : project.warningCount > 0
+          : project.actionableWarningCount > 0
           ? ShellValidationHealth.warnings
           : ShellValidationHealth.ok,
     );

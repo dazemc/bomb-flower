@@ -1,5 +1,6 @@
 import 'package:bomb_flower/app.dart';
 import 'package:bomb_flower/presentation/bloc/shell/shell_cubit.dart';
+import 'package:bomb_flower/presentation/bloc/shell/shell_state.dart';
 import 'package:bomb_flower/presentation/bloc/shell/tab_definition.dart';
 import 'package:bomb_flower/presentation/shell/app_shell.dart';
 import 'package:bomb_flower/presentation/shell/shell_status_footer.dart';
@@ -232,6 +233,45 @@ void main() {
       expect(find.text('Validation: engine pending'), findsOneWidget);
       expect(find.textContaining('No save file open'), findsWidgets);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the footer dot colour follows validation health', (
+      tester,
+    ) async {
+      for (final (health, color) in <(ShellValidationHealth, Color)>[
+        (ShellValidationHealth.ok, BombFlowerColors.successLight),
+        (ShellValidationHealth.unknown, BombFlowerColors.warningLight),
+        (ShellValidationHealth.warnings, BombFlowerColors.warningLight),
+        (ShellValidationHealth.errors, BombFlowerColors.dangerLight),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ShellStatusFooter(
+                state: ShellState(
+                  validationSummary: health.name,
+                  validationHealth: health,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final dot = tester.widget<Container>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Container &&
+                widget.decoration is BoxDecoration &&
+                (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
+          ),
+        );
+        expect(
+          (dot.decoration! as BoxDecoration).color,
+          color,
+          reason: '${health.name} must paint $color',
+        );
+      }
     });
 
     testWidgets('switches tab content when a nav row is tapped', (

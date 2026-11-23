@@ -8,6 +8,8 @@ import 'package:bomb_flower/domain/engine/ports.dart';
 import 'package:bomb_flower/domain/engine/save_engine.dart';
 import 'package:bomb_flower/presentation/bloc/save_session/save_session_cubit.dart';
 import 'package:bomb_flower/presentation/bloc/save_session/save_session_ui_state.dart';
+import 'package:bomb_flower/presentation/bloc/shell/shell_cubit.dart';
+import 'package:bomb_flower/presentation/bloc/shell/shell_state.dart';
 import 'package:bomb_flower/presentation/dialogs/open_save_dialog.dart';
 import 'package:bomb_flower/presentation/shell/app_shell.dart';
 import 'package:bomb_flower/presentation/tabs_support/save_tab_scope.dart';
@@ -25,6 +27,77 @@ const LayoutDescriptor _layout = LayoutDescriptor(
   1,
   <SaveSlotLayout>[],
 );
+
+const SaveSlotId _slot = SaveSlotId('slot_00');
+
+/// Byte length of the synthetic slot used by the validation-footer cases.
+const int _syntheticSlotLength = 64;
+
+/// A project whose single slot declares [fields], so the real [SaveEngine]
+/// classifies them; no codec, file, or save bytes are involved.
+SaveProject _projectWithFields(
+  List<FieldDescriptor> fields, {
+  List<int>? bytes,
+}) {
+  final layout = LayoutDescriptor('wiring-layout', 1, <SaveSlotLayout>[
+    SaveSlotLayout(
+      _slot,
+      'slot_00/progress.sav',
+      fields,
+      expectedLength: _syntheticSlotLength,
+    ),
+  ]);
+  final snapshot = SaveSnapshot(
+    _slot,
+    1,
+    ByteRegion.fromBytes(
+      bytes ?? List<int>.filled(_syntheticSlotLength, 0),
+    ),
+  );
+  return SaveProject(
+    'wiring-project',
+    '/wiring/save',
+    '/wiring/save.bombflower',
+    layout,
+    1,
+    <SaveSlotId, SaveSnapshot>{_slot: snapshot},
+    <SaveSlotId, SaveDocument>{
+      _slot: SaveDocument(_slot, layout.slots.single, snapshot, const []),
+    },
+    <SaveSlotId, int>{_slot: snapshot.fingerprint},
+    EditHistory(),
+    EditLog.empty(),
+  );
+}
+
+/// One field the engine reports as `field.unverified` and read-only.
+FieldDescriptor _unverifiedField(int offset) => FieldDescriptor(
+  FieldId('progress.unverified_$offset'),
+  _slot,
+  'Unverified $offset',
+  FieldKind.integer,
+  ByteSpan(offset, 4),
+  FieldConfidence.unverified,
+  '',
+);
+
+/// A session that opens [project] through the real engine's validation.
+({SaveSessionCubit cubit, _FakeRepository repository}) _sessionFor(
+  SaveProject project,
+) {
+  final repository = _FakeRepository(project);
+  final cubit = SaveSessionCubit(
+    engine: const SaveEngine(
+      SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
+    ),
+    repository: repository,
+    resolveLayout: (_) async => const LayoutSelection(_layout, 1),
+  );
+  return (cubit: cubit, repository: repository);
+}
+
+ShellState _shellState(WidgetTester tester) =>
+    BlocProvider.of<ShellCubit>(tester.element(find.byType(AppShell))).state;
 
 SaveProject _project() => SaveProject(
   'wiring-project',
@@ -462,6 +535,132 @@ void main() {
     expect(find.text('No save open'), findsNothing);
     expect(find.textContaining('No save file open'), findsNothing);
     expect(find.textContaining('engine pending'), findsNothing);
+  });
+
+  testWidgets(
+    'an informational-only save says so and keeps the footer dot healthy',
+    (tester) async {
+      _prepareView(tester);
+      final session = _sessionFor(
+        _projectWithFields(<FieldDescriptor>[
+          _unverifiedField(0),
+          _unverifiedField(4),
+          _unverifiedField(8),
+        ]),
+      );
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(enableWindowChrome: false, session: cubit),
+      );
+      await tester.pumpAndSettle();
+
+      await cubit.openPath('/wiring/save');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No blocking issues · 3 informational notes'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('warnings'), findsNothing);
+      expect(_shellState(tester).validationHealth, ShellValidationHealth.ok);
+    },
+  );
+
+  testWidgets(
+    'one blocking issue is reported as blocking and turns the dot red',
+    (tester) async {
+      _prepareView(tester);
+      final session = _sessionFor(
+        _projectWithFields(<FieldDescriptor>[
+          FieldDescriptor(
+            FieldId('progress.out_of_slot'),
+            _slot,
+            'Outside the slot',
+            FieldKind.integer,
+            const ByteSpan(60, 8),
+            FieldConfidence.unverified,
+            '',
+          ),
+        ]),
+      );
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(enableWindowChrome: false, session: cubit),
+      );
+      await tester.pumpAndSettle();
+
+      await cubit.openPath('/wiring/save');
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 blocking issue'), findsOneWidget);
+      expect(
+        _shellState(tester).validationHealth,
+        ShellValidationHealth.errors,
+      );
+    },
+  );
+
+  testWidgets(
+    'actionable warnings lead and provenance notices are counted separately',
+    (tester) async {
+      _prepareView(tester);
+      // One verified field holds 200 against a declared 0..10 bound, and one
+      // unverified field is a provenance notice.
+      final bytes = List<int>.filled(_syntheticSlotLength, 0)..[0] = 200;
+      final session = _sessionFor(
+        _projectWithFields(<FieldDescriptor>[
+          const FieldDescriptor(
+            FieldId('progress.max_life'),
+            _slot,
+            'Max life',
+            FieldKind.integer,
+            ByteSpan(0, 1),
+            FieldConfidence.verified,
+            'test citation',
+            min: 0,
+            max: 10,
+          ),
+          _unverifiedField(8),
+        ], bytes: bytes),
+      );
+      final cubit = session.cubit;
+      _closeOnTeardown(cubit);
+
+      await tester.pumpWidget(
+        BombFlowerApp(enableWindowChrome: false, session: cubit),
+      );
+      await tester.pumpAndSettle();
+
+      await cubit.openPath('/wiring/save');
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 warning · 1 informational note'), findsOneWidget);
+      expect(
+        _shellState(tester).validationHealth,
+        ShellValidationHealth.warnings,
+      );
+    },
+  );
+
+  testWidgets('a closed session keeps the engine-pending footer default', (
+    tester,
+  ) async {
+    _prepareView(tester);
+    final session = _openingSession();
+    final cubit = session.cubit;
+    _closeOnTeardown(cubit);
+
+    await tester.pumpWidget(
+      BombFlowerApp(enableWindowChrome: false, session: cubit),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Validation: engine pending'), findsOneWidget);
+    expect(_shellState(tester).validationHealth, ShellValidationHealth.unknown);
   });
 
   testWidgets(
