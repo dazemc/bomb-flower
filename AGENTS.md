@@ -2,6 +2,11 @@
 
 Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-2 remake saves. The pure-Dart save engine is the product and the UI is a client of it: read `docs/ARCHITECTURE.md` before moving code, `docs/SAVE-FORMAT.md` before touching bytes, `docs/LIMITATIONS.md` before claiming something works.
 
+## This file is maintained, not archival
+
+- When a change alters a command, the layering, a save-format invariant, the package set, the tooling, or the Longshot boundary, update this file in the same commit.
+- If a line here disagrees with the code, fix the line — do not route around it, and do not leave a stale claim standing because it was once true.
+
 ## Toolchain
 
 - Flutter 3.50.1 / Dart 3.14.0 at `/home/daze/.local/opt/flutter/bin`; plain `flutter` and `dart` on PATH already resolve there, so no wrapper is needed.
@@ -13,7 +18,7 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 
 ## Tests
 
-- 103 files under `test/`, and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
+- 103 files under `test/` (count as of `351e876`), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
 - One file: `flutter test test/data/progress_codec_test.dart`. One test: `flutter test test/architecture/layering_test.dart --plain-name 'domain is pure Dart'`.
 - Slowest: every test in `test/presentation/dialogs/open_save_picker_test.dart` and `open_save_dialog_test.dart` sets `Timeout(Duration(seconds: 30))`.
 - `.local-fixtures/` is gitignored yet present here (3 scrubbed samples + `real/`), rebuilt by `dart run tool/make_fixtures.dart`; where it is absent the fixture groups skip, and a lower `+N` with a higher `~N` is not a failure. Override with `BOMB_FLOWER_LONGSHOT_SAVES` / `BOMB_FLOWER_REAL_SAVES`.
@@ -26,12 +31,13 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 - `flutter run -d linux`, or `flutter build linux --debug` then `./build/linux/x64/debug/bundle/bomb_flower` (the release bundle drops `/debug/`). Run from `bundle/`, never an intermediate `build/` dir.
 - Headless smoke test, where exit `124` means it stayed alive and therefore passed: `xvfb-run -a --server-args='-screen 0 1400x900x24' timeout 15 ./build/linux/x64/debug/bundle/bomb_flower`
 - `linux/runner/my_application.cc` commits two `bitsdojo_window` lines (the include and `setCustomFrame(true)`); regenerating `linux/` drops them and the window reverts to a native frame.
-- New save is a CLI, not a UI action: `dart run tool/create_save.dart --out /tmp/new-save` writes a 120,572-byte schema-default save — a created save has still never been loaded by the game.
+- New save is a CLI, not a UI action — **true only until the New Save UI call site lands, then fix this line**: `dart run tool/create_save.dart --out /tmp/new-save` writes a 120,572-byte schema-default save, and no created save has been loaded by the game.
 
 ## Architecture
 
 - `lib/domain` is pure Dart, enforced at source level by `test/architecture/layering_test.dart`: no `package:flutter/`, `flutter_bloc`, `bloc`, `material_ui`, `bitsdojo_window`, `equatable`, `dart:io`, `dart:ui`. Zero such imports exist today. `lib/data` may not import UI/bloc packages, `lib/presentation` may not import `dart:io`, and deleting a layer fails it too.
 - Bytes and file access therefore live in `lib/data/{io,codec,adapter,system}`; `SaveSessionCubit` is the only route from UI to engine and owns no offsets.
+- The save-root resolver accepts only two shapes: a `slot_NN`-named folder, or a folder that directly holds `progress.sav`, and it then resolves to that folder's parent (`lib/data/system/profile_path.dart:81-99`). A `progress.sav` file path is rejected with `Not a folder` (`lib/data/system/directory_lister.dart:125`) and a bare `save/` root with no direct slot is rejected as "is not <profile folder shape>". Planned: widen to four shapes. **Unsettled:** that file is untracked and was rewritten several times today, so no git history can confirm what it did earlier — do not assert a past defect from memory.
 - progress.sav has no static layout: `ProgressLayoutResolver` + `ProgressLayoutBuilder` derive a per-file `LayoutDescriptor` and hand it to `SaveEngine.open`, so `SaveFormat.layoutFor(version)` is *not* its open path.
 - Header, 40 bytes: magic `0x01020304`, revision `2982123` at `0x04`, tail `u32@0x08` (`0x175d8`), reserved `0x0c–0x27` zero; then `{u32 Murmur3(name) key, u32 value}` × 11,958 = 11,925 fields + 32 sentinels + 1 footer. Codec `lib/data/codec/progress_codec.dart`, table `lib/domain/save/progress_layout.dart`; a different revision is rejected, not guessed.
 - Schema `assets/schema/gamedata_110.json` (7.2 MB, hash-verified from `GameDataList.Product.110`, `recordIndex` order from the samples): 3,608 named fields, 8,317 hash-only.
@@ -45,6 +51,7 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 - Hash-only fields stay read-only; only named, verified fields get a write path.
 - Exports keep a `.bak` and a `<root>.bombflower-original/` sidecar and never silently overwrite an original. Work on copies.
 - A round-trip test is not game acceptance: one scalar edit has ever loaded in the game, and no created save has.
+- Corrupt or unsupported input is rejected, never guessed; the messages are the contract — `the magic at 0x0 is 0xffffffff; expected 0x01020304`, `the data offset 95704 points past the end of the 100-byte buffer`, `SaveUnsupportedRevision(detected: 2982124, supported: 2982123)`.
 
 ## Longshot boundary — strictly read-only
 
