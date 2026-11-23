@@ -145,7 +145,9 @@ class _BrassButtonState extends State<BrassButton> {
             child: IgnorePointer(
               child: CustomPaint(
                 painter: FocusRingPainter(
-                  color: palette.focusOnLight,
+                  color: widget.onDark
+                      ? BombFlowerColors.brassFocus
+                      : palette.focusOnLight,
                   radius: BombFlowerRadii.sm,
                 ),
               ),
