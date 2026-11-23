@@ -73,6 +73,9 @@ therefore the gate: a pinned refspec, a fast-forward precondition, and an empty
 working tree before and after. `jev_gate` is advisory signal for these commands
 rather than a gate.
 
+- `python3 docs/check_image_paths.py` verifies that every image target in
+  `README.md` and `docs/**/*.md` resolves; `--self-test` checks the checker.
+
 ## Build
 
 ```sh
