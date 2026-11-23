@@ -18,7 +18,7 @@ Flutter Linux-desktop save editor/creator for Longshot's Ocarina of Time Switch-
 
 ## Tests
 
-- 105 `*_test.dart` files under `test/` (116 Dart files on disk here, 113 tracked; the three untracked ones are `test/e2e/` and `test/audit/tab_content_test.dart`), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
+- 105 `*_test.dart` files under `test/` (116 Dart files under `test/`, all tracked), and the whole suite is headless: no `@Tags`, no `integration_test`, no display.
 - One file: `flutter test test/data/progress_codec_test.dart`. One test: `flutter test test/architecture/layering_test.dart --plain-name 'domain is pure Dart'`.
 - Slowest: every test in `test/presentation/dialogs/open_save_picker_test.dart` and `open_save_dialog_test.dart` sets `Timeout(Duration(seconds: 30))`.
 - `.local-fixtures/` is gitignored yet present here (3 scrubbed samples + `real/`), rebuilt by `dart run tool/make_fixtures.dart`; where it is absent the fixture groups skip, and a lower `+N` with a higher `~N` is not a failure. Override with `BOMB_FLOWER_LONGSHOT_SAVES` / `BOMB_FLOWER_REAL_SAVES`.
