@@ -171,11 +171,13 @@ table, no arrow count, no bomb count, no Deku-stick/nut count, and no wallet
 capacity. Pouch contents other than bottles have no verified names.
 
 Names containing the word `Item` that are **not** inventory state are
-intentionally excluded from this tab: the `Item_Melody_*` and
+intentionally excluded from this tab: the non-`IsGet` `Item_Melody_*` and
 `HavePlayedGetEvent.Item_Melody_*` fields are song/cutscene flags in
 Progression, and the `Market_*` / `Npc_*` `Item_Bottle_TutorialEvent` fields are
 shop/tutorial events. They match the word pattern but would mislead a user
-looking for an item count.
+looking for an item count. The `IsGet.Item_Melody_*` rows remain in acquisition
+because they are genuine `IsGet` acquisition flags (and also appear in
+Progression's `IsGet` view).
 
 ## Equipment
 
