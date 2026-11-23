@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../theme/bomb_flower_colors.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../controls/control_icon_button.dart';
+import 'compare_action.dart';
 
 /// Compact shell action group: open, save, save-as, duplicate, reset, undo/redo.
 ///
@@ -11,7 +12,7 @@ import '../controls/control_icon_button.dart';
 /// title bar without competing with the save name at 1100 px wide; every icon
 /// carries the label as its tooltip and screen-reader name.
 ///
-/// Below [collapseBreakpoint] the seven icons collapse into one overflow menu so
+/// Below [collapseBreakpoint] the eight icons collapse into one overflow menu so
 /// the brand and save identity keep their room.
 class FileActionBar extends StatelessWidget {
   /// Creates the action group.
@@ -136,6 +137,7 @@ class FileActionBar extends StatelessWidget {
           // Keep the edit-history pair visually separate from the file actions.
           if (index == 5) const _ActionDivider(),
           _action(actions[index]),
+          if (index == 4) const CompareAction(),
         ],
       ],
     );
@@ -154,16 +156,18 @@ class FileActionBar extends StatelessWidget {
   Widget _overflowMenu(List<_FileAction> actions) {
     return MenuAnchor(
       menuChildren: <Widget>[
-        for (final action in actions)
+        for (var index = 0; index < actions.length; index++) ...<Widget>[
           Tooltip(
-            message: _tooltip(action.label, action.onPressed),
+            message: _tooltip(actions[index].label, actions[index].onPressed),
             child: MenuItemButton(
-              key: action.key,
-              leadingIcon: Icon(action.icon, size: 16),
-              onPressed: action.onPressed,
-              child: Text(action.label),
+              key: actions[index].key,
+              leadingIcon: Icon(actions[index].icon, size: 16),
+              onPressed: actions[index].onPressed,
+              child: Text(actions[index].label),
             ),
           ),
+          if (index == 4) const CompareMenuAction(),
+        ],
       ],
       builder: (context, controller, child) => _action(
         _FileAction(
