@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../../domain/core/edit_command.dart';
@@ -8,6 +7,7 @@ import '../../../domain/core/identity.dart';
 import '../../../domain/fields/field_groups.dart';
 import '../../bloc/shell/tab_definition.dart';
 import '../../tabs_support/save_tab_scope.dart';
+import '../../tabs_support/bundled_catalogues.dart';
 import '../../tabs_support/save_tab_source.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_theme.dart';
@@ -123,9 +123,7 @@ class _DungeonsTableState extends State<_DungeonsTable> {
     if (loader != null) {
       return loader();
     }
-    return rootBundle
-        .loadString('assets/fields/groups.json')
-        .then(FieldGroupsCatalogue.load);
+    return loadFieldGroupsCatalogueOnce();
   }
 
   @override
@@ -139,11 +137,7 @@ class _DungeonsTableState extends State<_DungeonsTable> {
       future: _catalogueFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _page(
-            context,
-            null,
-            failure: _failureText(snapshot.error),
-          );
+          return _page(context, null, failure: _failureText(snapshot.error));
         }
         final loaded = snapshot.data;
         if (loaded == null) {
@@ -269,15 +263,7 @@ class _DungeonsTableState extends State<_DungeonsTable> {
 
   /// Every view whose descriptor belongs to the active slot.
   List<TabFieldView> _scopedViews(SaveTabSource source) {
-    final slot = source.activeSlot;
-    final all = source.allViews;
-    if (slot == null) {
-      return all.toList(growable: false);
-    }
-    return <TabFieldView>[
-      for (final view in all)
-        if (view.descriptor.slot == slot) view,
-    ];
+    return slotScopedViews(source, source.activeSlot);
   }
 
   double _tableHeight(BuildContext context) {
@@ -288,20 +274,12 @@ class _DungeonsTableState extends State<_DungeonsTable> {
   // The view map is built once per frame, not per callback, so a keystroke
   // never re-scans the save's 11k descriptors.
 
-  void _commitInteger(
-    Map<String, TabFieldView> views,
-    String id,
-    int value,
-  ) {
+  void _commitInteger(Map<String, TabFieldView> views, String id, int value) {
     if (!views.containsKey(id)) return;
     widget.source.edit(SetScalar(FieldId(id), value));
   }
 
-  void _commitBoolean(
-    Map<String, TabFieldView> views,
-    String id,
-    bool value,
-  ) {
+  void _commitBoolean(Map<String, TabFieldView> views, String id, bool value) {
     if (!views.containsKey(id)) return;
     widget.source.edit(SetScalar(FieldId(id), value ? 1 : 0));
   }

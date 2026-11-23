@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../../domain/core/edit_command.dart';
@@ -11,6 +10,7 @@ import '../../../domain/formatting/scalars.dart';
 import '../../bloc/shell/tab_definition.dart';
 import '../../tabs_support/field_editor.dart';
 import '../../tabs_support/save_tab_scope.dart';
+import '../../tabs_support/bundled_catalogues.dart';
 import '../../tabs_support/save_tab_source.dart';
 import '../../theme/bomb_flower_spacing.dart';
 import '../../theme/bomb_flower_theme.dart';
@@ -162,9 +162,7 @@ class _FlagsTableState extends State<_FlagsTable> {
     if (loader != null) {
       return loader();
     }
-    return rootBundle
-        .loadString('assets/fields/groups.json')
-        .then(FieldGroupsCatalogue.load);
+    return loadFieldGroupsCatalogueOnce();
   }
 
   @override
@@ -178,11 +176,7 @@ class _FlagsTableState extends State<_FlagsTable> {
       future: _catalogueFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _page(
-            context,
-            null,
-            failure: _failureText(snapshot.error),
-          );
+          return _page(context, null, failure: _failureText(snapshot.error));
         }
         final loaded = snapshot.data;
         if (loaded == null) {
@@ -226,14 +220,18 @@ class _FlagsTableState extends State<_FlagsTable> {
             views: views,
           );
     // The hash-only rows come from the save, not the catalogue: they are the
-    // engine's `Unnamed 0x…` Bool records, which no schema name covers.
-    final hashOnlyRows = catalogue == null
-        ? const <EditTableRow>[]
-        : _hashOnlyRows(views);
+    // engine's `Unnamed 0x…` Bool records, which no schema name covers. They
+    // are only built for the half that is displayed: on a real save that is
+    // 6,769 row objects per build that nobody reads unless the toggle is on.
+    final hashOnly = catalogue == null ? 0 : _hashOnlyCount(views);
+    final hashOnlyRows = _showHashOnly && catalogue != null
+        ? _hashOnlyRows(views)
+        : const <EditTableRow>[];
 
     final named = namedRows.length;
-    final editable = namedRows.where((EditTableRow row) => row.isEditable).length;
-    final hashOnly = hashOnlyRows.length;
+    final editable = namedRows
+        .where((EditTableRow row) => row.isEditable)
+        .length;
     final hashOnlyEditable = hashOnlyRows
         .where((EditTableRow row) => row.isEditable)
         .length;
@@ -371,12 +369,25 @@ class _FlagsTableState extends State<_FlagsTable> {
           key: FlagsTab.hashOnlyToggleKey,
           value: _showHashOnly,
           label: 'Show hash-only records',
-          description: 'Hash-only Bools have no verified name and are '
+          description:
+              'Hash-only Bools have no verified name and are '
               'read-only',
           onChanged: (bool next) => setState(() => _showHashOnly = next),
         ),
       ],
     );
+  }
+
+  /// How many unverified Bool records the save reports for the active slot.
+  int _hashOnlyCount(List<TabFieldView> views) {
+    var count = 0;
+    for (final view in views) {
+      if (view.descriptor.confidence == FieldConfidence.unverified &&
+          view.descriptor.kind == FieldKind.boolean) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /// The engine's unverified Bool records, as read-only rows.
@@ -411,15 +422,7 @@ class _FlagsTableState extends State<_FlagsTable> {
 
   /// Every view whose descriptor belongs to the active slot.
   List<TabFieldView> _scopedViews(SaveTabSource source) {
-    final slot = source.activeSlot;
-    final all = source.allViews;
-    if (slot == null) {
-      return all.toList(growable: false);
-    }
-    return <TabFieldView>[
-      for (final view in all)
-        if (view.descriptor.slot == slot) view,
-    ];
+    return slotScopedViews(source, source.activeSlot);
   }
 
   double _tableHeight(BuildContext context) {
@@ -431,21 +434,13 @@ class _FlagsTableState extends State<_FlagsTable> {
   // never re-scans the save's 10k descriptors. Each helper also refuses a view
   // the save itself marks not editable, so editability can only narrow.
 
-  void _commitInteger(
-    Map<String, TabFieldView> views,
-    String id,
-    int value,
-  ) {
+  void _commitInteger(Map<String, TabFieldView> views, String id, int value) {
     final view = views[id];
     if (view == null || !view.descriptor.isEditable) return;
     widget.source.edit(SetScalar(FieldId(id), value));
   }
 
-  void _commitBoolean(
-    Map<String, TabFieldView> views,
-    String id,
-    bool value,
-  ) {
+  void _commitBoolean(Map<String, TabFieldView> views, String id, bool value) {
     final view = views[id];
     if (view == null || !view.descriptor.isEditable) return;
     widget.source.edit(SetScalar(FieldId(id), value ? 1 : 0));

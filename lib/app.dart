@@ -104,6 +104,20 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
   /// user's selection mistake, not the save's contents.
   OpenFailureNotice? _preflightFailure;
 
+  /// The tab source and the session state it was built for.
+  ///
+  /// [SaveTabScope] notifies dependents when the source identity changes, and
+  /// the source memoises its view index and dirty summary per project. Building
+  /// one source per rebuild defeated both, so the instance is kept for as long
+  /// as the session state is the same object; every state carries a new
+  /// immutable project, so a new state legitimately rebuilds it.
+  SaveSessionUiState? _sourceState;
+  SessionSaveTabSource? _tabSource;
+
+  /// The unverified-field count and the state it was counted for.
+  SaveSessionUiState? _unverifiedState;
+  int _unverifiedCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -393,6 +407,32 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
     );
   }
 
+  /// The source for [state], reused while that state instance is unchanged.
+  SessionSaveTabSource _sourceFor(SaveSessionUiState state) {
+    final cached = _tabSource;
+    if (cached != null && identical(state, _sourceState)) {
+      return cached;
+    }
+    _sourceState = state;
+    return _tabSource = _createSource();
+  }
+
+  /// How many fields opened read-only because their meaning is unverified.
+  ///
+  /// Counted once per session state: the issue list carries one entry per
+  /// unverified field (~50,000), so rescanning it on every rebuild is waste.
+  int _unverifiedCountFor(SaveSessionUiState state) {
+    if (identical(state, _unverifiedState)) {
+      return _unverifiedCount;
+    }
+    _unverifiedState = state;
+    return _unverifiedCount =
+        _projectOf(state)?.issues
+            .where((issue) => issue.code == ValidationCodes.fieldUnverified)
+            .length ??
+        0;
+  }
+
   void _detach() {
     _changes.dispose();
     if (_ownsSession && !_session.isClosed) {
@@ -530,16 +570,9 @@ class _BombFlowerAppState extends State<BombFlowerApp> {
                           path: _attemptedOpenPath(sessionFailure),
                         ));
               final retryPath = sessionFailure == null ? null : failure?.path;
-              final unverifiedCount =
-                  _projectOf(state)?.issues
-                      .where(
-                        (issue) =>
-                            issue.code == ValidationCodes.fieldUnverified,
-                      )
-                      .length ??
-                  0;
+              final unverifiedCount = _unverifiedCountFor(state);
               return SaveTabScope(
-                source: _createSource(),
+                source: _sourceFor(state),
                 child: OpenSaveScope(
                   open: (shellContext) =>
                       _openAnotherSave(shellContext, failure?.path),

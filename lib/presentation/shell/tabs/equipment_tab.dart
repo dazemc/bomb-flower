@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../../domain/catalogue/actor_catalogue.dart';
@@ -10,6 +9,7 @@ import '../../../domain/core/field_value.dart';
 import '../../../domain/fields/field_groups.dart';
 import '../../../domain/validation/field_validators.dart';
 import '../../bloc/shell/tab_definition.dart';
+import '../../tabs_support/bundled_catalogues.dart';
 import '../../tabs_support/save_tab_scope.dart';
 import '../../tabs_support/save_tab_source.dart';
 import '../../theme/bomb_flower_spacing.dart';
@@ -153,7 +153,10 @@ List<TabFieldView> _slotViews(SaveTabSource source) {
   if (grouped.isNotEmpty) {
     return grouped;
   }
-  return source.allViews.where(_isSlotView).toList(growable: false);
+  return slotScopedViews(
+    source,
+    source.activeSlot,
+  ).where(_isSlotView).toList(growable: false);
 }
 
 String _slotSuffix(String label) {
@@ -253,6 +256,13 @@ List<_ActorChoice> _choicesFor(ActorCatalogue catalogue, _SlotRule rule) {
   ];
 }
 
+String _choiceLabel(_ActorChoice choice) => choice.label;
+
+String _choiceSubtitle(_ActorChoice choice) => choice.subtitle;
+
+String _choiceSearch(_ActorChoice choice) =>
+    '${choice.label} ${choice.entry?.name ?? ''}';
+
 _ActorChoice? _choiceFor(String stored, List<_ActorChoice> choices) {
   if (stored.isEmpty) {
     return choices.first;
@@ -278,6 +288,37 @@ class _EquipmentDashboard extends StatefulWidget {
 class _EquipmentDashboardState extends State<_EquipmentDashboard> {
   Future<ActorCatalogue>? _catalogueFuture;
 
+  /// Choice lists per slot family, built once per loaded catalogue.
+  ///
+  /// `SearchableSelect` rebuilds its search index whenever the item list
+  /// changes identity, so handing it a fresh list per build made every rebuild
+  /// re-fold the whole actor catalogue for every slot.
+  ActorCatalogue? _choicesCatalogue;
+  Map<_SlotFamily, List<_ActorChoice>> _choicesByFamily =
+      const <_SlotFamily, List<_ActorChoice>>{};
+
+  void _cacheChoices(ActorCatalogue? catalogue) {
+    if (identical(catalogue, _choicesCatalogue)) {
+      return;
+    }
+    _choicesCatalogue = catalogue;
+    if (catalogue == null) {
+      _choicesByFamily = const <_SlotFamily, List<_ActorChoice>>{};
+      return;
+    }
+    final byFamily = <_SlotFamily, List<_ActorChoice>>{};
+    for (final family in _SlotFamily.values) {
+      final rule = _ruleFor(family);
+      if (rule == null) {
+        continue;
+      }
+      byFamily[family] = List<_ActorChoice>.unmodifiable(
+        _choicesFor(catalogue, rule),
+      );
+    }
+    _choicesByFamily = byFamily;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -294,9 +335,7 @@ class _EquipmentDashboardState extends State<_EquipmentDashboard> {
 
   void _loadCatalogue() {
     _catalogueFuture = widget.catalogue == null
-        ? rootBundle
-              .loadString('assets/catalogue/actors.json')
-              .then(loadActorCatalogue)
+        ? loadActorCatalogueOnce()
         : null;
   }
 
@@ -332,6 +371,7 @@ class _EquipmentDashboardState extends State<_EquipmentDashboard> {
   }) {
     final definition = ShellTab.equipment.definition;
     final palette = context.bombFlowerTheme;
+    _cacheChoices(catalogue);
 
     return TabPageFrame(
       child: ParchmentPanel(
@@ -411,6 +451,7 @@ class _EquipmentDashboardState extends State<_EquipmentDashboard> {
                   view: view,
                   source: widget.source,
                   catalogue: catalogue,
+                  choicesByFamily: _choicesByFamily,
                 ),
                 const SizedBox(height: BombFlowerSpacing.xxl),
               ],
@@ -426,11 +467,15 @@ class _EquipmentSlotField extends StatefulWidget {
     required this.view,
     required this.source,
     required this.catalogue,
+    required this.choicesByFamily,
   });
 
   final TabFieldView view;
   final SaveTabSource source;
   final ActorCatalogue? catalogue;
+
+  /// Catalogue choices per family, stable for as long as the catalogue is.
+  final Map<_SlotFamily, List<_ActorChoice>> choicesByFamily;
 
   @override
   State<_EquipmentSlotField> createState() => _EquipmentSlotFieldState();
@@ -527,7 +572,7 @@ class _EquipmentSlotFieldState extends State<_EquipmentSlotField> {
       );
     }
 
-    final choices = _choicesFor(catalogue, rule);
+    final choices = widget.choicesByFamily[family] ?? const <_ActorChoice>[];
     final selected = _choiceFor(stored, choices);
 
     return FieldRow(
@@ -542,10 +587,9 @@ class _EquipmentSlotFieldState extends State<_EquipmentSlotField> {
           SearchableSelect<_ActorChoice>(
             key: EquipmentTab.slotSelectKey(label),
             items: choices,
-            itemLabel: (_ActorChoice choice) => choice.label,
-            itemSubtitle: (_ActorChoice choice) => choice.subtitle,
-            search: (_ActorChoice choice) =>
-                '${choice.label} ${choice.entry?.name ?? ''}',
+            itemLabel: _choiceLabel,
+            itemSubtitle: _choiceSubtitle,
+            search: _choiceSearch,
             hintText: 'Choose a verified ${rule.title} actor',
             value: selected,
             onChanged: (_ActorChoice choice) =>

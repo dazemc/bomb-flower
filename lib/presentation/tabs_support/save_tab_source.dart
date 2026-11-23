@@ -107,3 +107,36 @@ abstract interface class SaveTabSource {
   /// Redoes the most recently undone edit.
   void redo();
 }
+
+/// A [SaveTabSource] that can hand out one slot's views directly.
+///
+/// A tab that renders a single slot must not materialise every open document to
+/// discard five sixths of the result. Sources that can index their project
+/// implement this; [slotScopedViews] falls back to filtering [SaveTabSource.
+/// allViews] for sources that cannot.
+abstract interface class SlotScopedSaveTabSource implements SaveTabSource {
+  /// Views for [slot], materialised once per project snapshot.
+  List<TabFieldView> viewsForSlot(SaveSlotId slot);
+
+  /// Views for [SaveTabSource.activeSlot], or empty when nothing is active.
+  List<TabFieldView> get activeSlotViews;
+}
+
+/// Views to render for [slot], preferring the source's slot index.
+///
+/// Every save-editing tab renders one slot; [slot] is normally
+/// [SaveTabSource.activeSlot]. With a null slot the whole list is returned
+/// unfiltered, which is the documented fallback for a source that reports no
+/// active slot.
+List<TabFieldView> slotScopedViews(SaveTabSource source, SaveSlotId? slot) {
+  if (slot == null) {
+    return source.allViews.toList(growable: false);
+  }
+  if (source is SlotScopedSaveTabSource) {
+    return source.viewsForSlot(slot);
+  }
+  return <TabFieldView>[
+    for (final view in source.allViews)
+      if (view.descriptor.slot == slot) view,
+  ];
+}

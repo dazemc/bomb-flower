@@ -642,10 +642,17 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
 
   SaveProjectUi _buildProject(SaveSessionState state, {String? statusMessage}) {
     final project = state.project!;
+    // One dirty pass and one span diff per slot for the whole summary. Calling
+    // `project.dirty` inside `_slotUi` as well made this seven byte walks and
+    // six duplicate span diffs per emitted state.
     final dirty = project.dirty;
+    final spans = <SaveSlotId, List<ByteSpan>>{
+      for (final slotLayout in project.layout.slots)
+        slotLayout.id: project.changedSpans(slotLayout.id),
+    };
     final slots = <SaveSlotUi>[
       for (final slotLayout in project.layout.slots)
-        _slotUi(project, slotLayout),
+        _slotUi(project, slotLayout, dirty, spans[slotLayout.id]!),
     ];
     final active = _resolveActiveSlot(project);
     _activeSlot = active;
@@ -676,10 +683,13 @@ final class SaveSessionCubit extends Cubit<SaveSessionUiState> {
     );
   }
 
-  SaveSlotUi _slotUi(SaveProject project, SaveSlotLayout slotLayout) {
+  SaveSlotUi _slotUi(
+    SaveProject project,
+    SaveSlotLayout slotLayout,
+    DirtyState dirty,
+    List<ByteSpan> spans,
+  ) {
     final document = project.documents[slotLayout.id];
-    final dirty = project.dirty;
-    final spans = project.changedSpans(slotLayout.id);
     return SaveSlotUi(
       id: slotLayout.id,
       relativePath: slotLayout.relativePath,

@@ -120,7 +120,7 @@ Map<String, TabFieldView> _viewsByLabel(SaveTabSource source) {
   final grouped = source.viewsFor(EditorTabGroup.playerWorld);
   final views = grouped.isNotEmpty
       ? grouped
-      : source.allViews.where(
+      : slotScopedViews(source, source.activeSlot).where(
           (TabFieldView view) =>
               _playerWorldLabels.contains(view.descriptor.label),
         );

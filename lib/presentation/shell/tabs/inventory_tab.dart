@@ -125,7 +125,7 @@ class _InventoryTabState extends State<InventoryTab> {
       return grouped;
     }
     return <TabFieldView>[
-      for (final view in source.allViews)
+      for (final view in slotScopedViews(source, source.activeSlot))
         if (view.descriptor.label.startsWith(_acquisitionPrefix) ||
             view.descriptor.label.startsWith(_bottlePrefix))
           view,

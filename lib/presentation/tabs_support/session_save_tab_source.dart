@@ -9,41 +9,25 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/core/dirty_state.dart';
 import '../../domain/core/edit_command.dart';
-import '../../domain/core/field_metadata.dart';
-import '../../domain/core/field_value.dart';
 import '../../domain/core/identity.dart';
 import '../../domain/core/save_project.dart';
 import '../../domain/core/validation.dart';
 import '../../domain/fields/field_groups.dart';
+import 'save_tab_index.dart';
 import 'save_tab_source.dart';
-
-/// The catalogue's verified `overview.headline` names, in display order.
-const List<String> _overviewHeadlineNames = <String>[
-  'PlayerStatus.Life',
-  'PlayerStatus.MaxLife',
-  'PlayerStatus.MP',
-  'PlayerStatus.MPMax',
-  'PlayerStatus.CurrentRupee',
-  'Sequence_CurrentBanc',
-  'Sequence_IsChildhood',
-];
-
-/// The catalogue's verified `playerWorld.orientation` and
-/// `playerWorld.location` names, in display order.
-const List<String> _playerWorldHeadlineNames = <String>[
-  'Player_Pos_For_Map',
-  'Player_Rot_For_Map',
-  'DungeonRoom',
-  'Sequence_CurrentBanc',
-  'Sequence_IsChildhood',
-];
 
 /// A [SaveTabSource] built from closures over the session.
 ///
 /// [project] must return the live project or `null`. It is called on every
 /// access, never cached, so a rebuild after an edit sees the new bytes.
-final class SessionSaveTabSource implements SaveTabSource {
+///
+/// The derived view lists and the dirty summary are memoised against the
+/// project and issue-list instances they were built from: a project is immutable
+/// and a new instance per edit, so `identical` is a sound cache key and a tab
+/// that rebuilds without an edit pays nothing.
+final class SessionSaveTabSource implements SlotScopedSaveTabSource {
   /// Creates a source.
   ///
   /// [issues] supplies the session's validation issues, [activeSlot] the slot
@@ -130,6 +114,16 @@ final class SessionSaveTabSource implements SaveTabSource {
   @override
   Listenable get changes => _changes;
 
+  /// Cache key for the derived index; null until a project is first indexed.
+  SaveProject? _indexProject;
+  List<ValidationIssue>? _indexIssues;
+  SaveSlotId? _indexActiveSlot;
+  SaveTabIndex? _index;
+
+  /// Cache key for [dirty]; null until a project's summary is first computed.
+  SaveProject? _dirtyProject;
+  DirtyState? _dirtyState;
+
   /// A fresh copy of the active slot's current bytes, or `null` when closed.
   @override
   Uint8List? get activeSlotBytes {
@@ -148,75 +142,104 @@ final class SessionSaveTabSource implements SaveTabSource {
 
   /// Field views for [group].
   ///
-  /// Only `overview` and `playerWorld` have a documented mapping: the exact
-  /// verified schema names the catalogue puts in `overview.headline`,
-  /// `playerWorld.orientation`, and `playerWorld.location`, matched against
-  /// [FieldDescriptor.label]. Every other group returns an empty list: their
-  /// membership needs the generated catalogue and hash resolution, which this
-  /// adapter must not guess. S3 supplies the real grouping.
+  /// Only `overview` and `playerWorld` have a documented mapping; every other
+  /// group returns an empty list. See [SaveTabIndex.viewsFor].
   @override
   List<TabFieldView> viewsFor(EditorTabGroup group) {
-    final names = switch (group) {
-      EditorTabGroup.overview => _overviewHeadlineNames,
-      EditorTabGroup.playerWorld => _playerWorldHeadlineNames,
-      _ => null,
-    };
-    if (names == null) {
-      return const <TabFieldView>[];
-    }
-    final project = _project();
-    if (project == null) {
-      return const <TabFieldView>[];
-    }
-    final slot = activeSlot;
-    if (slot == null) {
-      return const <TabFieldView>[];
-    }
-    final document = project.documents[slot];
-    if (document == null) {
-      return const <TabFieldView>[];
-    }
-    final issues = _issues?.call() ?? const <ValidationIssue>[];
-    final wanted = names.toSet();
-    return <TabFieldView>[
-      for (final field in document.fields)
-        if (wanted.contains(field.descriptor.label)) _viewOf(field, issues),
-    ];
+    return _indexForProject()?.viewsFor(group) ?? const <TabFieldView>[];
+  }
+
+  /// Views for [slot], built once per project snapshot.
+  @override
+  List<TabFieldView> viewsForSlot(SaveSlotId slot) {
+    return _indexForProject()?.viewsForSlot(slot) ?? const <TabFieldView>[];
+  }
+
+  /// Views for the active slot, or empty when nothing is active.
+  @override
+  List<TabFieldView> get activeSlotViews {
+    return _indexForProject()?.activeSlotViews ?? const <TabFieldView>[];
   }
 
   /// Every field of every open document, active slot first.
   @override
   Iterable<TabFieldView> get allViews {
+    return _indexForProject()?.allViews ?? const <TabFieldView>[];
+  }
+
+  /// The index for the current project, rebuilt only when the project, the
+  /// issue list, or the resolved active slot changes identity.
+  SaveTabIndex? _indexForProject() {
     final project = _project();
     if (project == null) {
-      return const <TabFieldView>[];
+      _index = null;
+      _indexProject = null;
+      _indexIssues = null;
+      _indexActiveSlot = null;
+      return null;
     }
     final issues = _issues?.call() ?? const <ValidationIssue>[];
+    final slot = activeSlot;
+    if (_index != null &&
+        identical(project, _indexProject) &&
+        identical(issues, _indexIssues) &&
+        slot == _indexActiveSlot) {
+      return _index;
+    }
+    final index = SaveTabIndex(
+      project: project,
+      issues: issues,
+      orderedSlots: _orderedSlots(project, slot),
+      activeSlot: slot,
+    );
+    _index = index;
+    _indexProject = project;
+    _indexIssues = issues;
+    _indexActiveSlot = slot;
+    return index;
+  }
+
+  /// The project's slots with [active] first, then the rest in document order.
+  static List<SaveSlotId> _orderedSlots(
+    SaveProject project,
+    SaveSlotId? active,
+  ) {
     final ordered = <SaveSlotId>[];
     final seen = <SaveSlotId>{};
-    final slot = activeSlot;
-    if (slot != null && project.documents.containsKey(slot)) {
-      ordered.add(slot);
-      seen.add(slot);
+    if (active != null && project.documents.containsKey(active)) {
+      ordered.add(active);
+      seen.add(active);
     }
     for (final candidate in project.documents.keys) {
       if (seen.add(candidate)) {
         ordered.add(candidate);
       }
     }
-    return <TabFieldView>[
-      for (final candidate in ordered) ...<TabFieldView>[
-        for (final field in project.documents[candidate]!.fields)
-          _viewOf(field, issues),
-      ],
-    ];
+    return ordered;
+  }
+
+  /// The project's dirty summary, computed once per project instance.
+  DirtyState? _dirtyForProject() {
+    final project = _project();
+    if (project == null) {
+      _dirtyState = null;
+      _dirtyProject = null;
+      return null;
+    }
+    if (identical(project, _dirtyProject)) {
+      return _dirtyState;
+    }
+    final dirty = project.dirty;
+    _dirtyProject = project;
+    _dirtyState = dirty;
+    return dirty;
   }
 
   @override
-  bool get isDirty => _project()?.dirty.hasUnsavedChanges ?? false;
+  bool get isDirty => _dirtyForProject()?.hasUnsavedChanges ?? false;
 
   @override
-  int get changedFieldCount => _project()?.dirty.changedFieldCount ?? 0;
+  int get changedFieldCount => _dirtyForProject()?.changedFieldCount ?? 0;
 
   @override
   SaveSlotId? get newestSlot {
@@ -265,30 +288,6 @@ final class SessionSaveTabSource implements SaveTabSource {
 
   @override
   void redo() => _redo();
-
-  TabFieldView _viewOf(
-    SaveField<FieldValue> field,
-    List<ValidationIssue> issues,
-  ) {
-    return TabFieldView(
-      descriptor: field.descriptor,
-      value: field.value,
-      isDirty: field.isDirty,
-      issueMessage: _messageFor(field.descriptor, issues),
-    );
-  }
-
-  String? _messageFor(
-    FieldDescriptor descriptor,
-    List<ValidationIssue> issues,
-  ) {
-    for (final issue in issues) {
-      if (issue.field == descriptor.id && issue.slot == descriptor.slot) {
-        return issue.message;
-      }
-    }
-    return null;
-  }
 }
 
 /// A [ChangeNotifier] that is deliberately never notified.

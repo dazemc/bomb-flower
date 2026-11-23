@@ -273,7 +273,7 @@ class _AdvancedDataTabState extends State<AdvancedDataTab> {
   List<TabFieldView> _editableViews(SaveTabSource source, int length) {
     final seen = <FieldId>{};
     final views = <TabFieldView>[];
-    for (final view in source.allViews) {
+    for (final view in slotScopedViews(source, source.activeSlot)) {
       final descriptor = view.descriptor;
       if (!descriptor.isEditable || !seen.add(descriptor.id)) continue;
       final span = descriptor.span;
@@ -432,7 +432,7 @@ class _AdvancedDataTabState extends State<AdvancedDataTab> {
   Map<int, ByteMarkKind> _marksFor(SaveTabSource source, int length) {
     final marks = <int, ByteMarkKind>{};
     final seen = <FieldId>{};
-    for (final view in source.allViews) {
+    for (final view in slotScopedViews(source, source.activeSlot)) {
       if (!seen.add(view.descriptor.id)) continue;
       final span = view.descriptor.span;
       if (!span.isValid ||
@@ -461,7 +461,7 @@ class _AdvancedDataTabState extends State<AdvancedDataTab> {
   Map<int, List<String?>> _bitLabelsFor(SaveTabSource source, int length) {
     final labels = <int, List<String?>>{};
     final seen = <FieldId>{};
-    for (final view in source.allViews) {
+    for (final view in slotScopedViews(source, source.activeSlot)) {
       final descriptor = view.descriptor;
       if (!seen.add(descriptor.id)) continue;
       if (descriptor.confidence != FieldConfidence.verified) continue;
