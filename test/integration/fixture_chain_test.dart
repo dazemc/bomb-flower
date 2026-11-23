@@ -65,9 +65,8 @@ void main() {
       final engine = createProgressEngine();
       final repo = createProgressRepository(schema);
 
-      // Evidence for the known caption-path mismatch: the stock factory's
-      // resolver builds `slot_00.caption/caption.sav`, while the sample stores
-      // `slot_00/caption.sav`, so its open is refused before any field is read.
+      // Stock production wiring: the real sample stores its caption at
+      // slot_00/caption.sav and the factory's resolver must find it there.
       final stockOpen = await ProgressSaveRepositoryFactory(
         schema: schema,
       ).create(fixtureRoot.path).open(fixtureRoot.path);
@@ -75,6 +74,7 @@ void main() {
         'stock ProgressSaveRepositoryFactory.open -> '
         '${describeParseResult(stockOpen)}',
       );
+      expect(stockOpen, isA<ParseUnverified>());
 
       final open = await repo.open(fixtureRoot.path);
       chainLog('open -> ${describeParseResult(open)} at ${fixtureRoot.path}');

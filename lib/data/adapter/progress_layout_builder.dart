@@ -81,8 +81,11 @@ final class ProgressLayoutBuilder {
 
   /// Describes the six layout fields and the six date entries of [caption].
   ///
-  /// [progressSlot] defaults to `slot_00`; the caption slot id is
-  /// `<progressSlot>.caption`, which is deliberately not a progress slot id.
+  /// [progressSlot] defaults to `slot_00`. The caption slot **id** is
+  /// `<progressSlot>.caption` (for example `slot_00.caption`), which is
+  /// deliberately not a progress slot id, while its **relative path** is
+  /// `<progressSlot>/caption.sav` (for example `slot_00/caption.sav`): the
+  /// caption file lives beside `progress.sav` inside the slot folder.
   SaveSlotLayout buildCaptionSlotLayout(
     CaptionSave caption, {
     SaveSlotId? progressSlot,
@@ -134,7 +137,7 @@ final class ProgressLayoutBuilder {
     }
     return SaveSlotLayout(
       slot,
-      '${slot.value}/caption.sav',
+      '${progress.value}/caption.sav',
       List<FieldDescriptor>.unmodifiable(fields),
       expectedLength: caption.originalBytes.length,
     );

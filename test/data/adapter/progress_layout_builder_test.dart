@@ -1,10 +1,15 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:bomb_flower/data/adapter/progress_field_id.dart';
 import 'package:bomb_flower/data/adapter/progress_layout_builder.dart';
+import 'package:bomb_flower/data/adapter/progress_repository.dart';
 import 'package:bomb_flower/data/codec/progress_codec.dart';
+import 'package:bomb_flower/data/newsave/new_save_writer.dart';
 import 'package:bomb_flower/domain/core/core.dart';
 import 'package:bomb_flower/domain/engine/engine.dart';
+import 'package:bomb_flower/domain/newsave/new_save_builder.dart';
+import 'package:bomb_flower/domain/newsave/new_save_spec.dart';
 import 'package:bomb_flower/domain/save/caption_layout.dart';
 import 'package:bomb_flower/domain/save/models/caption_save.dart';
 import 'package:bomb_flower/domain/save/models/progress_save.dart';
@@ -13,6 +18,7 @@ import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 import 'package:bomb_flower/domain/schema/murmur3.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fixture_loader.dart';
 import '../../support/synthetic_progress.dart';
 
 /// The name declared for the synthetic `IntArray` record.
@@ -146,7 +152,7 @@ void main() {
 
       expect(layout.id.value, 'slot_00.caption');
       expect(RegExp(r'^slot_\d+$').hasMatch(layout.id.value), isFalse);
-      expect(layout.relativePath, 'slot_00.caption/caption.sav');
+      expect(layout.relativePath, 'slot_00/caption.sav');
       expect(layout.expectedLength, CaptionLayout.minimumFileLength);
 
       final custom = ProgressLayoutBuilder(
@@ -154,7 +160,7 @@ void main() {
       ).buildCaptionSlotLayout(caption, progressSlot: SaveSlotId.progress(3));
       expect(custom.id.value, 'slot_03.caption');
       expect(RegExp(r'^slot_\d+$').hasMatch(custom.id.value), isFalse);
-      expect(custom.relativePath, 'slot_03.caption/caption.sav');
+      expect(custom.relativePath, 'slot_03/caption.sav');
     });
 
     test('cites scene and map as editable 64-byte strings', () {
@@ -247,6 +253,95 @@ void main() {
         expect(descriptor.isEditable, isFalse);
       }
     });
+  });
+
+  group('slot paths on disk', () {
+    test(
+      'caption and progress slots use the real slot_00 paths, and a real '
+      'fixture opens',
+      () async {
+        final builder = ProgressLayoutBuilder(schema);
+        final caption = builder.buildCaptionSlotLayout(_caption());
+        final progress = builder.buildProgressSlotLayout(_save());
+
+        // The id names the descriptor group; the path is the on-disk sibling
+        // of progress.sav inside the slot folder.
+        expect(caption.id.value, 'slot_00.caption');
+        expect(caption.relativePath, 'slot_00/caption.sav');
+        expect(progress.relativePath, 'slot_00/progress.sav');
+
+        final third = builder.buildCaptionSlotLayout(
+          _caption(),
+          progressSlot: SaveSlotId.progress(3),
+        );
+        expect(third.id.value, 'slot_03.caption');
+        expect(third.relativePath, 'slot_03/caption.sav');
+
+        // A folder written by the production new-save path stores
+        // slot_00/caption.sav; the stock factory must resolve that slot.
+        final root = Directory.systemTemp.createTempSync(
+          'bomb-flower-caption-path-',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final build = NewSaveBuilder.build(
+          schema: await _realSchema(),
+          spec: NewSaveSpec.preset(NewSavePreset.schemaDefaults),
+        );
+        final written = await NewSaveWriter().write(
+          rootDirectory: root.path,
+          build: build,
+        );
+        expect(
+          written.captionPath,
+          endsWith(
+            '${NewSaveWriter.slotDirectoryName}/'
+            '${NewSaveWriter.captionFileName}',
+          ),
+        );
+
+        final stockRepo = ProgressSaveRepositoryFactory(
+          schema: schema,
+        ).create(root.path);
+        final opened = await stockRepo.open(root.path);
+        expect(opened, anyOf(isA<ParseOk>(), isA<ParseUnverified>()));
+        final project = switch (opened) {
+          ParseOk(:final project) => project,
+          ParseUnverified(:final project) => project,
+          _ => fail('new-save open failed: $opened'),
+        };
+        final detectedCaption = project.slotLayout(
+          const SaveSlotId('slot_00.caption'),
+        );
+        expect(detectedCaption, isNotNull);
+        expect(detectedCaption!.relativePath, 'slot_00/caption.sav');
+      },
+    );
+
+    test(
+      'stock factory opens the real kokiri-start fixture',
+      () async {
+        await ensureSampleFixtures();
+        final fixtureRoot = Directory('${fixturesDirectory.path}/kokiri-start');
+        final stockRepo = ProgressSaveRepositoryFactory(
+          schema: await _realSchema(),
+        ).create(fixtureRoot.path);
+        final opened = await stockRepo.open(fixtureRoot.path);
+        expect(
+          opened,
+          anyOf(isA<ParseOk>(), isA<ParseUnverified>()),
+          reason: 'the real fixture must not open as ParseCorrupt: $opened',
+        );
+        final project = switch (opened) {
+          ParseOk(:final project) => project,
+          ParseUnverified(:final project) => project,
+          _ => fail('fixture open failed: $opened'),
+        };
+        final caption = project.slotLayout(const SaveSlotId('slot_00.caption'));
+        expect(caption, isNotNull);
+        expect(caption!.relativePath, 'slot_00/caption.sav');
+      },
+      skip: samplesAvailable ? null : samplesUnavailableMessage,
+    );
   });
 
   group('endianness', () {
@@ -399,8 +494,15 @@ CaptionSave _caption() {
   );
 }
 
-Future<GameDataSchema> _loadSchema() {
-  const structIntName = 'PlayerStatus.Life';
+/// The committed full schema the production new-save path builds against.
+///
+/// The synthetic schema in [_loadSchema] is intentionally partial, so it can
+/// describe the crafted `progress.sav` but cannot build a complete new save.
+Future<GameDataSchema> _realSchema() async => GameDataSchema.fromJsonString(
+  await File('assets/schema/gamedata_110.json').readAsString(),
+);
+
+Future<GameDataSchema> _loadSchema() {  const structIntName = 'PlayerStatus.Life';
   const hostBoolName = 'Sequence_IsChildhood';
   const prefixName = 'Sequence_CurrentBanc';
   final arrayHash = murmur3X86_32(_arrayName);

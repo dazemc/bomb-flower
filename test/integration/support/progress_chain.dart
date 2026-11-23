@@ -1,25 +1,21 @@
 /// Shared wiring for the open → edit → undo → redo → save-as → reopen chain.
 ///
-/// The engine and repository are the production types. Only one detail is
-/// adapted: [ProgressLayoutBuilder.buildCaptionSlotLayout] gives the caption
-/// slot the relative path `slot_00.caption/caption.sav`, while sample and
-/// newly-created save folders store the file at `slot_00/caption.sav`.
-/// [createProgressRepository] rewrites only that relative path so a real
-/// fixture can be opened without staging a duplicate folder. Everything else
-/// is `FileSaveRepository` + `SaveEngine` unchanged.
+/// The engine and repository are the production types unchanged:
+/// [createProgressRepository] returns the repository that
+/// `ProgressSaveRepositoryFactory.create` builds, so the chain exercises the
+/// production resolver, caption slot path (`slot_00/caption.sav`) and
+/// `FileSaveRepository` without any test-only adaptation.
 library;
 
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:bomb_flower/data/adapter/progress_field_value_codec.dart';
-import 'package:bomb_flower/data/adapter/progress_layout_builder.dart';
-import 'package:bomb_flower/data/adapter/progress_layout_resolver.dart';
+import 'package:bomb_flower/data/adapter/progress_repository.dart';
 import 'package:bomb_flower/data/codec/progress_codec.dart';
 import 'package:bomb_flower/data/io/file_save_repository.dart';
 import 'package:bomb_flower/domain/core/core.dart';
 import 'package:bomb_flower/domain/engine/save_engine.dart';
-import 'package:bomb_flower/domain/save/models/caption_save.dart';
 import 'package:bomb_flower/domain/save/models/progress_save.dart';
 import 'package:bomb_flower/domain/schema/gamedata_schema.dart';
 
@@ -53,38 +49,15 @@ SaveEngine createProgressEngine() => SaveEngine(
   valueCodec: const ProgressFieldValueCodec(),
 );
 
-/// Mirrors `ProgressSaveRepositoryFactory.create`, with the caption slot's
-/// relative path corrected to `<slot>/caption.sav`.
-FileSaveRepository createProgressRepository(GameDataSchema schema) {
-  final builder = ProgressLayoutBuilder(schema);
-
-  SaveSlotLayout captionLayoutAtSlotPath(
-    CaptionSave caption, {
-    SaveSlotId? progressSlot,
-  }) {
-    final slot = progressSlot ?? SaveSlotId.progress(0);
-    final layout = builder.buildCaptionSlotLayout(
-      caption,
-      progressSlot: slot,
-    );
-    return SaveSlotLayout(
-      layout.id,
-      '${slot.value}/caption.sav',
-      layout.fields,
-      expectedLength: layout.expectedLength,
-      integrity: layout.integrity,
-    );
-  }
-
-  final resolver = ProgressLayoutResolver(
-    builder,
-    captionBuilder: captionLayoutAtSlotPath,
-  );
-  return FileSaveRepository(
-    engine: createProgressEngine(),
-    resolveLayout: resolver.call,
-  );
-}
+/// The production repository wiring, exactly as
+/// `ProgressSaveRepositoryFactory.create` builds it.
+///
+/// [ProgressSaveRepositoryFactory.create] declares `SaveRepository` but always
+/// returns a [FileSaveRepository]; the cast keeps this helper's existing
+/// signature for its callers.
+FileSaveRepository createProgressRepository(GameDataSchema schema) =>
+    ProgressSaveRepositoryFactory(schema: schema).create('')
+        as FileSaveRepository;
 
 /// Value offset of the Life field: `0x28 + 8 * recordIndex + 4`.
 int lifeValueOffset(GameDataSchema schema) {
