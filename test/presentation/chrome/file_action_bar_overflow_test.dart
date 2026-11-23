@@ -171,7 +171,9 @@ void main() {
 
     await openOverflow(tester);
     expect(
-      tester.widget<MenuItemButton>(menuEntry('shell-action-compare')).onPressed,
+      tester
+          .widget<MenuItemButton>(menuEntry('shell-action-compare'))
+          .onPressed,
       isNull,
     );
 
@@ -179,7 +181,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<MenuItemButton>(menuEntry('shell-action-compare')).onPressed,
+      tester
+          .widget<MenuItemButton>(menuEntry('shell-action-compare'))
+          .onPressed,
       isNotNull,
     );
   });
@@ -337,12 +341,14 @@ void main() {
 
     try {
       expect(
-        tester.widget<Tooltip>(
-          find.descendant(
-            of: find.byKey(overflowKey),
-            matching: find.byType(Tooltip),
-          ),
-        ).message,
+        tester
+            .widget<Tooltip>(
+              find.descendant(
+                of: find.byKey(overflowKey),
+                matching: find.byType(Tooltip),
+              ),
+            )
+            .message,
         'More actions',
       );
       expect(find.bySemanticsLabel('More actions'), findsOneWidget);

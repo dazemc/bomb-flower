@@ -22,9 +22,9 @@ const int _bufferLength = 120572;
 final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
   _FakeSaveTabSource({List<TabFieldView> views = const <TabFieldView>[]})
     : _views = List<TabFieldView>.unmodifiable(views),
-       _bytes = Uint8List.fromList(
-         List<int>.generate(_bufferLength, (int index) => index % 256),
-       );
+      _bytes = Uint8List.fromList(
+        List<int>.generate(_bufferLength, (int index) => index % 256),
+      );
 
   final Uint8List _bytes;
   final List<TabFieldView> _views;
@@ -54,8 +54,7 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
   List<SlotAge> get slotAges => const <SlotAge>[];
 
   @override
-  Uint8List? get activeSlotBytes =>
-      isOpen ? Uint8List.fromList(_bytes) : null;
+  Uint8List? get activeSlotBytes => isOpen ? Uint8List.fromList(_bytes) : null;
 
   @override
   Uint8List? bytesFor(SaveSlotId slot) =>
@@ -66,9 +65,7 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
 
   @override
   List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      group == EditorTabGroup.advanced
-      ? _views
-      : const <TabFieldView>[];
+      group == EditorTabGroup.advanced ? _views : const <TabFieldView>[];
 
   @override
   Iterable<TabFieldView> get allViews => _views;
@@ -185,7 +182,9 @@ void main() {
     expectNoOverflow(tester);
   });
 
-  testWidgets('locked editing refuses writes with a StateError', (tester) async {
+  testWidgets('locked editing refuses writes with a StateError', (
+    tester,
+  ) async {
     await _pumpTab(tester);
 
     final toggle = tester.widget<BrassToggle>(
@@ -295,10 +294,7 @@ void main() {
   ) async {
     await _pumpTab(
       tester,
-      views: _editableFields(
-        fieldADirty: true,
-        fieldBIssue: 'Fixture issue',
-      ),
+      views: _editableFields(fieldADirty: true, fieldBIssue: 'Fixture issue'),
     );
 
     final editor = tester.widget<HexEditor>(

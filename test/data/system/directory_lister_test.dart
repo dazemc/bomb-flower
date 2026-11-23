@@ -13,9 +13,7 @@ void main() {
     root = Directory('${temp.path}/root')..createSync();
     Directory('${root.path}/alpha').createSync();
     Directory('${root.path}/alpha/slot_00').createSync();
-    File(
-      '${root.path}/alpha/slot_00/progress.sav',
-    ).writeAsStringSync('x');
+    File('${root.path}/alpha/slot_00/progress.sav').writeAsStringSync('x');
     Directory('${root.path}/beta').createSync();
     Directory('${root.path}/orphan/slot_00').createSync(recursive: true);
     Directory('${root.path}/slot_100').createSync();
@@ -37,12 +35,19 @@ void main() {
     expect(listing.error, isNull);
     expect(listing.path, root.path);
     expect(listing.parentPath, temp.path);
-    expect(
-      listing.entries.map((entry) => entry.name).toList(),
-      <String>['alpha', 'beta', 'orphan', 'slot_100', 'Alpha.txt', 'zeta.txt'],
-    );
+    expect(listing.entries.map((entry) => entry.name).toList(), <String>[
+      'alpha',
+      'beta',
+      'orphan',
+      'slot_100',
+      'Alpha.txt',
+      'zeta.txt',
+    ]);
     expect(listing.entries.take(4).every((entry) => entry.isDirectory), isTrue);
-    expect(listing.entries.skip(4).every((entry) => !entry.isDirectory), isTrue);
+    expect(
+      listing.entries.skip(4).every((entry) => !entry.isDirectory),
+      isTrue,
+    );
     expect(listing.isProfile, isFalse);
   });
 

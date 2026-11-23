@@ -94,12 +94,14 @@ void main() {
         expect(
           save.encode(),
           bytes,
-          reason: 'slot ${slot.path} ProgressSave.encode must reproduce the file',
+          reason:
+              'slot ${slot.path} ProgressSave.encode must reproduce the file',
         );
         expect(
           ProgressCodec.encode(save),
           bytes,
-          reason: 'slot ${slot.path} ProgressCodec.encode must reproduce the file',
+          reason:
+              'slot ${slot.path} ProgressCodec.encode must reproduce the file',
         );
 
         expect(

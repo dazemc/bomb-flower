@@ -97,8 +97,7 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
   Listenable get changes => this;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      const <TabFieldView>[];
+  List<TabFieldView> viewsFor(EditorTabGroup group) => const <TabFieldView>[];
 
   @override
   Iterable<TabFieldView> get allViews => views;
@@ -145,8 +144,7 @@ final class _RecordingSource implements SaveTabSource {
   Listenable get changes => _inner.changes;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      _inner.viewsFor(group);
+  List<TabFieldView> viewsFor(EditorTabGroup group) => _inner.viewsFor(group);
 
   @override
   Iterable<TabFieldView> get allViews => _inner.allViews;
@@ -432,38 +430,39 @@ void main() {
     expectNoOverflow(tester);
   });
 
-  testWidgets('integer commit emits exactly one SetScalar; bad text emits none', (
-    tester,
-  ) async {
-    final source = _FakeSaveTabSource(views: _anchorViews());
-    await _pumpProgression(tester, source);
-    await _search(tester, 'MeetSheikCount');
+  testWidgets(
+    'integer commit emits exactly one SetScalar; bad text emits none',
+    (tester) async {
+      final source = _FakeSaveTabSource(views: _anchorViews());
+      await _pumpProgression(tester, source);
+      await _search(tester, 'MeetSheikCount');
 
-    final table = tester.widget<EditTable>(find.byType(EditTable));
-    final row = table.rows.firstWhere((EditTableRow row) => row.id == _intId);
-    expect(row.kind, EditCellKind.integer);
-    expect(row.intValue, 2, reason: 'the typed seed comes from IntValue');
-    expect(_cell(_intId), findsOneWidget);
+      final table = tester.widget<EditTable>(find.byType(EditTable));
+      final row = table.rows.firstWhere((EditTableRow row) => row.id == _intId);
+      expect(row.kind, EditCellKind.integer);
+      expect(row.intValue, 2, reason: 'the typed seed comes from IntValue');
+      expect(_cell(_intId), findsOneWidget);
 
-    // A non-integer never reaches the engine.
-    await tester.enterText(_cellInput(_intId), 'not-a-number');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-    expect(source.edits, isEmpty);
+      // A non-integer never reaches the engine.
+      await tester.enterText(_cellInput(_intId), 'not-a-number');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(source.edits, isEmpty);
 
-    // Enter commits one whole number.
-    final target = _differentValue(row);
-    await tester.enterText(_cellInput(_intId), '$target');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
+      // Enter commits one whole number.
+      final target = _differentValue(row);
+      await tester.enterText(_cellInput(_intId), '$target');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
 
-    expect(source.edits, hasLength(1));
-    final command = source.edits.single;
-    expect(command, isA<SetScalar>());
-    expect((command as SetScalar).field, const FieldId(_intId));
-    expect(command.value, target);
-    expectNoOverflow(tester);
-  });
+      expect(source.edits, hasLength(1));
+      final command = source.edits.single;
+      expect(command, isA<SetScalar>());
+      expect((command as SetScalar).field, const FieldId(_intId));
+      expect(command.value, target);
+      expectNoOverflow(tester);
+    },
+  );
 
   testWidgets('enumeration choice emits exactly one SetEnum', (tester) async {
     final source = _FakeSaveTabSource(views: _anchorViews());
@@ -535,9 +534,7 @@ void main() {
       find.descendant(of: _row(_boolId), matching: find.byType(NumericField)),
       findsNothing,
     );
-    await tester.tapAt(
-      tester.getTopLeft(_row(_boolId)) + const Offset(12, 32),
-    );
+    await tester.tapAt(tester.getTopLeft(_row(_boolId)) + const Offset(12, 32));
     await tester.pump();
     expect(source.edits, isEmpty);
 
@@ -552,9 +549,7 @@ void main() {
       ),
       findsNothing,
     );
-    await tester.tapAt(
-      tester.getTopLeft(_row(_enumId)) + const Offset(12, 32),
-    );
+    await tester.tapAt(tester.getTopLeft(_row(_enumId)) + const Offset(12, 32));
     await tester.pump();
     expect(source.edits, isEmpty);
     expectNoOverflow(tester);

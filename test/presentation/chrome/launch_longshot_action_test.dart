@@ -103,16 +103,12 @@ void main() {
     // `test/data/system/longshot_launcher_test.dart`; here the seam reports the
     // verdict so this test can assert the action surfaces it.
     final launcher = FakeLongshotLauncher(
-      (requested) => LaunchResult(
-        status: LaunchStatus.missing,
-        path: requested,
-      ),
+      (requested) =>
+          LaunchResult(status: LaunchStatus.missing, path: requested),
     );
     await pumpTitleBar(
       tester,
-      store: InMemorySettingsStore(
-        const EditorPreferences(launcherPath: path),
-      ),
+      store: InMemorySettingsStore(const EditorPreferences(launcherPath: path)),
       launcher: launcher,
       // The test font is a square 13 px/char, so this 79-character message needs
       // a wider centre slot than 1360 px to stay on one line inside the fixed
@@ -140,7 +136,11 @@ void main() {
     final script = File('${temp.path}/longshot-launcher')
       ..writeAsStringSync('#!/bin/sh\nexit 0\n');
     final chmod = Process.runSync('chmod', <String>['755', script.path]);
-    expect(chmod.exitCode, 0, reason: 'test setup could not mark it executable');
+    expect(
+      chmod.exitCode,
+      0,
+      reason: 'test setup could not mark it executable',
+    );
 
     final launcher = FakeLongshotLauncher(
       (path) => LaunchResult(status: LaunchStatus.started, path: path),

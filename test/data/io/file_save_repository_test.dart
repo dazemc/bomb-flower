@@ -63,8 +63,7 @@ void main() {
     engine = SaveEngine(testFormat(includeUnverified: false));
     repository = FileSaveRepository(
       engine: engine,
-      resolveLayout: (_) async =>
-          LayoutResolved(LayoutSelection(layout, 7)),
+      resolveLayout: (_) async => LayoutResolved(LayoutSelection(layout, 7)),
     );
   });
 
@@ -145,8 +144,7 @@ void main() {
         engine: SaveEngine(
           SaveFormat('unsafe', 'Unsafe', <LayoutDescriptor>[unsafe]),
         ),
-        resolveLayout: (_) async =>
-            LayoutResolved(LayoutSelection(unsafe, 7)),
+        resolveLayout: (_) async => LayoutResolved(LayoutSelection(unsafe, 7)),
       );
 
       expect(await repository.open(root), isA<ParseCorrupt>());

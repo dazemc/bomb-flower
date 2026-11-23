@@ -67,9 +67,9 @@ void main() {
 
       // Stock production wiring: the real sample stores its caption at
       // slot_00/caption.sav and the factory's resolver must find it there.
-      final stockOpen = await ProgressSaveRepositoryFactory(
-        schema: schema,
-      ).create(fixtureRoot.path).open(fixtureRoot.path);
+      final stockOpen = await ProgressSaveRepositoryFactory(schema: schema)
+          .create(fixtureRoot.path)
+          .open(fixtureRoot.path);
       chainLog(
         'stock ProgressSaveRepositoryFactory.open -> '
         '${describeParseResult(stockOpen)}',
@@ -129,9 +129,7 @@ void main() {
         lifeOffset: lifeOffset,
       );
 
-      final destination = createTempDirectory(
-        'bomb-flower-chain-saveas-',
-      );
+      final destination = createTempDirectory('bomb-flower-chain-saveas-');
       final plan = engine.planExport(
         redone,
         destinationRoot: destination.path,
@@ -293,12 +291,12 @@ void main() {
 
     final engine = createProgressEngine();
     final repo = createProgressRepository(schema);
-    final project = _projectOf(await repo.open(root.path), 'open synthetic root');
+    final project = _projectOf(
+      await repo.open(root.path),
+      'open synthetic root',
+    );
     final edited = engine.apply(project, const SetScalar(lifeFieldId, 16));
-    final editedBytes = edited
-        .document(progressSlotId)!
-        .snapshot
-        .materialize();
+    final editedBytes = edited.document(progressSlotId)!.snapshot.materialize();
     final lifeOffset = lifeValueOffset(schema);
     expect(hexU32(editedBytes, lifeOffset), '10 00 00 00');
 
@@ -333,79 +331,80 @@ void main() {
     );
   });
 
-  test('corrupt inputs are rejected with typed results and no writes', () async {
-    final build = NewSaveBuilder.build(
-      schema: schema,
-      spec: NewSaveSpec.preset(NewSavePreset.schemaDefaults),
-    );
-    final valid = build.progressBytes;
-    final caption = build.captionBytes;
-    final builder = ProgressLayoutBuilder(schema);
-    final resolver = ProgressLayoutResolver(builder);
+  test(
+    'corrupt inputs are rejected with typed results and no writes',
+    () async {
+      final build = NewSaveBuilder.build(
+        schema: schema,
+        spec: NewSaveSpec.preset(NewSavePreset.schemaDefaults),
+      );
+      final valid = build.progressBytes;
+      final caption = build.captionBytes;
+      final builder = ProgressLayoutBuilder(schema);
+      final resolver = ProgressLayoutResolver(builder);
 
-    // Truncated: header only, the record stream is missing.
-    final truncated = Uint8List.sublistView(valid, 0, 20);
-    final truncatedDecode = ProgressCodec.decode(truncated);
-    expect(truncatedDecode, isA<ProgressDecodeTruncated>());
-    expect((truncatedDecode as ProgressDecodeTruncated).length, 20);
+      // Truncated: header only, the record stream is missing.
+      final truncated = Uint8List.sublistView(valid, 0, 20);
+      final truncatedDecode = ProgressCodec.decode(truncated);
+      expect(truncatedDecode, isA<ProgressDecodeTruncated>());
+      expect((truncatedDecode as ProgressDecodeTruncated).length, 20);
 
-    final truncatedRoot = createTempDirectory('bomb-flower-chain-truncated-');
-    await _writeSlot(truncatedRoot, truncated, caption);
-    final truncatedDetect = await resolver.detect(truncatedRoot.path);
-    expect(truncatedDetect, isA<SaveCorrupt>());
-    final truncatedOpen = await createProgressRepository(
-      schema,
-    ).open(truncatedRoot.path);
-    expect(truncatedOpen, isA<ParseUnsupported>());
-    _expectNoWrites(truncatedRoot, progressLength: 20);
-    chainLog(
-      'truncated 20 bytes -> ${truncatedDecode.runtimeType}, '
-      'detect=${truncatedDetect.runtimeType}, '
-      'open=${describeParseResult(truncatedOpen)}, writes=0',
-    );
+      final truncatedRoot = createTempDirectory('bomb-flower-chain-truncated-');
+      await _writeSlot(truncatedRoot, truncated, caption);
+      final truncatedDetect = await resolver.detect(truncatedRoot.path);
+      expect(truncatedDetect, isA<SaveCorrupt>());
+      final truncatedOpen = await createProgressRepository(schema)
+          .open(truncatedRoot.path);
+      expect(truncatedOpen, isA<ParseUnsupported>());
+      _expectNoWrites(truncatedRoot, progressLength: 20);
+      chainLog(
+        'truncated 20 bytes -> ${truncatedDecode.runtimeType}, '
+        'detect=${truncatedDetect.runtimeType}, '
+        'open=${describeParseResult(truncatedOpen)}, writes=0',
+      );
 
-    // Wrong revision: magic is right, the u32 at 0x04 is not.
-    final wrongRevision = Uint8List.fromList(valid);
-    _setU32(wrongRevision, ProgressLayout.revisionOffset, 1);
-    final revisionDecode = ProgressCodec.decode(wrongRevision);
-    expect(revisionDecode, isA<ProgressRevisionMismatch>());
-    expect((revisionDecode as ProgressRevisionMismatch).revision, 1);
+      // Wrong revision: magic is right, the u32 at 0x04 is not.
+      final wrongRevision = Uint8List.fromList(valid);
+      _setU32(wrongRevision, ProgressLayout.revisionOffset, 1);
+      final revisionDecode = ProgressCodec.decode(wrongRevision);
+      expect(revisionDecode, isA<ProgressRevisionMismatch>());
+      expect((revisionDecode as ProgressRevisionMismatch).revision, 1);
 
-    final revisionRoot = createTempDirectory('bomb-flower-chain-revision-');
-    await _writeSlot(revisionRoot, wrongRevision, caption);
-    final revisionDetect = await resolver.detect(revisionRoot.path);
-    expect(revisionDetect, isA<SaveUnsupportedRevision>());
-    expect((revisionDetect as SaveUnsupportedRevision).detected, 1);
-    final revisionOpen = await createProgressRepository(
-      schema,
-    ).open(revisionRoot.path);
-    expect(revisionOpen, isA<ParseUnsupported>());
-    _expectNoWrites(revisionRoot, progressLength: wrongRevision.length);
-    chainLog(
-      'revision u32@0x04=1 -> ${revisionDecode.runtimeType}, '
-      'detect=${revisionDetect.runtimeType}, '
-      'open=${describeParseResult(revisionOpen)}, writes=0',
-    );
+      final revisionRoot = createTempDirectory('bomb-flower-chain-revision-');
+      await _writeSlot(revisionRoot, wrongRevision, caption);
+      final revisionDetect = await resolver.detect(revisionRoot.path);
+      expect(revisionDetect, isA<SaveUnsupportedRevision>());
+      expect((revisionDetect as SaveUnsupportedRevision).detected, 1);
+      final revisionOpen = await createProgressRepository(schema)
+          .open(revisionRoot.path);
+      expect(revisionOpen, isA<ParseUnsupported>());
+      _expectNoWrites(revisionRoot, progressLength: wrongRevision.length);
+      chainLog(
+        'revision u32@0x04=1 -> ${revisionDecode.runtimeType}, '
+        'detect=${revisionDetect.runtimeType}, '
+        'open=${describeParseResult(revisionOpen)}, writes=0',
+      );
 
-    // Detection must also refuse a magic that is not a progress.sav at all.
-    final notASave = Uint8List.fromList(valid);
-    notASave[0] = 0;
-    final notASaveRoot = createTempDirectory('bomb-flower-chain-notasave-');
-    await _writeSlot(notASaveRoot, notASave, caption);
-    final notASaveDecode = ProgressCodec.decode(notASave);
-    expect(notASaveDecode, isA<ProgressBadMagic>());
-    final notASaveDetect = await resolver.detect(notASaveRoot.path);
-    expect(notASaveDetect, isA<SaveNotASave>());
-    expect(
-      (notASaveDetect as SaveNotASave).magic,
-      isNot(ProgressLayout.magicValue),
-    );
-    _expectNoWrites(notASaveRoot, progressLength: notASave.length);
-    chainLog(
-      'bad magic -> ${notASaveDecode.runtimeType}, '
-      'detect=${notASaveDetect.runtimeType}, writes=0',
-    );
-  });
+      // Detection must also refuse a magic that is not a progress.sav at all.
+      final notASave = Uint8List.fromList(valid);
+      notASave[0] = 0;
+      final notASaveRoot = createTempDirectory('bomb-flower-chain-notasave-');
+      await _writeSlot(notASaveRoot, notASave, caption);
+      final notASaveDecode = ProgressCodec.decode(notASave);
+      expect(notASaveDecode, isA<ProgressBadMagic>());
+      final notASaveDetect = await resolver.detect(notASaveRoot.path);
+      expect(notASaveDetect, isA<SaveNotASave>());
+      expect(
+        (notASaveDetect as SaveNotASave).magic,
+        isNot(ProgressLayout.magicValue),
+      );
+      _expectNoWrites(notASaveRoot, progressLength: notASave.length);
+      chainLog(
+        'bad magic -> ${notASaveDecode.runtimeType}, '
+        'detect=${notASaveDetect.runtimeType}, writes=0',
+      );
+    },
+  );
 }
 
 /// Applies the shared edit → undo → redo assertions and returns the redone
@@ -426,14 +425,9 @@ SaveProject _applyLifeEditChain({
   // width. 12 (0x0c) -> 16 (0x10) flips one byte.
   expect(edited.dirty.changedByteCount, 1);
   expect(hexU32(editedBytes, lifeOffset), '10 00 00 00');
-  expectOnlyRegionsChanged(
-    original,
-    editedBytes,
-    <ByteRegion>[
-      ByteRegion(lifeOffset, lifeOffset + 4, 'PlayerStatus.Life'),
-    ],
-    reason: 'editing Life may only touch its 4-byte value',
-  );
+  expectOnlyRegionsChanged(original, editedBytes, <ByteRegion>[
+    ByteRegion(lifeOffset, lifeOffset + 4, 'PlayerStatus.Life'),
+  ], reason: 'editing Life may only touch its 4-byte value');
   final editedDiff = ByteRegionDiff.diff(original, editedBytes);
   expect(editedDiff.runs, hasLength(1));
   expect(editedDiff.runs.single.start, lifeOffset);
@@ -478,7 +472,8 @@ Future<SaveProject> _assertExportedChain({
   expect(exported, hasLength(expectedLength));
   expect(progressRecordCount(exported), 11958);
 
-  final reopened = await createProgressRepository(schema).open(destination.path);
+  final reopened = await createProgressRepository(schema)
+      .open(destination.path);
   final reopenedProject = _projectOf(reopened, 'reopen export');
   expect(fieldInt(reopenedProject, maxLifeFieldId), 12);
   expect(fieldInt(reopenedProject, lifeFieldId), 16);
@@ -486,7 +481,11 @@ Future<SaveProject> _assertExportedChain({
   final diff = ByteRegionDiff.diff(original, exported);
   expect(diff.runs, hasLength(1), reason: 'only the Life value may differ');
   final run = diff.runs.single;
-  final lifeRegion = ByteRegion(lifeOffset, lifeOffset + 4, 'PlayerStatus.Life');
+  final lifeRegion = ByteRegion(
+    lifeOffset,
+    lifeOffset + 4,
+    'PlayerStatus.Life',
+  );
   expect(run.start, lifeOffset);
   // Measured: one byte differs (0x0c -> 0x10); the field region is 4 bytes and
   // fully contains the run.
@@ -574,8 +573,10 @@ void _setU32(Uint8List bytes, int offset, int value) {
 /// destination directory behind.
 void _expectNoWrites(Directory root, {required int progressLength}) {
   final slot = Directory('${root.path}/slot_00');
-  expect(directoryEntries(slot), <String>['caption.sav', 'progress.sav'],
-      reason: 'a refused open must not create .bak or temp files');
+  expect(directoryEntries(slot), <String>[
+    'caption.sav',
+    'progress.sav',
+  ], reason: 'a refused open must not create .bak or temp files');
   expect(File('${slot.path}/progress.sav').lengthSync(), progressLength);
   expect(Directory('${root.path}.bombflower-original').existsSync(), isFalse);
   expect(File('${root.path}/.bombflower-pending.json').existsSync(), isFalse);

@@ -72,8 +72,14 @@ void main() {
     });
 
     test('exactly 20 sections are populated in the samples', () {
-      expect(ProgressLayout.sections.where((s) => s.sampleCount > 0).length, 20);
-      expect(ProgressLayout.sections.where((s) => s.sampleCount == 0).length, 12);
+      expect(
+        ProgressLayout.sections.where((s) => s.sampleCount > 0).length,
+        20,
+      );
+      expect(
+        ProgressLayout.sections.where((s) => s.sampleCount == 0).length,
+        12,
+      );
     });
 
     test('keeps the verified sample constants', () {

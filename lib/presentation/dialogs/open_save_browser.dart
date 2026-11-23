@@ -1,8 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart' show HitTestResult;
-import 'package:flutter/services.dart'
-    show KeyDownEvent, LogicalKeyboardKey;
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
@@ -177,10 +176,7 @@ class _OpenSaveDialogState extends State<OpenSaveDialog> {
       _loading = true;
       _selectedPath = null;
     });
-    final listing = await _lister.list(
-      trimmed,
-      includeHidden: _showHidden,
-    );
+    final listing = await _lister.list(trimmed, includeHidden: _showHidden);
     // A newer navigation, or a closed dialog, discards this result.
     if (!mounted || sequence != _sequence) {
       return;
@@ -232,9 +228,7 @@ class _OpenSaveDialogState extends State<OpenSaveDialog> {
   /// A single tap on a plain folder descends; a profile folder, a slot folder,
   /// or a file is selected. Double-click and Enter still descend.
   void _tapEntry(DirectoryEntry entry) {
-    if (entry.isDirectory &&
-        !entry.containsSlots &&
-        !entry.isSlotDirectory) {
+    if (entry.isDirectory && !entry.containsSlots && !entry.isSlotDirectory) {
       _descend(entry);
       return;
     }
@@ -370,8 +364,7 @@ class _OpenSaveDialogState extends State<OpenSaveDialog> {
   }
 
   KeyEventResult _handleListKey(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.enter) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
       _activateSelection();
       return KeyEventResult.handled;
     }
@@ -528,7 +521,8 @@ class _OpenSaveDialogState extends State<OpenSaveDialog> {
               key: const Key('open-save-list'),
               padding: EdgeInsets.zero,
               itemCount: listing.entries.length,
-              itemBuilder: (context, index) => _entryRow(listing.entries[index]),
+              itemBuilder: (context, index) =>
+                  _entryRow(listing.entries[index]),
             ),
           ),
         ),
@@ -576,7 +570,8 @@ class _OpenSaveDialogState extends State<OpenSaveDialog> {
     return SaveDialogFrame(
       panelKey: _panelKey,
       title: 'Open save folder',
-      subtitle: 'Choose the folder that holds the slot folders, not a slot '
+      subtitle:
+          'Choose the folder that holds the slot folders, not a slot '
           'itself.',
       icon: Icons.folder_open_outlined,
       footer: SaveDialogActions(

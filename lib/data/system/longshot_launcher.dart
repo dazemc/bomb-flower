@@ -25,11 +25,7 @@ enum LaunchStatus {
 /// The outcome of one launch attempt.
 final class LaunchResult {
   /// Creates a result. [detail] carries the host's message for [failed].
-  const LaunchResult({
-    required this.status,
-    required this.path,
-    this.detail,
-  });
+  const LaunchResult({required this.status, required this.path, this.detail});
 
   /// How the attempt ended.
   final LaunchStatus status;

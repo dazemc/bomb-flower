@@ -150,9 +150,7 @@ List<EditTableRow> buildEditTableRows({
       continue;
     }
     final view = viewsByLabel[field.name];
-    rows.add(
-      view == null ? _missingRow(field) : _resolvedRow(field, view),
-    );
+    rows.add(view == null ? _missingRow(field) : _resolvedRow(field, view));
   }
   return rows;
 }
@@ -164,7 +162,8 @@ EditTableRow _missingRow(FieldRef field) {
     typeLabel: field.type,
     valueLabel: editTableEmptyValue,
     level: _levelForProvenance(field.provenance),
-    source: 'Catalogue field ${field.name} is not present in this save '
+    source:
+        'Catalogue field ${field.name} is not present in this save '
         '(hash ${field.hashHex})',
     isModified: false,
     readOnlyReason: editTableNotStoredReason,
@@ -212,8 +211,13 @@ EditTableRow _resolvedRow(FieldRef field, TabFieldView view) {
     final candidate = _kindFor(descriptor.kind);
     if (candidate == null) {
       reason = editTableOpaqueKindReason;
-    } else if (!_hasTypedValue(candidate, intValue, boolValue, enumKey,
-        textValue)) {
+    } else if (!_hasTypedValue(
+      candidate,
+      intValue,
+      boolValue,
+      enumKey,
+      textValue,
+    )) {
       reason = 'No decoded value';
     } else {
       kind = candidate;
@@ -365,9 +369,7 @@ class EditTable extends StatefulWidget {
     'edit-table-editable-only',
   );
 
-  static const Key changedOnlyKey = ValueKey<String>(
-    'edit-table-changed-only',
-  );
+  static const Key changedOnlyKey = ValueKey<String>('edit-table-changed-only');
 
   static const Key countKey = ValueKey<String>('edit-table-count');
 
@@ -616,12 +618,7 @@ class _EditTableState extends State<EditTable> {
                   itemCount: rows.length,
                   padding: EdgeInsets.zero,
                   itemBuilder: (BuildContext context, int index) {
-                    return _buildRow(
-                      rows[index],
-                      index,
-                      cursorIndex,
-                      palette,
-                    );
+                    return _buildRow(rows[index], index, cursorIndex, palette);
                   },
                 ),
               ),
@@ -689,18 +686,22 @@ class _EditTableState extends State<EditTable> {
     return Container(
       height: BombFlowerSpacing.tableHeaderHeight,
       color: palette.surfaceSunken,
-      padding: const EdgeInsets.symmetric(
-        horizontal: BombFlowerSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: BombFlowerSpacing.md),
       child: Row(
         children: <Widget>[
           Expanded(child: Text('Field', style: style)),
           const SizedBox(width: _gap),
-          SizedBox(width: _typeWidth, child: Text('Type', style: style)),
+          SizedBox(
+            width: _typeWidth,
+            child: Text('Type', style: style),
+          ),
           const SizedBox(width: _gap),
           Expanded(child: Text('Value', style: style)),
           const SizedBox(width: _gap),
-          SizedBox(width: _sourceWidth, child: Text('Source', style: style)),
+          SizedBox(
+            width: _sourceWidth,
+            child: Text('Source', style: style),
+          ),
         ],
       ),
     );
@@ -740,10 +741,7 @@ class _EditTableState extends State<EditTable> {
           ),
           child: Row(
             children: <Widget>[
-              Expanded(
-                flex: 3,
-                child: _fieldCell(row, palette),
-              ),
+              Expanded(flex: 3, child: _fieldCell(row, palette)),
               const SizedBox(width: _gap),
               SizedBox(
                 width: _typeWidth,
@@ -757,10 +755,7 @@ class _EditTableState extends State<EditTable> {
                 ),
               ),
               const SizedBox(width: _gap),
-              Expanded(
-                flex: 3,
-                child: _valueCell(row, palette),
-              ),
+              Expanded(flex: 3, child: _valueCell(row, palette)),
               const SizedBox(width: _gap),
               SizedBox(
                 width: _sourceWidth,
@@ -820,9 +815,7 @@ class _EditTableState extends State<EditTable> {
             issue,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: BombFlowerTypography.caption.copyWith(
-              color: palette.danger,
-            ),
+            style: BombFlowerTypography.caption.copyWith(color: palette.danger),
           ),
         if (reason != null)
           Text(
@@ -845,9 +838,7 @@ class _EditTableState extends State<EditTable> {
           row.valueLabel,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: BombFlowerTypography.table.copyWith(
-            color: palette.textMuted,
-          ),
+          style: BombFlowerTypography.table.copyWith(color: palette.textMuted),
         ),
       );
     }
@@ -940,7 +931,6 @@ class _EditTableState extends State<EditTable> {
     }
     return null;
   }
-
 }
 
 class _TextCell extends StatefulWidget {
@@ -982,9 +972,7 @@ class _TextCellState extends State<_TextCell> {
       if (!_focusNode.hasFocus) {
         _controller.value = TextEditingValue(
           text: widget.initialText,
-          selection: TextSelection.collapsed(
-            offset: widget.initialText.length,
-          ),
+          selection: TextSelection.collapsed(offset: widget.initialText.length),
         );
         _error = null;
       }
@@ -1049,9 +1037,7 @@ class _TextCellState extends State<_TextCell> {
           inputFormatters: <TextInputFormatter>[
             _PrintableAsciiFormatter(widget.cap),
           ],
-          style: BombFlowerTypography.mono.copyWith(
-            color: palette.textPrimary,
-          ),
+          style: BombFlowerTypography.mono.copyWith(color: palette.textPrimary),
           onSubmitted: (_) => _commit(),
           onTapOutside: (_) => _focusNode.unfocus(),
           decoration: const InputDecoration(isDense: true),
@@ -1061,9 +1047,7 @@ class _TextCellState extends State<_TextCell> {
             _error!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: BombFlowerTypography.caption.copyWith(
-              color: palette.danger,
-            ),
+            style: BombFlowerTypography.caption.copyWith(color: palette.danger),
           ),
       ],
     );

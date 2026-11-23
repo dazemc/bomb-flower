@@ -73,12 +73,18 @@ void main() {
   group('Deep Canopy contrast guard', () {
     test('the WCAG helpers are not silently broken', () {
       // A broken luminance or ratio function would make every pair "pass".
-      expect(_contrast(const Color(0xFF000000), const Color(0xFFFFFFFF)),
-          closeTo(21.0, 0.01));
-      expect(_contrast(BombFlowerColors.bone, BombFlowerColors.canopy0),
-          closeTo(14.89, 0.02));
-      expect(_contrast(BombFlowerColors.ink, BombFlowerColors.canopy0),
-          closeTo(1.06, 0.02));
+      expect(
+        _contrast(const Color(0xFF000000), const Color(0xFFFFFFFF)),
+        closeTo(21.0, 0.01),
+      );
+      expect(
+        _contrast(BombFlowerColors.bone, BombFlowerColors.canopy0),
+        closeTo(14.89, 0.02),
+      );
+      expect(
+        _contrast(BombFlowerColors.ink, BombFlowerColors.canopy0),
+        closeTo(1.06, 0.02),
+      );
       // 90% boneMuted over wood, composited, is the nav rail hint.
       final hint = _composite(
         BombFlowerColors.boneMuted.withValues(alpha: 0.90),
@@ -141,7 +147,9 @@ double _luminance(Color color) {
 
 double _channel(int value) {
   final c = value / 255.0;
-  return c <= 0.04045 ? c / 12.92 : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+  return c <= 0.04045
+      ? c / 12.92
+      : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
 }
 
 /// WCAG 2.1 contrast ratio between two opaque colours.

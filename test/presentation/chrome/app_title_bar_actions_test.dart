@@ -154,9 +154,7 @@ Future<void> pumpTitleBar(
   await tester.pumpWidget(
     MaterialApp(
       theme: BombFlowerThemeData.build(),
-      home: Scaffold(
-        body: Column(children: <Widget>[bar]),
-      ),
+      home: Scaffold(body: Column(children: <Widget>[bar])),
     ),
   );
   await tester.pump();

@@ -159,8 +159,7 @@ TabFieldView _view(
   );
 }
 
-Finder _cell(String id) =>
-    find.byKey(ValueKey<String>('edit-table-cell-$id'));
+Finder _cell(String id) => find.byKey(ValueKey<String>('edit-table-cell-$id'));
 
 Finder _listScrollable() {
   return find
@@ -218,10 +217,7 @@ void main() {
     await pumpTabPage(tester, _table(rows));
     expect(find.text('Showing 3 of 3 fields · 2 editable'), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(EditTable.searchFieldKey),
-      'magic',
-    );
+    await tester.enterText(find.byKey(EditTable.searchFieldKey), 'magic');
     await tester.pump();
     expect(find.text('Showing 1 of 3 fields · 2 editable'), findsOneWidget);
     expect(find.byKey(EditTable.rowKey('player.health')), findsNothing);
@@ -388,8 +384,7 @@ void main() {
       tester,
       _table(
         rows,
-        onEnumeration: (String id, String key) =>
-            enumerations.add((id, key)),
+        onEnumeration: (String id, String key) => enumerations.add((id, key)),
       ),
     );
 
@@ -505,10 +500,7 @@ void main() {
   testWidgets('error message renders a banner and no rows', (tester) async {
     await pumpTabPage(
       tester,
-      _table(
-        _manyRows(3),
-        errorMessage: 'The save could not be read',
-      ),
+      _table(_manyRows(3), errorMessage: 'The save could not be read'),
     );
 
     expect(find.byKey(EditTable.errorKey), findsOneWidget);
@@ -648,12 +640,7 @@ void main() {
             choices: const <String, int>{'On': 0},
             value: null,
           ),
-          _view(
-            'a.text',
-            kind: FieldKind.string,
-            spanLength: 8,
-            value: null,
-          ),
+          _view('a.text', kind: FieldKind.string, spanLength: 8, value: null),
         ],
       );
 

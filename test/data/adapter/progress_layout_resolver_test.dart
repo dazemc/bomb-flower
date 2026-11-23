@@ -103,10 +103,7 @@ void main() {
 
     final resolved = await resolver.call(root.path);
     expect(resolved, isA<LayoutResolved>());
-    expect(
-      (resolved as LayoutResolved).selection.detectedVersion,
-      2982123,
-    );
+    expect((resolved as LayoutResolved).selection.detectedVersion, 2982123);
   });
 
   test('call reports a typed rejection for every non-save case', () async {
@@ -119,10 +116,7 @@ void main() {
     _writeSlot(truncated, 0, _minimalProgress().sublist(0, 20));
 
     final emptyResult = await resolver.call(empty.path);
-    expect(
-      (emptyResult as LayoutRejected).kind,
-      LayoutRejectionKind.notASave,
-    );
+    expect((emptyResult as LayoutRejected).kind, LayoutRejectionKind.notASave);
     expect(emptyResult.reason, contains('no slot_NN/progress.sav'));
 
     final wrongMagicResult =
@@ -130,8 +124,7 @@ void main() {
     expect(wrongMagicResult.kind, LayoutRejectionKind.notASave);
     expect(wrongMagicResult.reason, contains('0xdeadbeef'));
 
-    final revisionResult =
-        await resolver.call(revision.path) as LayoutRejected;
+    final revisionResult = await resolver.call(revision.path) as LayoutRejected;
     expect(revisionResult.kind, LayoutRejectionKind.unsupportedRevision);
     expect(revisionResult.detectedVersion, 1);
     expect(revisionResult.reason, contains('2982123'));

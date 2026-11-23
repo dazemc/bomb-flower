@@ -88,13 +88,11 @@ String hexU32(Uint8List bytes, int offset) => <String>[
 int progressRecordCount(Uint8List bytes) => _decode(bytes).recordCount;
 
 /// The 32 `{0, typeId}` sentinels of a `progress.sav`, as `key:value` pairs.
-List<({int key, int value})> progressSentinels(Uint8List bytes) => <({
-  int key,
-  int value,
-})>[
-  for (final sentinel in _decode(bytes).sentinels)
-    (key: sentinel.key, value: sentinel.rawValue),
-];
+List<({int key, int value})> progressSentinels(Uint8List bytes) =>
+    <({int key, int value})>[
+      for (final sentinel in _decode(bytes).sentinels)
+        (key: sentinel.key, value: sentinel.rawValue),
+    ];
 
 /// The footer `{key, value}` pair of a `progress.sav`.
 ({int key, int value}) progressFooter(Uint8List bytes) {

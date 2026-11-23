@@ -450,7 +450,9 @@ void main() {
       expect(glyph.style?.color, isNot(theme.danger));
     });
 
-    testWidgets('read-only badge paints the lifted danger tone', (tester) async {
+    testWidgets('read-only badge paints the lifted danger tone', (
+      tester,
+    ) async {
       const theme = HexEditorThemeData();
       await pumpEditor(tester, makeController(length: 16, readOnly: true));
 
@@ -460,7 +462,10 @@ void main() {
 
       final badge = tester.widget<Container>(
         find
-            .ancestor(of: find.text('READ-ONLY'), matching: find.byType(Container))
+            .ancestor(
+              of: find.text('READ-ONLY'),
+              matching: find.byType(Container),
+            )
             .first,
       );
       final border = (badge.decoration! as BoxDecoration).border!;
@@ -589,13 +594,16 @@ void main() {
   });
 
   group('HexEditorThemeData danger tokens', () {
-    test('invalid marks use the lifted canopy tone, not the parchment danger', () {
-      const theme = HexEditorThemeData();
-      final invalid = theme.markColor(ByteMarkKind.invalid);
+    test(
+      'invalid marks use the lifted canopy tone, not the parchment danger',
+      () {
+        const theme = HexEditorThemeData();
+        final invalid = theme.markColor(ByteMarkKind.invalid);
 
-      expect(invalid, theme.dangerLight);
-      expect(invalid, const Color(0xFFE88B7D));
-      expect(invalid, isNot(theme.danger));
-    });
+        expect(invalid, theme.dangerLight);
+        expect(invalid, const Color(0xFFE88B7D));
+        expect(invalid, isNot(theme.danger));
+      },
+    );
   });
 }

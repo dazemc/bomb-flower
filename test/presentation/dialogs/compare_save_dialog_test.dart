@@ -56,23 +56,25 @@ SaveProject _buildProject({
     <FieldDescriptor>[for (final spec in fields) spec.descriptor],
     expectedLength: saveLength,
   );
-  final layout = LayoutDescriptor(
-    'cmp-layout',
-    7,
-    <SaveSlotLayout>[slotLayout],
-    minimumVersion: 5,
-  );
+  final layout = LayoutDescriptor('cmp-layout', 7, <SaveSlotLayout>[
+    slotLayout,
+  ], minimumVersion: 5);
   final original = SaveSnapshot(slot, 0, ByteRegion.fromBytes(originalBytes));
   final current = SaveSnapshot(slot, 1, ByteRegion.fromBytes(currentBytes));
-  final document = SaveDocument(slot, slotLayout, current, <SaveField<FieldValue>>[
-    for (final spec in fields)
-      SaveField<FieldValue>(
-        spec.descriptor,
-        spec.current,
-        spec.original,
-        isDirty: spec.dirty,
-      ),
-  ]);
+  final document = SaveDocument(
+    slot,
+    slotLayout,
+    current,
+    <SaveField<FieldValue>>[
+      for (final spec in fields)
+        SaveField<FieldValue>(
+          spec.descriptor,
+          spec.current,
+          spec.original,
+          isDirty: spec.dirty,
+        ),
+    ],
+  );
 
   return SaveProject(
     'cmp',
@@ -167,7 +169,7 @@ void main() {
       tester
           .widget<ProvenanceBadge>(find.byKey(const Key('compare-provenance')))
           .source,
-       _descriptorAt(0x0a, 'Health').source,
+      _descriptorAt(0x0a, 'Health').source,
     );
 
     await tester.tap(find.byKey(StoneTable.rowKey(1)));
@@ -181,7 +183,7 @@ void main() {
       tester
           .widget<ProvenanceBadge>(find.byKey(const Key('compare-provenance')))
           .source,
-       _descriptorAt(0x14, 'Armor').source,
+      _descriptorAt(0x14, 'Armor').source,
     );
     expect(tester.takeException(), isNull);
   });

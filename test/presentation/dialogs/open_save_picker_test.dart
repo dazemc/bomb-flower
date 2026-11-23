@@ -24,10 +24,7 @@ final class TempTreeLister implements DirectoryLister {
   static final RegExp _slotName = RegExp(r'^slot_\d{2}$');
 
   @override
-  Future<DirectoryListing> list(
-    String path, {
-    bool includeHidden = false,
-  }) {
+  Future<DirectoryListing> list(String path, {bool includeHidden = false}) {
     calls.add(path);
     final directory = Directory(path);
     if (!directory.existsSync()) {
@@ -48,9 +45,8 @@ final class TempTreeLister implements DirectoryLister {
       final isDirectory = entity is Directory;
       final hasProgressSave =
           isDirectory &&
-          File(
-            '${entity.path}${Platform.pathSeparator}$progressSaveName',
-          ).existsSync();
+          File('${entity.path}${Platform.pathSeparator}$progressSaveName')
+              .existsSync();
       var containsSlots = false;
       if (isDirectory) {
         for (var index = 0; index < 10; index++) {
@@ -94,18 +90,14 @@ final class TempTreeLister implements DirectoryLister {
 
 /// A lister whose listing never completes, for the anti-wedge regression.
 final class NeverLister implements DirectoryLister {
-  final Completer<DirectoryListing> completer =
-      Completer<DirectoryListing>();
+  final Completer<DirectoryListing> completer = Completer<DirectoryListing>();
   final List<String> calls = <String>[];
 
   @override
   String? get homeDirectory => '/home/test';
 
   @override
-  Future<DirectoryListing> list(
-    String path, {
-    bool includeHidden = false,
-  }) {
+  Future<DirectoryListing> list(String path, {bool includeHidden = false}) {
     calls.add(path);
     return completer.future;
   }
@@ -172,50 +164,55 @@ void main() {
     }
   });
 
-  testWidgets('lists dirs-first, single tap descends, .. returns, dots hidden', (
-    tester,
-  ) async {
-    final launch = await openPicker(
-      tester,
-      lister: lister,
-      initialPath: root.path,
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'lists dirs-first, single tap descends, .. returns, dots hidden',
+    (tester) async {
+      final launch = await openPicker(
+        tester,
+        lister: lister,
+        initialPath: root.path,
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('open-save-entry-alpha')), findsOneWidget);
-    expect(find.byKey(const Key('open-save-entry-beta')), findsOneWidget);
-    expect(find.byKey(const Key('open-save-entry-profile')), findsOneWidget);
-    expect(find.byKey(const Key('open-save-entry-zeta.txt')), findsOneWidget);
-    expect(find.byKey(const Key('open-save-entry-.hidden')), findsNothing);
-    expect(find.byKey(const Key('open-save-entry-.dotfile')), findsNothing);
+      expect(find.byKey(const Key('open-save-entry-alpha')), findsOneWidget);
+      expect(find.byKey(const Key('open-save-entry-beta')), findsOneWidget);
+      expect(find.byKey(const Key('open-save-entry-profile')), findsOneWidget);
+      expect(find.byKey(const Key('open-save-entry-zeta.txt')), findsOneWidget);
+      expect(find.byKey(const Key('open-save-entry-.hidden')), findsNothing);
+      expect(find.byKey(const Key('open-save-entry-.dotfile')), findsNothing);
 
-    final firstDirectory = tester
-        .getTopLeft(find.byKey(const Key('open-save-entry-alpha')))
-        .dy;
-    final file = tester
-        .getTopLeft(find.byKey(const Key('open-save-entry-zeta.txt')))
-        .dy;
-    expect(firstDirectory, lessThan(file));
+      final firstDirectory = tester
+          .getTopLeft(find.byKey(const Key('open-save-entry-alpha')))
+          .dy;
+      final file = tester
+          .getTopLeft(find.byKey(const Key('open-save-entry-zeta.txt')))
+          .dy;
+      expect(firstDirectory, lessThan(file));
 
-    // One tap on a plain folder descends; no double click required.
-    await tester.tapAt(
-      tester.getCenter(find.byKey(const Key('open-save-entry-alpha'))),
-    );
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
-    expect(fieldText(tester), '${root.path}/alpha');
-    expect(find.byKey(const Key('open-save-entry-notes.txt')), findsOneWidget);
+      // One tap on a plain folder descends; no double click required.
+      await tester.tapAt(
+        tester.getCenter(find.byKey(const Key('open-save-entry-alpha'))),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(fieldText(tester), '${root.path}/alpha');
+      expect(
+        find.byKey(const Key('open-save-entry-notes.txt')),
+        findsOneWidget,
+      );
 
-    // One tap on `..` returns to the parent.
-    await tester.tap(find.byKey(const Key('open-save-parent')));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
-    expect(fieldText(tester), root.path);
+      // One tap on `..` returns to the parent.
+      await tester.tap(find.byKey(const Key('open-save-parent')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(fieldText(tester), root.path);
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
-    expect(await launch.future, isNull);
-  }, timeout: const Timeout(Duration(seconds: 30)));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(await launch.future, isNull);
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 
   testWidgets('a selected profile can be entered with Enter', (tester) async {
     final launch = await openPicker(
@@ -283,20 +280,17 @@ void main() {
   ) async {
     final recents = FakeRecentPathsStore();
     var shows = 0;
-    final launch = await launchDialog<String>(
-      tester,
-      (context) {
-        shows++;
-        return OpenSaveDialog.show(
-          context,
-          probe: FakeSaveFolderProbe(),
-          recentPaths: recents,
-          directoryLister: lister,
-          settingsStore: InMemorySettingsStore(),
-          initialPath: root.path,
-        );
-      },
-    );
+    final launch = await launchDialog<String>(tester, (context) {
+      shows++;
+      return OpenSaveDialog.show(
+        context,
+        probe: FakeSaveFolderProbe(),
+        recentPaths: recents,
+        directoryLister: lister,
+        settingsStore: InMemorySettingsStore(),
+        initialPath: root.path,
+      );
+    });
     await tester.pumpAndSettle();
 
     final profile = '${root.path}/profile';

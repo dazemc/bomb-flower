@@ -15,23 +15,24 @@ DirectoryEntry slot(String path) => DirectoryEntry(
   hasProgressSave: true,
 );
 
-FakeDirectoryLister buildLister() => FakeDirectoryLister(<String, DirectoryListing>{
-  '/save': DirectoryListing(
-    path: '/save',
-    parentPath: '/',
-    entries: <DirectoryEntry>[slot('/save/slot_00'), slot('/save/slot_01')],
-  ),
-  '/empty': const DirectoryListing(
-    path: '/empty',
-    parentPath: '/',
-    entries: <DirectoryEntry>[],
-  ),
-  '/save/progress.sav': const DirectoryListing(
-    path: '/save/progress.sav',
-    entries: <DirectoryEntry>[],
-    error: 'Not a folder',
-  ),
-});
+FakeDirectoryLister buildLister() =>
+    FakeDirectoryLister(<String, DirectoryListing>{
+      '/save': DirectoryListing(
+        path: '/save',
+        parentPath: '/',
+        entries: <DirectoryEntry>[slot('/save/slot_00'), slot('/save/slot_01')],
+      ),
+      '/empty': const DirectoryListing(
+        path: '/empty',
+        parentPath: '/',
+        entries: <DirectoryEntry>[],
+      ),
+      '/save/progress.sav': const DirectoryListing(
+        path: '/save/progress.sav',
+        entries: <DirectoryEntry>[],
+        error: 'Not a folder',
+      ),
+    });
 
 bool openEnabled(WidgetTester tester) =>
     tester

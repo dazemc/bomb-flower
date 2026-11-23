@@ -14,11 +14,11 @@ import '../support/synthetic_caption.dart';
 import '../support/synthetic_progress.dart';
 
 Future<ProcessResult> _runCreateSave(List<String> arguments) {
-  return Process.run(
-    'dart',
-    <String>['run', 'tool/create_save.dart', ...arguments],
-    workingDirectory: Directory.current.path,
-  );
+  return Process.run('dart', <String>[
+    'run',
+    'tool/create_save.dart',
+    ...arguments,
+  ], workingDirectory: Directory.current.path);
 }
 
 void main() {
@@ -32,12 +32,10 @@ void main() {
 
     final template = Directory('${temp.path}/my-weird-template')
       ..createSync(recursive: true);
-    File(
-      '${template.path}/progress.sav',
-    ).writeAsBytesSync(buildSyntheticProgress());
-    File(
-      '${template.path}/caption.sav',
-    ).writeAsBytesSync(buildSyntheticCaption());
+    File('${template.path}/progress.sav')
+        .writeAsBytesSync(buildSyntheticProgress());
+    File('${template.path}/caption.sav')
+        .writeAsBytesSync(buildSyntheticCaption());
 
     final out = '${temp.path}/default-out';
     final run = await _runCreateSave(<String>[

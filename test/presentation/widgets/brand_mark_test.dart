@@ -195,10 +195,16 @@ void main() {
       data.offsetInBytes,
       data.lengthInBytes,
     );
-    expect(
-      bytes.take(8).toList(),
-      <int>[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
-    );
+    expect(bytes.take(8).toList(), <int>[
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A,
+    ]);
   });
 
   testWidgets('BrandMark honours the requested width at 16/24/32/48', (
@@ -298,9 +304,8 @@ void main() {
     final twoHue = _stats(
       _Rendered(
         buffer(
-          (x) => x < width ~/ 2
-              ? BombFlowerColors.bone
-              : const Color(0xFFC0442A),
+          (x) =>
+              x < width ~/ 2 ? BombFlowerColors.bone : const Color(0xFFC0442A),
         ),
         width,
         height,

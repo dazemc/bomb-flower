@@ -93,9 +93,7 @@ class _BrassButtonState extends State<BrassButton> {
             duration: duration,
             curve: BombFlowerMotion.hoverCurve,
             height: controlHeight,
-            constraints: BoxConstraints(
-              minWidth: controlMinWidth,
-            ),
+            constraints: BoxConstraints(minWidth: controlMinWidth),
             padding: const EdgeInsets.symmetric(
               horizontal: BombFlowerSpacing.xl,
             ),

@@ -37,10 +37,7 @@ const String _tokenId = 'collectibles.tokenNear';
 
 /// An in-memory port with the current byte accessors and an edit recorder.
 final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
-  _FakeSaveTabSource({
-    this.views = const <TabFieldView>[],
-    this.open = true,
-  });
+  _FakeSaveTabSource({this.views = const <TabFieldView>[], this.open = true});
 
   final List<TabFieldView> views;
   final bool open;
@@ -86,8 +83,7 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
   Listenable get changes => this;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      const <TabFieldView>[];
+  List<TabFieldView> viewsFor(EditorTabGroup group) => const <TabFieldView>[];
 
   @override
   Iterable<TabFieldView> get allViews => views;
@@ -134,8 +130,7 @@ final class _RecordingSource implements SaveTabSource {
   Listenable get changes => _inner.changes;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      _inner.viewsFor(group);
+  List<TabFieldView> viewsFor(EditorTabGroup group) => _inner.viewsFor(group);
 
   @override
   Iterable<TabFieldView> get allViews => _inner.allViews;
@@ -444,7 +439,9 @@ void main() {
       find.descendant(of: _row(_tokenId), matching: find.byType(NumericField)),
       findsNothing,
     );
-    await tester.tapAt(tester.getTopLeft(_row(_tokenId)) + const Offset(12, 32));
+    await tester.tapAt(
+      tester.getTopLeft(_row(_tokenId)) + const Offset(12, 32),
+    );
     await tester.pump();
     expect(source.edits, isEmpty);
     expectNoOverflow(tester);
@@ -669,8 +666,10 @@ void main() {
 
         // The header count line is the tab's own measured claim.
         expect(
-          find.text('159 named fields · no hash-only fields · '
-              '159 of 159 editable'),
+          find.text(
+            '159 named fields · no hash-only fields · '
+            '159 of 159 editable',
+          ),
           findsOneWidget,
         );
       });

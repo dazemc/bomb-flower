@@ -156,9 +156,7 @@ ControlIconButton compareButton(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('no session renders the compare action disabled', (
-    tester,
-  ) async {
+  testWidgets('no session renders the compare action disabled', (tester) async {
     await pumpFileBar(tester);
 
     expect(find.byKey(const Key('shell-action-compare')), findsOneWidget);
@@ -201,7 +199,9 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('the collapsed overflow menu carries compare too', (tester) async {
+  testWidgets('the collapsed overflow menu carries compare too', (
+    tester,
+  ) async {
     final harness = buildCubit();
     disposeCubit(harness.cubit);
     await harness.cubit.openPath('/save');

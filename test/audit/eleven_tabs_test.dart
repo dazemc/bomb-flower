@@ -34,8 +34,9 @@ Future<ShellCubit> pumpShell(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('all eleven tabs are present, tappable, and not placeholders',
-      (tester) async {
+  testWidgets('all eleven tabs are present, tappable, and not placeholders', (
+    tester,
+  ) async {
     final cubit = await pumpShell(tester);
 
     expect(kTabDefinitions, hasLength(11));
@@ -93,8 +94,9 @@ void main() {
     }
   });
 
-  testWidgets('tab content is honest until a save is open (empty state)',
-      (tester) async {
+  testWidgets('tab content is honest until a save is open (empty state)', (
+    tester,
+  ) async {
     await pumpShell(tester);
     // Overview is the default tab; every tab renders an empty-state panel.
     expect(find.textContaining('Open a save'), findsWidgets);

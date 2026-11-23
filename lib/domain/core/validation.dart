@@ -35,8 +35,7 @@ final class const ValidationIssue(
   /// The same code emitted at [Severity.error] (a verified field with no
   /// citation) is a real problem and is deliberately not informational.
   bool get isInformational =>
-      severity == Severity.warning &&
-      code == ValidationCodes.fieldUnverified;
+      severity == Severity.warning && code == ValidationCodes.fieldUnverified;
 
   /// Whether this issue asks the user to act.
   ///

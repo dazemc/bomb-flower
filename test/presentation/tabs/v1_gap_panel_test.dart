@@ -112,19 +112,13 @@ const List<_TabCase> _cases = <_TabCase>[
     build: _collectibles,
     rows: 159,
   ),
-  _TabCase(
-    name: 'Flags',
-    tab: ShellTab.flags,
-    build: _flags,
-    rows: 3443,
-  ),
+  _TabCase(name: 'Flags', tab: ShellTab.flags, build: _flags, rows: 3443),
 ];
 
 Widget _collectibles(FieldGroupsCatalogue catalogue) =>
     CollectiblesTab(catalogue: catalogue);
 
-Widget _flags(FieldGroupsCatalogue catalogue) =>
-    FlagsTab(catalogue: catalogue);
+Widget _flags(FieldGroupsCatalogue catalogue) => FlagsTab(catalogue: catalogue);
 
 void main() {
   late FieldGroupsCatalogue catalogue;

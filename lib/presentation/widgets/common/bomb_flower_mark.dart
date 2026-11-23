@@ -94,7 +94,10 @@ class _StableMarkImageState extends State<_StableMarkImage> {
         _assetPath != widget.assetPath) {
       _extent = widget.extent;
       _assetPath = widget.assetPath;
-      _provider = ResizeImage(AssetImage(widget.assetPath), width: widget.extent);
+      _provider = ResizeImage(
+        AssetImage(widget.assetPath),
+        width: widget.extent,
+      );
     }
     return _provider!;
   }

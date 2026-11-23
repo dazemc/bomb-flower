@@ -93,7 +93,8 @@ FieldDescriptor _unverifiedField(int offset) => FieldDescriptor(
       SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
     ),
     repository: repository,
-    resolveLayout: (_) async => const LayoutResolved(LayoutSelection(_layout, 1)),
+    resolveLayout: (_) async =>
+        const LayoutResolved(LayoutSelection(_layout, 1)),
   );
   return (cubit: cubit, repository: repository);
 }
@@ -172,7 +173,8 @@ final class _FakeRepository implements SaveRepository {
       SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
     ),
     repository: repository,
-    resolveLayout: (_) async => const LayoutResolved(LayoutSelection(_layout, 1)),
+    resolveLayout: (_) async =>
+        const LayoutResolved(LayoutSelection(_layout, 1)),
   );
   return (cubit: cubit, repository: repository);
 }
@@ -185,7 +187,8 @@ final class _FakeRepository implements SaveRepository {
       SaveFormat('test-format', 'Test format', <LayoutDescriptor>[]),
     ),
     repository: repository,
-    resolveLayout: (_) async => const LayoutResolved(LayoutSelection(_layout, 1)),
+    resolveLayout: (_) async =>
+        const LayoutResolved(LayoutSelection(_layout, 1)),
   );
   return (cubit: cubit, repository: repository);
 }
@@ -589,10 +592,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Could not open save'), findsOneWidget);
-      expect(
-        find.text('This folder does not contain a save.'),
-        findsOneWidget,
-      );
+      expect(find.text('This folder does not contain a save.'), findsOneWidget);
       expect(find.text('/nope/folder'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
     },

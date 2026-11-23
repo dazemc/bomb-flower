@@ -171,9 +171,7 @@ Future<void> _copyRealSaves(List<String> args) async {
       if (output.isNotEmpty) {
         stdout.writeln(output);
       }
-      stdout.writeln(
-        'diff -r FAILED for $slotName (exit ${diff.exitCode})',
-      );
+      stdout.writeln('diff -r FAILED for $slotName (exit ${diff.exitCode})');
       exitCode = 1;
     }
 

@@ -319,7 +319,7 @@ final class ProgressLayoutResolver {
       SaveUnsupportedRevision(:final path, :final detected) => LayoutRejected(
         LayoutRejectionKind.unsupportedRevision,
         'layout revision $detected is not supported; this build reads '
-            '${ProgressLayout.revision}',
+        '${ProgressLayout.revision}',
         detectedVersion: detected,
         path: path,
       ),

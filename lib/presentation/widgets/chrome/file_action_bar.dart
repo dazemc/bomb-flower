@@ -82,10 +82,7 @@ class FileActionBar extends StatelessWidget {
         onPressed: onOpen,
         // Bound by the shell's keyboard shortcuts. Only genuinely bound
         // accelerators carry a hint here; the rest stay blank.
-        shortcut: const SingleActivator(
-          LogicalKeyboardKey.keyO,
-          control: true,
-        ),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyO, control: true),
       ),
       _FileAction(
         key: const Key('shell-action-save'),
@@ -135,8 +132,7 @@ class FileActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = _actions();
-    final collapsed =
-        MediaQuery.sizeOf(context).width < collapseBreakpoint;
+    final collapsed = MediaQuery.sizeOf(context).width < collapseBreakpoint;
     return Row(
       key: const Key('file-action-bar'),
       mainAxisSize: MainAxisSize.min,

@@ -48,8 +48,9 @@ Future<void> pumpHost(WidgetTester tester, Widget child) async {
 
 void main() {
   group('title bar (bitsdojo-backed AppTitleBar)', () {
-    testWidgets('minimise, maximise and close controls are present',
-        (tester) async {
+    testWidgets('minimise, maximise and close controls are present', (
+      tester,
+    ) async {
       await pumpShellAt(tester, const Size(1360, 880));
       expect(find.byTooltip('Minimize'), findsOneWidget);
       expect(find.byTooltip('Maximize'), findsOneWidget);
@@ -66,20 +67,28 @@ void main() {
             widget.onDoubleTap != null,
       );
       expect(draggable, findsWidgets);
-      debugPrint('[audit] drag region GestureDetector(onPanStart+onDoubleTap) found');
+      debugPrint(
+        '[audit] drag region GestureDetector(onPanStart+onDoubleTap) found',
+      );
     });
 
-    testWidgets('clean shell shows no unsaved-changes semantics', (tester) async {
+    testWidgets('clean shell shows no unsaved-changes semantics', (
+      tester,
+    ) async {
       await pumpShellAt(tester, const Size(1360, 880));
-      expect(find.byKey(const Key('title-bar-dirty-indicator')), findsOneWidget);
+      expect(
+        find.byKey(const Key('title-bar-dirty-indicator')),
+        findsOneWidget,
+      );
       expect(find.bySemanticsLabel('Unsaved changes'), findsNothing);
       debugPrint('[audit] dirty indicator present but unlit on a clean shell');
     });
   });
 
   group('responsive behaviour', () {
-    testWidgets('rail collapses below 1280 and the action bar overflows',
-        (tester) async {
+    testWidgets('rail collapses below 1280 and the action bar overflows', (
+      tester,
+    ) async {
       await pumpShellAt(tester, const Size(1360, 880));
       expect(
         tester.getSize(find.byKey(const Key('shell-nav-rail'))).width,
@@ -107,14 +116,13 @@ void main() {
     });
 
     testWidgets('loading state renders its label', (tester) async {
-      await pumpHost(
-        tester,
-        const LoadingState(label: 'Reading preferences…'),
-      );
+      await pumpHost(tester, const LoadingState(label: 'Reading preferences…'));
       expect(find.text('Reading preferences…'), findsOneWidget);
     });
 
-    testWidgets('error state renders message, retry and details', (tester) async {
+    testWidgets('error state renders message, retry and details', (
+      tester,
+    ) async {
       await pumpHost(
         tester,
         ErrorState(
@@ -130,8 +138,9 @@ void main() {
       expect(find.textContaining('details'), findsWidgets);
     });
 
-    testWidgets('confirmation dialog returns false/true from Cancel/Confirm',
-        (tester) async {
+    testWidgets('confirmation dialog returns false/true from Cancel/Confirm', (
+      tester,
+    ) async {
       bool? result;
       await tester.pumpWidget(
         MaterialApp(
@@ -201,7 +210,9 @@ void main() {
       debugPrint('[audit] search filtered 3 options to 1 with query "kok"');
     });
 
-    testWidgets('help glyph and Modified/Invalid stamps render', (tester) async {
+    testWidgets('help glyph and Modified/Invalid stamps render', (
+      tester,
+    ) async {
       await pumpHost(
         tester,
         LabelledField(
@@ -213,7 +224,10 @@ void main() {
         ),
       );
       expect(find.byIcon(Icons.help_outline), findsOneWidget);
-      expect(find.byTooltip('Current hearts, in quarter-hearts'), findsOneWidget);
+      expect(
+        find.byTooltip('Current hearts, in quarter-hearts'),
+        findsOneWidget,
+      );
       expect(find.text('MODIFIED'), findsOneWidget);
       expect(find.text('INVALID'), findsOneWidget);
     });

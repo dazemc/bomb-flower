@@ -77,10 +77,8 @@ Widget _compareState(
   }
   return BlocBuilder<SaveSessionCubit, SaveSessionUiState>(
     bloc: cubit,
-    builder: (context, state) => build(
-      context,
-      cubit.openProject?.dirty.differsFromOriginal ?? false,
-    ),
+    builder: (context, state) =>
+        build(context, cubit.openProject?.dirty.differsFromOriginal ?? false),
   );
 }
 

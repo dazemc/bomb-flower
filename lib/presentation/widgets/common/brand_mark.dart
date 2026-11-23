@@ -390,7 +390,12 @@ class BrandMarkPainter extends CustomPainter {
         (tipNear + normal * _rosetteHalfWidth * 0.55).dx,
         (tipNear + normal * _rosetteHalfWidth * 0.55).dy,
       )
-      ..quadraticBezierTo(apex.dx, apex.dy, (tipNear - normal * _rosetteHalfWidth * 0.55).dx, (tipNear - normal * _rosetteHalfWidth * 0.55).dy)
+      ..quadraticBezierTo(
+        apex.dx,
+        apex.dy,
+        (tipNear - normal * _rosetteHalfWidth * 0.55).dx,
+        (tipNear - normal * _rosetteHalfWidth * 0.55).dy,
+      )
       ..cubicTo(
         (shoulder - normal * _rosetteHalfWidth).dx,
         (shoulder - normal * _rosetteHalfWidth).dy,

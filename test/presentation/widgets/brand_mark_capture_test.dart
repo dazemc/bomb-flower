@@ -59,11 +59,7 @@ Future<void> _settleImage(WidgetTester tester) async {
   await tester.pump();
 }
 
-Future<void> _writePng(
-  WidgetTester tester,
-  ui.Image image,
-  String name,
-) async {
+Future<void> _writePng(WidgetTester tester, ui.Image image, String name) async {
   await tester.runAsync(() async {
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     final file = File('$_outDir/$name')..createSync(recursive: true);
@@ -89,8 +85,7 @@ Future<void> _writeUpscaled(
         final si = (y * w + x) * 4;
         for (var dy = 0; dy < factor; dy++) {
           for (var dx = 0; dx < factor; dx++) {
-            final di =
-                (((y * factor + dy) * w * factor) + x * factor + dx) * 4;
+            final di = (((y * factor + dy) * w * factor) + x * factor + dx) * 4;
             out[di] = src[si];
             out[di + 1] = src[si + 1];
             out[di + 2] = src[si + 2];
@@ -189,7 +184,12 @@ void main() {
       final image = await _grab(tester, key);
       await _writePng(tester, image, name);
       if (size == 24) {
-        await _writeUpscaled(tester, image, '${name.split('.').first}_x8.png', 8);
+        await _writeUpscaled(
+          tester,
+          image,
+          '${name.split('.').first}_x8.png',
+          8,
+        );
       }
       image.dispose();
     }

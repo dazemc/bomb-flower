@@ -22,10 +22,7 @@ void useWideView(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-Future<void> pumpApp(
-  WidgetTester tester, {
-  SaveSessionCubit? session,
-}) async {
+Future<void> pumpApp(WidgetTester tester, {SaveSessionCubit? session}) async {
   useWideView(tester);
   await tester.pumpWidget(
     BombFlowerApp(enableWindowChrome: false, session: session),
@@ -118,15 +115,13 @@ void main() {
     await pumpApp(tester, session: harness.cubit);
     expect(find.text(overviewDataText), findsOneWidget);
     final overviewRect = tester.getRect(find.text(overviewDataText));
-    final overviewStyle = tester.widget<Text>(
-      find.text(overviewDataText),
-    ).style;
+    final overviewStyle = tester
+        .widget<Text>(find.text(overviewDataText))
+        .style;
 
     await switchTo(tester, ShellTab.inventory);
     expect(find.text(InventoryTab.stockCaveat), findsOneWidget);
-    final inventoryRect = tester.getRect(
-      find.text(InventoryTab.stockCaveat),
-    );
+    final inventoryRect = tester.getRect(find.text(InventoryTab.stockCaveat));
 
     await switchTo(tester, ShellTab.overview);
     expect(find.text(overviewDataText), findsOneWidget);
@@ -138,10 +133,7 @@ void main() {
 
     await switchTo(tester, ShellTab.inventory);
     expect(find.text(InventoryTab.stockCaveat), findsOneWidget);
-    expect(
-      tester.getRect(find.text(InventoryTab.stockCaveat)),
-      inventoryRect,
-    );
+    expect(tester.getRect(find.text(InventoryTab.stockCaveat)), inventoryRect);
     expect(find.byKey(const Key('tab-page-inventory')), findsOneWidget);
     expect(find.byKey(const Key('tab-page-overview')), findsNothing);
   });

@@ -51,7 +51,10 @@ void main() {
     });
 
     test('progress.sav in a folder that is not slot_NN is not a slot root', () {
-      final info = folder(path: '/saves/kokiri-start', progressSavePresent: true);
+      final info = folder(
+        path: '/saves/kokiri-start',
+        progressSavePresent: true,
+      );
 
       expect(isSlotFolderRoot(info), isFalse);
       expect(slotFolderMisselection(info), isNull);

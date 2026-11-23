@@ -68,7 +68,8 @@ TemplateCloneResult cloneSaveTemplate({
   String? mapPath,
   int? life,
 }) {
-  final captionInvalid = caption.length < CaptionLayout.minimumFileLength ||
+  final captionInvalid =
+      caption.length < CaptionLayout.minimumFileLength ||
       !CaptionSave.hasMagic(caption);
   if (captionInvalid) {
     throw ArgumentError.value(
@@ -168,7 +169,7 @@ void _requireStorableName(String value, String parameter) {
       value,
       parameter,
       'is ${value.length} character(s); at most $maximum fit in a '
-          '${CaptionLayout.nameLength}-byte slot with its NUL',
+      '${CaptionLayout.nameLength}-byte slot with its NUL',
     );
   }
   for (var i = 0; i < value.length; i++) {
@@ -199,8 +200,7 @@ List<(int, int)> _coalesce(List<(int, int)> spans) {
   if (spans.isEmpty) {
     return const <(int, int)>[];
   }
-  final sorted = <(int, int)>[...spans]
-    ..sort((a, b) => a.$1.compareTo(b.$1));
+  final sorted = <(int, int)>[...spans]..sort((a, b) => a.$1.compareTo(b.$1));
   final merged = <(int, int)>[];
   for (final span in sorted) {
     if (merged.isNotEmpty && span.$1 <= merged.last.$2) {

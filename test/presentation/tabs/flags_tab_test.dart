@@ -78,8 +78,7 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
   Listenable get changes => this;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      const <TabFieldView>[];
+  List<TabFieldView> viewsFor(EditorTabGroup group) => const <TabFieldView>[];
 
   @override
   Iterable<TabFieldView> get allViews => views;
@@ -126,8 +125,7 @@ final class _RecordingSource implements SaveTabSource {
   Listenable get changes => _inner.changes;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      _inner.viewsFor(group);
+  List<TabFieldView> viewsFor(EditorTabGroup group) => _inner.viewsFor(group);
 
   @override
   Iterable<TabFieldView> get allViews => _inner.allViews;
@@ -263,8 +261,7 @@ Finder _cell(String id) => find.byKey(ValueKey<String>('edit-table-cell-$id'));
 Finder _builtRows() {
   return find.byWidgetPredicate((Widget widget) {
     final key = widget.key;
-    return key is ValueKey<String> &&
-        key.value.startsWith('edit-table-row-');
+    return key is ValueKey<String> && key.value.startsWith('edit-table-row-');
   });
 }
 
@@ -289,69 +286,70 @@ void main() {
     _fieldB = _uniqueNamedFrom(1);
   });
 
-  testWidgets('renders the header and measured counts, virtualising 3,443 rows', (
-    tester,
-  ) async {
-    final source = _FakeSaveTabSource(
-      views: <TabFieldView>[
-        _view(
-          id: _idFor(_fieldA),
-          label: _fieldA.name,
-          value: const BoolValue(false),
+  testWidgets(
+    'renders the header and measured counts, virtualising 3,443 rows',
+    (tester) async {
+      final source = _FakeSaveTabSource(
+        views: <TabFieldView>[
+          _view(
+            id: _idFor(_fieldA),
+            label: _fieldA.name,
+            value: const BoolValue(false),
+          ),
+        ],
+      );
+      await _pumpFlags(tester, source);
+
+      expect(find.text('Flags'), findsOneWidget);
+      expect(find.byType(V1GapPanel), findsNothing);
+
+      final table = _table(tester);
+      expect(
+        table.rows,
+        hasLength(3443),
+        reason: 'one row per named catalogue field',
+      );
+      final editable = table.rows
+          .where((EditTableRow row) => row.isEditable)
+          .length;
+      expect(editable, 1, reason: 'only the verified view is editable');
+
+      expect(
+        find.text(
+          '3,443 named fields · 6,769 hash-only · '
+          '$editable of 3,443 named editable',
         ),
-      ],
-    );
-    await _pumpFlags(tester, source);
+        findsOneWidget,
+      );
+      expect(
+        find.text('Showing 3,443 of 3,443 fields · 1 editable'),
+        findsOneWidget,
+      );
 
-    expect(find.text('Flags'), findsOneWidget);
-    expect(find.byType(V1GapPanel), findsNothing);
+      expect(
+        find.byKey(EditTable.rowKey(table.rows.last.id)),
+        findsNothing,
+        reason: 'the last of 3,443 rows must never be built up front',
+      );
+      expect(_builtRows().evaluate().length, lessThan(3443));
 
-    final table = _table(tester);
-    expect(
-      table.rows,
-      hasLength(3443),
-      reason: 'one row per named catalogue field',
-    );
-    final editable = table.rows
-        .where((EditTableRow row) => row.isEditable)
-        .length;
-    expect(editable, 1, reason: 'only the verified view is editable');
-
-    expect(
-      find.text(
-        '3,443 named fields · 6,769 hash-only · '
-        '$editable of 3,443 named editable',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Showing 3,443 of 3,443 fields · 1 editable'),
-      findsOneWidget,
-    );
-
-    expect(
-      find.byKey(EditTable.rowKey(table.rows.last.id)),
-      findsNothing,
-      reason: 'the last of 3,443 rows must never be built up front',
-    );
-    expect(_builtRows().evaluate().length, lessThan(3443));
-
-    // The caption states both halves, with the schema's counts.
-    expect(find.textContaining('3,443 named Bool fields.'), findsOneWidget);
-    expect(
-      find.textContaining(
-        '6,769 on-disk Bools have no verified name and appear by hash only, '
-        'read-only.',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('0 present in this save.'),
-      findsOneWidget,
-      reason: 'the fake source carries no hash-only records',
-    );
-    expectNoOverflow(tester);
-  });
+      // The caption states both halves, with the schema's counts.
+      expect(find.textContaining('3,443 named Bool fields.'), findsOneWidget);
+      expect(
+        find.textContaining(
+          '6,769 on-disk Bools have no verified name and appear by hash only, '
+          'read-only.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('0 present in this save.'),
+        findsOneWidget,
+        reason: 'the fake source carries no hash-only records',
+      );
+      expectNoOverflow(tester);
+    },
+  );
 
   testWidgets('the table footer groups its field counts', (tester) async {
     final source = _FakeSaveTabSource(
@@ -628,10 +626,7 @@ void main() {
       lessThan(table.rows.length),
       reason: 'the hash-only set must be virtualised too',
     );
-    expect(
-      find.byKey(EditTable.rowKey(table.rows.last.id)),
-      findsNothing,
-    );
+    expect(find.byKey(EditTable.rowKey(table.rows.last.id)), findsNothing);
 
     await tester.tap(find.byKey(FlagsTab.hashOnlyToggleKey));
     await tester.pump();
@@ -654,12 +649,7 @@ void main() {
     await _pumpFlags(tester, source);
 
     for (final size in <Size>[const Size(1100, 700), tabTestViewports.first]) {
-      await _pumpFlags(
-        tester,
-        source,
-        size: size,
-        disposeSource: false,
-      );
+      await _pumpFlags(tester, source, size: size, disposeSource: false);
       await _search(tester, longest.name);
 
       final row = _row(id);
@@ -670,9 +660,8 @@ void main() {
       expect(label.maxLines, 1);
       expect(label.overflow, TextOverflow.ellipsis);
 
-      final model = _table(tester).rows.firstWhere(
-        (EditTableRow row) => row.id == id,
-      );
+      final model = _table(tester).rows
+          .firstWhere((EditTableRow row) => row.id == id);
       expect(
         model.label,
         longest.name,
@@ -798,7 +787,9 @@ void main() {
         );
         expect(hashOnly.every((EditTableRow row) => !row.isEditable), isTrue);
         expect(
-          hashOnly.every((EditTableRow row) => row.label.startsWith('Unnamed ')),
+          hashOnly.every(
+            (EditTableRow row) => row.label.startsWith('Unnamed '),
+          ),
           isTrue,
         );
 
@@ -881,8 +872,10 @@ void main() {
 
         // The count line always names both halves.
         expect(
-          find.text('3,443 named fields · 6,769 hash-only · '
-              '3,438 of 3,443 named editable'),
+          find.text(
+            '3,443 named fields · 6,769 hash-only · '
+            '3,438 of 3,443 named editable',
+          ),
           findsOneWidget,
         );
 
@@ -894,8 +887,10 @@ void main() {
         expect(hashOnly, hasLength(6769));
         expect(hashOnly.where((EditTableRow row) => row.isEditable), isEmpty);
         expect(
-          find.text('3,443 named fields · 6,769 hash-only · '
-              '0 of 6,769 hash-only editable'),
+          find.text(
+            '3,443 named fields · 6,769 hash-only · '
+            '0 of 6,769 hash-only editable',
+          ),
           findsOneWidget,
         );
       });

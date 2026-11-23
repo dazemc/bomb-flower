@@ -35,10 +35,7 @@ const String _bossKeyLabel = 'DungeonInfo.FireTemple.IsGetBossKey';
 
 /// An in-memory port with the current byte accessors and an edit recorder.
 final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
-  _FakeSaveTabSource({
-    this.views = const <TabFieldView>[],
-    this.open = true,
-  });
+  _FakeSaveTabSource({this.views = const <TabFieldView>[], this.open = true});
 
   final List<TabFieldView> views;
   final bool open;
@@ -84,8 +81,7 @@ final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
   Listenable get changes => this;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      const <TabFieldView>[];
+  List<TabFieldView> viewsFor(EditorTabGroup group) => const <TabFieldView>[];
 
   @override
   Iterable<TabFieldView> get allViews => views;
@@ -128,8 +124,7 @@ final class _RecordingSource implements SaveTabSource {
   Listenable get changes => _inner.changes;
 
   @override
-  List<TabFieldView> viewsFor(EditorTabGroup group) =>
-      _inner.viewsFor(group);
+  List<TabFieldView> viewsFor(EditorTabGroup group) => _inner.viewsFor(group);
 
   @override
   Iterable<TabFieldView> get allViews => _inner.allViews;
@@ -292,7 +287,11 @@ void main() {
     final table = tester.widget<EditTable>(find.byType(EditTable));
     final row = table.rows.firstWhere((EditTableRow row) => row.id == _bossId);
     expect(row.kind, EditCellKind.boolean);
-    expect(row.boolValue, isFalse, reason: 'the typed seed comes from BoolValue');
+    expect(
+      row.boolValue,
+      isFalse,
+      reason: 'the typed seed comes from BoolValue',
+    );
     expect(_cell(_bossId), findsOneWidget);
 
     await tester.tap(_cell(_bossId));
@@ -339,7 +338,10 @@ void main() {
       findsNothing,
     );
     expect(
-      find.descendant(of: _row(_bossKeyId), matching: find.byType(NumericField)),
+      find.descendant(
+        of: _row(_bossKeyId),
+        matching: find.byType(NumericField),
+      ),
       findsNothing,
     );
     await tester.tapAt(
@@ -359,9 +361,7 @@ void main() {
       ),
       findsNothing,
     );
-    await tester.tapAt(
-      tester.getTopLeft(_row(_bossId)) + const Offset(12, 32),
-    );
+    await tester.tapAt(tester.getTopLeft(_row(_bossId)) + const Offset(12, 32));
     await tester.pump();
     expect(source.edits, isEmpty);
     expectNoOverflow(tester);
@@ -505,7 +505,9 @@ final class _Fixture {
 
 /// Opens the fixture copy and wraps it in the production tab-source adapter.
 Future<_Fixture> _openFixture(WidgetTester tester) async {
-  final workspace = Directory.systemTemp.createTempSync('bomb_flower_dungeons_');
+  final workspace = Directory.systemTemp.createTempSync(
+    'bomb_flower_dungeons_',
+  );
   final copyRoot = Directory('${workspace.path}/save');
   addTearDown(() {
     if (workspace.existsSync()) {

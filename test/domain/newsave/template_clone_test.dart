@@ -117,10 +117,7 @@ void main() {
       );
       final decoded = _decodeProgress(result.progressBytes);
       expect(_fieldValue(result.progressBytes, decoded, lifeFieldHash), 12);
-      expect(
-        _fieldValue(result.progressBytes, decoded, maxLifeFieldHash),
-        16,
-      );
+      expect(_fieldValue(result.progressBytes, decoded, maxLifeFieldHash), 16);
       expect(
         result.changedSpans,
         equals(<(int, int)>[(fixture.lifeOffset, fixture.lifeOffset + 4)]),
@@ -190,10 +187,7 @@ void main() {
           ),
         ),
       );
-      expect(
-        result.changedSpans,
-        equals(<(int, int)>[(start, end)]),
-      );
+      expect(result.changedSpans, equals(<(int, int)>[(start, end)]));
       expect(result.progressBytes, equals(progress));
 
       final decoded = CaptionCodec.decode(result.captionBytes);
