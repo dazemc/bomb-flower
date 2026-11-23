@@ -14,6 +14,13 @@ const Color _canopyHigh = Color(0xFF1E2F23);
 const Color _parchment = Color(0xFFEFE3C8);
 const Color _parchmentMuted = Color(0xFFE3D3B0);
 const Color _stone = Color(0xFF6E6A5C);
+
+/// The [stone] tone lifted for borders and hairlines drawn on the canopy.
+///
+/// [stone] identifies nothing at 2.61-3.29:1 on the editor's dark surfaces;
+/// this is the same hue at the 3:1 component weight (`BombFlowerColors.stoneLight`).
+const Color _stoneLight = Color(0xFF87806D);
+
 const Color _brass = Color(0xFFC9A227);
 const Color _ink = Color(0xFF241C12);
 const Color _inkMuted = Color(0xFF5C4F3A);
@@ -45,6 +52,7 @@ class HexEditorThemeData {
     this.parchment = _parchment,
     this.parchmentMuted = _parchmentMuted,
     this.stone = _stone,
+    this.stoneLight = _stoneLight,
     this.brass = _brass,
     this.ink = _ink,
     this.inkMuted = _inkMuted,
@@ -64,6 +72,13 @@ class HexEditorThemeData {
   final Color parchment;
   final Color parchmentMuted;
   final Color stone;
+
+  /// The [stone] tone lifted for borders and hairlines on the canopy.
+  ///
+  /// [stone] reaches only 2.61-3.29:1 on the editor's dark surfaces, so control
+  /// borders and hairline rules use this heavier tone instead.
+  final Color stoneLight;
+
   final Color brass;
   final Color ink;
   final Color inkMuted;
@@ -430,7 +445,7 @@ class _HexEditorState extends State<HexEditor> {
                   color: _searchAscii ? theme.ink : theme.parchment,
                   fontSize: 11,
                 ),
-                side: BorderSide(color: theme.stone.withValues(alpha: 0.4)),
+                side: BorderSide(color: theme.stoneLight),
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -484,7 +499,7 @@ class _HexEditorState extends State<HexEditor> {
         foregroundColor: theme.parchment,
         backgroundColor: theme.canopyHigh,
         disabledForegroundColor: theme.stone.withValues(alpha: 0.55),
-        side: BorderSide(color: theme.stone.withValues(alpha: 0.35)),
+        side: BorderSide(color: theme.stoneLight),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
     );
@@ -630,7 +645,9 @@ class _HexEditorState extends State<HexEditor> {
         width: _addressWidth,
         child: Text(
           _hex8(controller.baseOffset + start),
-          style: widget.theme.monoStyle.copyWith(color: widget.theme.stone),
+          style: widget.theme.monoStyle.copyWith(
+            color: widget.theme.parchmentMuted,
+          ),
         ),
       ),
     ];
@@ -713,7 +730,7 @@ class _HexEditorState extends State<HexEditor> {
           ),
           Text(
             '$count ${count == 1 ? 'byte' : 'bytes'} selected',
-            style: TextStyle(color: theme.stone, fontSize: 11),
+            style: TextStyle(color: theme.parchmentMuted, fontSize: 11),
           ),
           SizedBox(
             width: 240,
@@ -785,7 +802,7 @@ class _HexEditorState extends State<HexEditor> {
                               '0x${_hex8(controller.baseOffset + start + length - 1)}',
                     style: theme.monoStyle.copyWith(
                       fontSize: 11,
-                      color: theme.stone,
+                      color: theme.parchmentMuted,
                     ),
                   ),
                 ],
@@ -869,7 +886,7 @@ class _HexEditorState extends State<HexEditor> {
           Text(
             label,
             style: TextStyle(
-              color: theme.stone,
+              color: theme.parchmentMuted,
               fontSize: 9,
               letterSpacing: 0.3,
             ),
@@ -931,7 +948,11 @@ class _HexEditorState extends State<HexEditor> {
         children: <Widget>[
           Text(
             '$bit',
-            style: TextStyle(color: theme.stone, fontSize: 9, height: 1),
+            style: TextStyle(
+              color: theme.parchmentMuted,
+              fontSize: 9,
+              height: 1,
+            ),
           ),
           const SizedBox(height: 1),
           Tooltip(
@@ -961,9 +982,7 @@ class _HexEditorState extends State<HexEditor> {
                     color: background,
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: set
-                          ? theme.brass
-                          : theme.stone.withValues(alpha: 0.35),
+                      color: set ? theme.brass : theme.stoneLight,
                     ),
                   ),
                   child: Text(
@@ -1021,7 +1040,7 @@ class _HexEditorState extends State<HexEditor> {
             const SizedBox(height: 4),
             Text(
               'This buffer contains 0 bytes.',
-              style: TextStyle(color: theme.stone, fontSize: 11),
+              style: TextStyle(color: theme.parchmentMuted, fontSize: 11),
             ),
           ],
         ),
@@ -1119,7 +1138,7 @@ class _HexEditorState extends State<HexEditor> {
     final theme = widget.theme;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(4),
-      borderSide: BorderSide(color: theme.stone.withValues(alpha: 0.55)),
+      borderSide: BorderSide(color: theme.stoneLight),
     );
     return InputDecoration(
       labelText: label,
@@ -1132,7 +1151,7 @@ class _HexEditorState extends State<HexEditor> {
       labelStyle: TextStyle(color: theme.parchmentMuted, fontSize: 11),
       floatingLabelStyle: TextStyle(color: theme.brass, fontSize: 11),
       hintStyle: TextStyle(
-        color: theme.stone,
+        color: theme.parchmentMuted,
         fontSize: 11,
         fontFamily: theme.monoFontFamily,
       ),
@@ -1502,7 +1521,7 @@ class HexByteCell extends StatelessWidget {
       background = theme.brass.withValues(alpha: 0.14);
     }
 
-    var foreground = editable ? theme.parchment : theme.stone;
+    var foreground = editable ? theme.parchment : theme.parchmentMuted;
     if (selected) {
       foreground = theme.ink;
     } else if (mark == ByteMarkKind.invalid) {
