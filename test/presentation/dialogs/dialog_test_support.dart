@@ -7,9 +7,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A launched dialog plus the future that completes when it closes.
 final class DialogLauncher<T> {
-  DialogLauncher(this.future);
+  DialogLauncher(this.completer) : future = completer.future;
 
+  /// Completes with the dialog's result once the route pops.
   final Future<T?> future;
+
+  /// The backing completer, exposed so a stalled case can be diagnosed.
+  final Completer<T?> completer;
+
+  /// Whether the dialog has already delivered its result.
+  bool get isCompleted => completer.isCompleted;
 }
 
 /// Pumps a themed host and opens [show] from a button press.
@@ -24,6 +31,16 @@ Future<DialogLauncher<T>> launchDialog<T>(
   addTearDown(tester.view.resetDevicePixelRatio);
 
   final completer = Completer<T?>();
+  // Every path that completes the completer goes through this guard, so a
+  // second completion can never throw "Already completed".
+  void completeIfPending(T? value) {
+    if (!completer.isCompleted) {
+      completer.complete(value);
+    }
+  }
+
+  addTearDown(() => completeIfPending(null));
+
   await tester.pumpWidget(
     MaterialApp(
       theme: BombFlowerThemeData.build(),
@@ -34,9 +51,7 @@ Future<DialogLauncher<T>> launchDialog<T>(
               key: const Key('dialog-launch'),
               onPressed: () async {
                 final value = await show(context);
-                if (!completer.isCompleted) {
-                  completer.complete(value);
-                }
+                completeIfPending(value);
               },
               child: const Text('Launch'),
             ),
@@ -47,7 +62,7 @@ Future<DialogLauncher<T>> launchDialog<T>(
   );
   await tester.tap(find.byKey(const Key('dialog-launch')));
   await tester.pumpAndSettle();
-  return DialogLauncher<T>(completer.future);
+  return DialogLauncher<T>(completer);
 }
 
 /// A probe backed by a fixed map of folder descriptions.

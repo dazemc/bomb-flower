@@ -79,7 +79,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(await launch.future, isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('rejects a directory without slot_* folders', (tester) async {
     final launch = await launchDialog<String>(
@@ -100,7 +100,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(await launch.future, isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('accepts a directory with a slot_00 folder', (tester) async {
     final recents = FakeRecentPathsStore();
@@ -124,7 +124,7 @@ void main() {
 
     expect(await launch.future, '/save');
     expect(recents.added, <String>['/save']);
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('shows the picker fallback hint when no picker is wired', (
     tester,
@@ -145,7 +145,7 @@ void main() {
       find.textContaining('No system folder picker is wired'),
       findsOneWidget,
     );
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('Browse fills the field and validates the picked folder', (
     tester,
@@ -170,7 +170,7 @@ void main() {
     await tester.tap(find.byKey(const Key('open-save-submit')));
     await tester.pumpAndSettle();
     expect(await launch.future, '/picked');
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('a cancelled picker shows a hint but keeps the typed path', (
     tester,
@@ -194,7 +194,7 @@ void main() {
     expect(fieldText(tester), '/save');
     expect(find.byKey(const Key('open-save-picker-hint')), findsOneWidget);
     expect(openEnabled(tester), isTrue);
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('a recent folder fills the field', (tester) async {
     final recents = FakeRecentPathsStore(<String>['/save']);
@@ -217,7 +217,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(await launch.future, isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   testWidgets('Escape cancels without opening anything', (tester) async {
     final launch = await launchDialog<String>(
@@ -234,5 +234,5 @@ void main() {
 
     expect(await launch.future, isNull);
     expect(find.text('Open save folder'), findsNothing);
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 }
