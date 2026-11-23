@@ -19,7 +19,9 @@ open a save today.
 
 An area is listed as working only when both its code and its tests are committed.
 Anything else is marked not implemented, even when research or a working tree
-contains partial work.
+contains partial work. The one exception is the external Longshot acceptance
+row, which records a one-off E2E result and is explicitly not committed code or
+a CI test.
 
 | Area | Implemented | Tested | Not yet |
 |---|---|---|---|
@@ -28,12 +30,16 @@ contains partial work.
 | Atomic file writes and sidecar originals | Yes: `lib/data/io/` | Yes: `test/data/io/` | Windows and macOS filesystem behaviour |
 | `caption.sav` decode/encode | Yes: `lib/data/codec/caption_codec.dart`, `lib/domain/save/caption_layout.dart` | Yes: synthetic cases always; the three scrubbed Longshot samples when fixtures are available (`test/data/caption_codec_test.dart`) | Exposing caption fields in a tab |
 | `progress.sav` decode/encode | Yes: `lib/data/codec/progress_codec.dart`, `lib/domain/save/progress_layout.dart`, `progress_save.dart`, `progress_record.dart` | Yes: synthetic cases and the three real samples when fixtures are available (`test/data/progress_codec_test.dart`) | Opening it through `SaveEngine` or any UI; a verified editable descriptor for every record |
+| Edited save loads in Longshot | Verified by external E2E run (2-byte Life edit → 4 hearts in game) | One-off acceptance run, 2026-11-22, external to this repo; harness and game not committed | Repeatable CI test; arbitrary field types; corrupt-file rejection; multi-slot edits; later game versions |
 | GameData schema and 2982123 revision gate | Yes: `lib/domain/schema/`, `assets/schema/gamedata_110.json` | Yes: `test/domain/schema/gamedata_schema_test.dart` | Loading the schema into the engine or UI; mapping names to editable choices |
 | Hex editor widget | Yes: `lib/presentation/widgets/hex/` | Yes: `test/presentation/hex_editor_test.dart` | Wiring it to the Advanced Data tab or a project |
 | World and actor catalogues | Yes: `lib/domain/world/`, `lib/domain/catalogue/`, `assets/world/`, `assets/catalogue/` | Yes: `test/domain/world/`, `test/domain/catalogue/` | A map-browsing UI; the assets are not yet declared in `pubspec.yaml` |
 | Save creation from scratch | No | No | All of it |
-| An edited save loaded by Longshot | No | No | An acceptance test performed outside this repository |
 | Windows and macOS builds | No | No | Runners and verification |
+
+The E2E acceptance harness is not committed to this repository, and no game
+binary, ROM, image, or save asset is shipped. The Longshot row is a one-off
+external result, not a repeatable CI test.
 
 The top-level `docs/` set:
 
@@ -102,8 +108,11 @@ Bomb Flower is a save editor. Treat every save as the only copy you have.
 - **There is no confirmed checksum.** The format does not expose an integrity
   value the editor can verify, so Bomb Flower cannot detect tampering that was
   already present in a save. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
-- **Game acceptance is untested.** No edited save has been loaded in Longshot
-  and then in the game as part of this repository's test suite.
+- **Game acceptance is proven for one scalar edit only.** An external E2E run
+  changed `Life`/`MaxLife` from 12 to 16 in a `kokiri-start` copy and the game
+  loaded it with 4 hearts. Arbitrary field types, corrupt files, multi-slot
+  edits, and later game versions are untested, and the harness is not in this
+  repository. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## Why the format is evidence-based
 
@@ -132,15 +141,25 @@ evidence next to the offsets:
   3,608 fields with a verified name (`assets/schema/gamedata_110.json`,
   `test/domain/schema/gamedata_schema_test.dart`). The schema revision gate is
   exact: a different revision is rejected, not guessed.
+- **External E2E acceptance run, 2026-11-22, external to this repository.** A
+  `kokiri-start` copy with exactly two bytes changed (`Life` 12→16 at
+  `0x14254`, `MaxLife` 12→16 at `0x14BFC`, no checksum recomputation) loaded in
+  Longshot `v3.0.0-rc.3-93-g82886e89` (`image.bin` sha256 `f77dd8d6…`):
+  `state=play`, `map=KokiriForest_Child`, live `life=16`, `max_life=16`, same
+  position as baseline, HUD 4 hearts instead of 3. An in-game save wrote a new
+  `slot_01` that still held 16/16. A control edit (`Life=999`, `MaxLife=12`)
+  loaded and was clamped to 12 at runtime; the file kept 999 until the next
+  save. The harness is not committed and no game binary or asset is shipped.
 - The three observed samples are `kokiri-start`, `castle-gate`, and
   `market-entrance`; their scene and map strings are tabulated in
   [`docs/WORLD.md`](docs/WORLD.md). Only 3 of 80 known maps have been observed in
   a real save.
 
 The current weaknesses of that evidence are listed in
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md): no checksum, no edited-save game
-test, unverified `Binary`/`WString16Array` layouts, and 11,657 `Bool64bitKey`
-declarations that exist only in the schema, not in `progress.sav`.
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md): no checksum, one scalar
+game-acceptance result rather than a repeatable test, unverified
+`Binary`/`WString16Array` layouts, and 11,657 `Bool64bitKey` declarations that
+exist only in the schema, not in `progress.sav`.
 
 ## Licence
 

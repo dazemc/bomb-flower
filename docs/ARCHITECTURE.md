@@ -213,6 +213,43 @@ are strings such as `KokiriForest/KokiriForest_Child`, not numeric ids; the N64
 scene-id space is a separate glossary and is rejected by the world catalogue's
 validator when it appears in a string field.
 
+## Compatibility gate
+
+A codec test proves the bytes round-trip; it does not prove the game accepts
+them. The only game-acceptance evidence is an external E2E run (2026-11-22,
+external to this repository), performed once against:
+
+- `/home/daze/GitHub/Longshot/work/sa/build/longshot`,
+  `v3.0.0-rc.3-93-g82886e89`, `image.bin` sha256 `f77dd8d6…`.
+- A relocated run with isolated `XDG_*` directories, `HOS_HEADLESS=1`, and
+  `HOS_CRASH_WATCH=0`.
+- A `kokiri-start` **copy**, never a real save.
+
+The procedure a maintainer should repeat:
+
+1. Record the Longshot `HEAD`, the hashes of every tracked file, and the
+   `work/` entry count before starting. This is the repo-hash gate.
+2. Copy one sample save root. Change exactly two bytes: `Life` 12→16 at value
+   offset `0x14254` and `MaxLife` 12→16 at `0x14BFC`. Do not recompute anything.
+3. Launch the relocated build against the copy with the isolation variables
+   above. Assert `state=play`, `map=KokiriForest_Child`, live `life=16`,
+   `max_life=16`, the baseline position, and 4 hearts instead of 3.
+4. Perform an in-game save. Confirm it writes a new `slot_NN` and that the new
+   slot still contains 16/16.
+5. Repeat with a control value (`Life=999`, `MaxLife=12`). Confirm the game
+   clamps to 12 at runtime while the file keeps 999 until the next save. This
+   proves the game does not reject the value and that the editor must enforce
+   `Life <= MaxLife`.
+6. Re-run the repo-hash gate. The verified run left Longshot at `HEAD 6377ed7c`
+   with all 3,313 tracked files sha256-identical and 720 `work/` entries
+   identical, and no file newer than the run start. External `.git` object churn
+   from other worktrees was noted; `HEAD` did not move.
+
+The gate proves one scalar edit on one build. It does **not** prove strings,
+enums, vectors, arrays, corrupt-file rejection, multi-slot/multi-region edits, or
+later game versions, and it cannot run in CI here because neither the game
+binary nor its assets are committed.
+
 ## Enforced layering
 
 `test/architecture/layering_test.dart` scans every `import` and `export`

@@ -129,6 +129,43 @@ verified bitsdojo configuration for them, and no CI job that builds them. Adding
 a platform means generating a runner, revalidating the custom-frame patch, and
 adding a build job before claiming support.
 
+## Appendix: Acceptance test against a local Longshot build
+
+This is an external, one-off check, not part of `flutter test` or CI. It requires
+an already-built Longshot binary; this repository does not build the game, ship
+its binary, or contain its assets. The verified run used:
+
+```text
+/home/daze/GitHub/Longshot/work/sa/build/longshot
+v3.0.0-rc.3-93-g82886e89
+image.bin sha256 f77dd8d6…
+```
+
+**Never point this run at a real save.** Use a copy of one sample save root. The
+game may write a new `slot_NN`, and the run is intentionally isolated from your
+normal game data. Isolate the process environment before launching:
+
+```sh
+export XDG_CONFIG_HOME="$PWD/run/config"
+export XDG_DATA_HOME="$PWD/run/data"
+export XDG_CACHE_HOME="$PWD/run/cache"
+export XDG_STATE_HOME="$PWD/run/state"
+export HOS_HEADLESS=1
+export HOS_CRASH_WATCH=0
+```
+
+Then launch the already-built binary as the external harness does; the exact
+save-directory argument belongs to that harness and is not committed here. The
+edit, live-state assertions, control case, and repo-hash gate are documented in
+the “Compatibility gate” section of
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+The verified 2026-11-22 run changed two bytes in a `kokiri-start` copy
+(`Life`/`MaxLife` 12→16), loaded with 4 hearts, and wrote a new `slot_01` that
+retained 16/16. A `Life=999` control was clamped to 12 at runtime. This proves
+one scalar case only; it does not make arbitrary edits safe, and it cannot run
+in CI here without the game binary and assets.
+
 ## Troubleshooting
 
 - **GTK errors** — install the GTK 3 development package and `pkg-config`, then

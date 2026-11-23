@@ -8,10 +8,12 @@ Status is as of 2026-11-22; the last commit reviewed is `bcae1ea`. Check
 
 ## 1. The format has no confirmed checksum
 
-**Impact.** The editor cannot detect save tampering that existed before the file
-was opened, and it cannot prove that its own output is accepted by the game. A
-structurally valid file can still be semantically wrong. The sidecar fingerprint
-is a change detector, not an authenticity or integrity proof.
+**Impact.** A 2-byte edit loaded with no checksum recomputation, so no integrity
+field guards the edited path. The editor cannot detect tampering that existed
+before the file was opened, and it cannot prove acceptance beyond the one
+external E2E scalar case. A structurally valid file can still be semantically
+wrong. The sidecar fingerprint is a change detector, not an authenticity or
+integrity proof.
 
 **Mitigation.** Treat validation as a bounds-and-structure check, not a
 guarantee. Keep your own backup outside the app and compare exports with the
@@ -19,16 +21,41 @@ sidecar original. Do not describe an export as "verified" beyond the checks the
 code performs: field spans, declared ranges, exact read-back, and the optional
 `IntegrityRecomputer` (not configured for this format).
 
-## 2. No edited-save load test
+## 2. Edited-save acceptance is one scalar case, not a general guarantee
 
-**Impact.** No automated test in this repository writes an edited save, launches
-Longshot, and loads the result. No successful manual run is recorded here. Game
-acceptance of any edit is therefore unverified; a save that passes every Bomb
-Flower check may still fail to load or behave incorrectly.
+**Proven.** An external E2E acceptance run on 2026-11-22 (external to this
+repository) loaded a `kokiri-start` copy with exactly two bytes changed:
+`Life` 12→16 at value offset `0x14254` and `MaxLife` 12→16 at `0x14BFC`. No
+checksum was recomputed. The tested build was
+`/home/daze/GitHub/Longshot/work/sa/build/longshot`,
+`v3.0.0-rc.3-93-g82886e89`, `image.bin` sha256 `f77dd8d6…`, run with isolated
+`XDG_*` directories, `HOS_HEADLESS=1`, and `HOS_CRASH_WATCH=0`. The game reported
+`state=play`, `map=KokiriForest_Child`, live `life=16`, `max_life=16`, the same
+position as the baseline, and drew 4 hearts instead of 3. An in-game save wrote
+a new `slot_01` that still contained `Life=16`/`MaxLife=16`; the game neither
+rejected nor silently repaired the edit.
 
-**Mitigation.** Work only on copies. Perform a manual load test in Longshot and
-record the game version and result. Add an integration test when a supported,
-scriptable load path exists. Mark edited output as experimental until then.
+**Still not proven.** Arbitrary field types (strings, enums, vectors, arrays),
+corrupt-file rejection, multi-slot or multi-region edits, and later game
+versions. The E2E harness is not committed, no game binary or asset is shipped,
+and this is not a repeatable CI test.
+
+**Autosave slot rotation.** The game does not overwrite the loaded slot. An
+in-game save writes a **new** `slot_NN`, and Continue loads the newest
+`progress.sav` by modification time. Impact: editing an older slot alone does
+not affect Continue. Mitigation: edit the newest slot, or confirm which slot the
+game will load. The planned app mitigation is to warn when the open slot is not
+the newest and to offer an explicit-consent update of the newest slot's
+`progress.sav` mtime; the warning and the mtime update are **not implemented in
+committed code as of this documentation commit**.
+
+**No-checksum clarification.** The 2-byte edit loaded without any checksum
+recomputation, which confirms that the edited path has no integrity field to
+update. It does not mean the game validates every value: a control edit with
+`Life=999` and `MaxLife=12` loaded, and the game clamped `Life` to 12 at runtime
+while the on-disk file kept 999 until the next save. The editor must enforce
+semantic invariants such as `Life <= MaxLife` itself, rather than relying on
+game rejection.
 
 ## 3. 11,657 `Bool64bitKey` fields are declared but absent from `progress.sav`
 
