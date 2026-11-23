@@ -1,6 +1,7 @@
 name: Feature request
 description: Propose a new field, tab, save-creation rule, or tooling improvement.
 title: "[Feature]: "
+labels: [enhancement]
 body:
   - type: markdown
     id: intro

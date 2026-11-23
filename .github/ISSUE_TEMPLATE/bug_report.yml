@@ -1,6 +1,7 @@
 name: Bug report
 description: Something in Bomb Flower is wrong, crashes, or writes a save the game mishandles.
 title: "[Bug]: "
+labels: [bug]
 body:
   - type: markdown
     id: intro
