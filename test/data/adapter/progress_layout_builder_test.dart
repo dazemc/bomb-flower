@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:bomb_flower/data/adapter/progress_field_id.dart';
 import 'package:bomb_flower/data/adapter/progress_layout_builder.dart';
 import 'package:bomb_flower/data/codec/progress_codec.dart';
-import 'package:bomb_flower/domain/core/field_metadata.dart';
-import 'package:bomb_flower/domain/core/identity.dart';
+import 'package:bomb_flower/domain/core/core.dart';
+import 'package:bomb_flower/domain/engine/engine.dart';
 import 'package:bomb_flower/domain/save/caption_layout.dart';
 import 'package:bomb_flower/domain/save/models/caption_save.dart';
 import 'package:bomb_flower/domain/save/models/progress_save.dart';
@@ -248,6 +248,100 @@ void main() {
       }
     });
   });
+
+  group('endianness', () {
+    test('every progress and caption descriptor is little-endian', () {
+      final save = _save();
+      final progress = ProgressLayoutBuilder(schema)
+          .buildProgressSlotLayout(save);
+      final caption = ProgressLayoutBuilder(schema)
+          .buildCaptionSlotLayout(_caption());
+      final descriptors = <FieldDescriptor>[
+        ...progress.fields,
+        ...caption.fields,
+      ];
+
+      expect(descriptors, isNotEmpty);
+      for (final descriptor in descriptors) {
+        expect(
+          descriptor.endianness,
+          Endian.little,
+          reason: descriptor.id.value,
+        );
+      }
+    });
+
+    test(
+      'SetScalar writes PlayerStatus.Life little-endian and reads back',
+      () async {
+        final save = _save();
+        final slotLayout = ProgressLayoutBuilder(schema)
+            .buildProgressSlotLayout(save);
+        final id = const FieldId('progress.31ab5580');
+        final descriptor = slotLayout.field(id)!;
+        final record = save.recordByHash(0x31AB5580)!;
+
+        expect(descriptor.endianness, Endian.little);
+        expect(descriptor.span, ByteSpan(record.valueOffset, 4));
+        // The synthetic stream puts this record at index 5 (0x28 + 5*8 + 4).
+        expect(descriptor.span.offset, 84);
+        expect(descriptor.isEditable, isTrue);
+
+        final layout = LayoutDescriptor(
+          'synthetic.progress',
+          1,
+          <SaveSlotLayout>[slotLayout],
+        );
+        final format = SaveFormat('synthetic', 'Synthetic', <LayoutDescriptor>[
+          layout,
+        ]);
+        final engine = SaveEngine(format);
+        final source = _MemorySlotSource(<SaveSlotId, Uint8List>{
+          slotLayout.id: save.encode(),
+        });
+        final originals = _MemoryOriginalStore();
+
+        Future<SaveProject> openProject() async {
+          final result = await engine.open(
+            rootPath: '/save',
+            source: source,
+            layout: layout,
+            detectedVersion: 1,
+          );
+          return switch (result) {
+            ParseOk(:final project) ||
+            ParseUnverified(:final project) => project,
+            _ => fail('open failed: $result'),
+          };
+        }
+
+        final project = await openProject();
+        final edited = engine.apply(project, SetScalar(id, 0x12345678));
+        final plan = engine.planExport(
+          edited,
+          destinationRoot: '/save',
+          mode: ExportMode.saveInPlace,
+        );
+        final result = await engine.export(
+          plan,
+          source: source,
+          originals: originals,
+        );
+        expect(result.succeeded, isTrue, reason: '${result.issues}');
+
+        final written = source.files[slotLayout.id]!;
+        expect(
+          written.sublist(descriptor.span.offset, descriptor.span.end),
+          <int>[0x78, 0x56, 0x34, 0x12],
+        );
+
+        final reopened = await openProject();
+        final field = reopened.documents[slotLayout.id]!.field(id);
+        expect(field, isNotNull);
+        expect(field!.value, const IntValue(0x12345678));
+      },
+    );
+  });
 }
 
 ProgressSave _save() {
@@ -358,4 +452,72 @@ Future<GameDataSchema> _loadSchema() {
 }
 ''';
   return GameDataSchema.load(() async => json);
+}
+
+final class _MemorySlotSource implements SlotSource {
+  _MemorySlotSource(this.files);
+
+  final Map<SaveSlotId, Uint8List> files;
+
+  @override
+  Future<Uint8List?> read(SaveSlotId slot) async => files[slot];
+
+  @override
+  Future<void> write(
+    SaveSlotId slot,
+    Uint8List bytes, {
+    bool keepPreviousVersion = true,
+  }) async {
+    files[slot] = Uint8List.fromList(bytes);
+  }
+
+  @override
+  Future<void> writeAll(
+    Map<SaveSlotId, Uint8List> writes, {
+    bool keepPreviousVersion = true,
+  }) async {
+    for (final entry in writes.entries) {
+      files[entry.key] = Uint8List.fromList(entry.value);
+    }
+  }
+
+  @override
+  String pathFor(SaveSlotId slot) => '/save/${slot.value}.sav';
+}
+
+final class _MemoryOriginalStore implements OriginalStore {
+  final Map<SaveSlotId, Uint8List> stored = <SaveSlotId, Uint8List>{};
+
+  @override
+  String get rootPath => '/save.bombflower-original';
+
+  @override
+  Future<void> ensure(
+    Map<SaveSlotId, ByteRegion> originals,
+    BackupPolicy policy,
+  ) async {
+    for (final entry in originals.entries) {
+      stored[entry.key] = entry.value.materialize();
+    }
+  }
+
+  @override
+  Future<Uint8List?> read(SaveSlotId slot) async => stored[slot];
+
+  @override
+  Future<bool> verify(Map<SaveSlotId, ByteRegion> originals) async {
+    for (final entry in originals.entries) {
+      final storedBytes = stored[entry.key];
+      final expected = entry.value.materialize();
+      if (storedBytes == null || storedBytes.length != expected.length) {
+        return false;
+      }
+      for (var i = 0; i < storedBytes.length; i++) {
+        if (storedBytes[i] != expected[i]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
 }

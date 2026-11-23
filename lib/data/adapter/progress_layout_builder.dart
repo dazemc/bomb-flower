@@ -1,6 +1,8 @@
 /// Slot layouts for decoded `progress.sav` and `caption.sav` files.
 library;
 
+import 'dart:typed_data';
+
 import 'package:bomb_flower/domain/core/field_metadata.dart';
 import 'package:bomb_flower/domain/core/identity.dart';
 import 'package:bomb_flower/domain/core/layout.dart';
@@ -57,6 +59,9 @@ final class ProgressLayoutBuilder {
           span,
           evidence.confidence,
           evidence.source,
+          // Both files are little-endian; without this the encoder would
+          // byte-swap every written scalar.
+          endianness: Endian.little,
           min: bounds.min,
           max: bounds.max,
           choices: record.type == save_layout.SaveType.enumValue
@@ -104,6 +109,7 @@ final class ProgressLayoutBuilder {
           ByteSpan(field.offset, length),
           evidence.confidence,
           evidence.source,
+          endianness: Endian.little,
           readOnly: evidence.readOnly,
         ),
       );
@@ -118,6 +124,7 @@ final class ProgressLayoutBuilder {
           ByteSpan(date.sampleOffset + 4, 4),
           FieldConfidence.verified,
           'caption:docs/SAVE-FORMAT.md',
+          endianness: Endian.little,
           // [date.sampleOffset] is a sample observation, not an invariant:
           // the codec finds each entry by its key, so a fixed value span
           // cannot be rewritten safely.
