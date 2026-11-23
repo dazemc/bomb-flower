@@ -1,99 +1,167 @@
+// Proves that no converted save tab falls back to the read-only `V1GapPanel`.
+//
+// This file used to assert that Collectibles and Flags rendered the read-only
+// gap panel. Both tabs now render the shared virtualised `EditTable` instead:
+// one row per catalogue field, editable only where the save's own descriptor
+// says so. The two cases were kept — only their assertions changed — so a
+// regression that reverts either tab to `V1GapPanel` fails here.
+//
+// Nothing in `lib/` instantiates `V1GapPanel` any more, so the class is
+// retained only for this file and backwards compatibility, not as the current
+// surface of any tab.
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:bomb_flower/domain/core/edit_command.dart';
+import 'package:bomb_flower/domain/core/identity.dart';
+import 'package:bomb_flower/domain/fields/field_groups.dart';
 import 'package:bomb_flower/presentation/bloc/shell/tab_definition.dart';
 import 'package:bomb_flower/presentation/shell/tabs/collectibles_tab.dart';
 import 'package:bomb_flower/presentation/shell/tabs/flags_tab.dart';
-import 'package:bomb_flower/presentation/shell/tabs/placeholder_tab.dart';
 import 'package:bomb_flower/presentation/shell/tabs/v1_gap_panel.dart';
-import 'package:bomb_flower/presentation/widgets/common/banner.dart';
+import 'package:bomb_flower/presentation/tabs_support/save_tab_scope.dart';
+import 'package:bomb_flower/presentation/tabs_support/save_tab_source.dart';
 import 'package:bomb_flower/presentation/widgets/common/section_header.dart';
-import 'package:bomb_flower/presentation/widgets/controls/brass_toggle.dart';
-import 'package:bomb_flower/presentation/widgets/controls/numeric_field.dart';
-import 'package:bomb_flower/presentation/widgets/controls/rune_checkbox.dart';
-import 'package:bomb_flower/presentation/widgets/selectors/searchable_select.dart';
+import 'package:bomb_flower/presentation/widgets/data/edit_table.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import 'support/tab_test_harness.dart';
 
-final class _GapCase {
-  const _GapCase({
+/// An in-memory port: open, no fields, and no bytes behind it.
+///
+/// The tab's rows come from the injected catalogue, not the source, so an
+/// empty source still renders every catalogue row; it just leaves each one
+/// without a resolved value.
+final class _FakeSaveTabSource extends ChangeNotifier implements SaveTabSource {
+  _FakeSaveTabSource();
+
+  @override
+  bool get isOpen => true;
+
+  @override
+  SaveSlotId? get activeSlot => null;
+
+  @override
+  bool get isDirty => false;
+
+  @override
+  int get changedFieldCount => 0;
+
+  @override
+  SaveSlotId? get newestSlot => null;
+
+  @override
+  List<SlotAge> get slotAges => const <SlotAge>[];
+
+  @override
+  bool get canUndo => false;
+
+  @override
+  bool get canRedo => false;
+
+  @override
+  String? get rootPath => '/tmp/fake-save';
+
+  @override
+  Uint8List? get activeSlotBytes => Uint8List(0);
+
+  @override
+  Uint8List? bytesFor(SaveSlotId slot) => null;
+
+  @override
+  Listenable get changes => this;
+
+  @override
+  List<TabFieldView> viewsFor(EditorTabGroup group) => const <TabFieldView>[];
+
+  @override
+  Iterable<TabFieldView> get allViews => const <TabFieldView>[];
+
+  @override
+  void edit(EditCommand command) {}
+
+  @override
+  void undo() {}
+
+  @override
+  void redo() {}
+}
+
+/// One tab that must render an editable table instead of the gap panel.
+final class _TabCase {
+  const _TabCase({
     required this.name,
     required this.tab,
-    required this.widget,
-    required this.count,
-    required this.keyword,
+    required this.build,
+    required this.rows,
   });
 
   final String name;
   final ShellTab tab;
-  final Widget widget;
+  final Widget Function(FieldGroupsCatalogue catalogue) build;
 
-  /// Verified named-field count rendered from assets/fields/groups.json.
-  final String count;
-
-  /// The tab-specific limitation that must be named in the explanation.
-  final String keyword;
+  /// Named-field row count, verified against the `kokiri-start` fixture.
+  final int rows;
 }
 
-const List<_GapCase> _cases = <_GapCase>[
-  _GapCase(
+const List<_TabCase> _cases = <_TabCase>[
+  _TabCase(
     name: 'Collectibles',
     tab: ShellTab.collectibles,
-    widget: CollectiblesTab(),
-    count: '159',
-    keyword: 'Gold Skulltula',
+    build: _collectibles,
+    rows: 159,
   ),
-  _GapCase(
+  _TabCase(
     name: 'Flags',
     tab: ShellTab.flags,
-    widget: FlagsTab(),
-    count: '3,443',
-    keyword: '10,212',
+    build: _flags,
+    rows: 3443,
   ),
 ];
 
+Widget _collectibles(FieldGroupsCatalogue catalogue) =>
+    CollectiblesTab(catalogue: catalogue);
+
+Widget _flags(FieldGroupsCatalogue catalogue) =>
+    FlagsTab(catalogue: catalogue);
+
 void main() {
-  for (final gap in _cases) {
-    testWidgets('${gap.name} shows the v1 gap state and no editor', (
+  late FieldGroupsCatalogue catalogue;
+
+  setUpAll(() async {
+    catalogue = FieldGroupsCatalogue.load(
+      await File('assets/fields/groups.json').readAsString(),
+    );
+  });
+
+  for (final item in _cases) {
+    testWidgets('${item.name} renders the editable table, not the gap panel', (
       tester,
     ) async {
-      await pumpTab(tester, gap.widget, size: const Size(1100, 700));
+      final source = _FakeSaveTabSource();
+      addTearDown(source.dispose);
 
-      expect(find.byType(V1GapPanel), findsOneWidget);
-      expect(find.byType(PlaceholderTab), findsNothing);
-
-      final banner = tester.widget<Banner>(
-        find.widgetWithText(Banner, 'Not available in this v1 build'),
+      await pumpTab(
+        tester,
+        SaveTabScope(source: source, child: item.build(catalogue)),
+        size: const Size(1100, 700),
       );
-      expect(banner.variant, BannerVariant.info);
-      expect(banner.action, isNull);
 
-      expect(find.textContaining(gap.count), findsWidgets);
-      expect(find.textContaining(gap.keyword), findsWidgets);
+      expect(find.byType(V1GapPanel), findsNothing);
+      expect(find.byType(EditTable), findsOneWidget);
       expect(
-        find.textContaining('remain inspectable in Advanced Data'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Read-only placeholder — no editing controls.'),
-        findsOneWidget,
+        tester.widget<EditTable>(find.byType(EditTable)).rows.length,
+        item.rows,
       );
 
       expect(
         find.descendant(
           of: find.byType(SectionHeader),
-          matching: find.text(gap.tab.definition.purpose),
+          matching: find.text(item.tab.definition.purpose),
         ),
         findsOneWidget,
       );
-
-      expect(find.byType(NumericField), findsNothing);
-      expect(find.byType(BrassToggle), findsNothing);
-      expect(find.byType(RuneCheckbox), findsNothing);
-      expect(
-        find.byWidgetPredicate((widget) => widget is SearchableSelect<dynamic>),
-        findsNothing,
-      );
-      expect(find.byType(TextField), findsNothing);
 
       expectNoOverflow(tester);
     });
