@@ -1,10 +1,11 @@
 # Bomb Flower
 
-Bomb Flower is an in-development save editor and save creator for **Longshot**'s
-Ocarina of Time Switch 2 remake saves. It is a Flutter desktop application with
-a pure-Dart save engine: the engine parses, validates, edits, and exports save
-bytes through a testable API, and the Flutter shell provides the UI surface. The
-shell is **not yet wired to the engine**; see Status.
+Bomb Flower is a save editor and save creator for **Longshot**'s Ocarina of Time
+Switch 2 remake saves. It is a Flutter desktop application with a pure-Dart save
+engine: the engine parses, validates, edits, and exports save bytes through a
+testable API, and the Flutter shell is wired to it. v1 opens a real `slot_NN`
+folder, edits verified `progress.sav` fields, and writes the result through the
+atomic export path.
 
 Bomb Flower is an independent project. It ships no ROMs, game assets, ripped
 artwork, or audio, and it is **not affiliated with Nintendo**. You need your own
@@ -12,34 +13,31 @@ legally obtained save data.
 
 ## Status
 
-The project is in early development. The save engine, the `caption.sav` and
-`progress.sav` codecs, and the GameData schema exist and are tested; the
-application shell is real, but it is **not yet wired to the engine**. No tab can
-open a save today.
+v1 is shipped. An area is listed as working only when both its code and its
+tests are committed; a gap is listed with the reason it remains a gap.
 
-An area is listed as working only when both its code and its tests are committed.
-Anything else is marked not implemented, even when research or a working tree
-contains partial work. The one exception is the external Longshot acceptance
-row, which records a one-off E2E result and is explicitly not committed code or
-a CI test.
+| Area | State | Evidence |
+|---|---|---|
+| Save engine and adapter | Wired. `SaveEngine` opens `progress.sav` through a per-file `LayoutDescriptor` | `lib/data/adapter/`, `test/data/adapter/` |
+| Save format | 40-byte header, 11,958 records, 32 sentinels, footer, no checksum | `lib/domain/save/progress_layout.dart` |
+| GameData schema | 11,925/11,925 on-disk fields resolved; 3,608 named, 8,317 unnamed; 75 enum tables | `assets/schema/gamedata_110.json` |
+| Real tabs (7) | Overview (read-only), Player/World, Inventory, Equipment, Resources, Advanced Data (gated hex), Settings (in-memory prefs) | `lib/presentation/shell/tabs/` |
+| Gap panels (4) | Progression (297 named fields), Dungeons (42 named), Collectibles (159 named), Flags (3,443 named + 6,769 hash-only); read-only, verified counts | `v1_gap_panel.dart` |
+| File actions | Title bar: Open, Save, Save As…, Duplicate, Reset slot…, Undo, Redo, Compare (key `shell-action-compare`); collapse to one overflow menu below 1280 px | `lib/presentation/widgets/chrome/file_action_bar.dart` |
+| New save creation | `tool/create_save.dart` writes a schema-default 120,572-byte save | `test/domain/newsave/` |
+| Edited save loads in game | One external E2E run: a 2-byte `Life`/`MaxLife` edit produced 4 hearts | one-off run, not CI |
+| Created save loads in game | **Unproven** | no in-game test has been run |
+| Original/edited comparison | Read-only **Compare** dialog: changed fields and byte spans, original vs current, one slot at a time | `compare_save_dialog.dart` |
+| Validation footer | A real save reports **11 warnings · 8328 informational notes**: 11 `field.out_of_range` on `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values inside signed int32 fields, and 8,328 `field.unverified` | status footer on a real sample |
+| Windows and macOS builds | Not supported | Linux-only verification |
 
-| Area | Implemented | Tested | Not yet |
-|---|---|---|---|
-| App shell, theme, 11-tab navigation | Yes: `lib/presentation/shell/`, `lib/presentation/theme/` | Yes: `test/presentation/shell_test.dart`, `test/presentation/theme_test.dart`, `test/widget_test.dart` | Opening, saving, or editing a save from the UI |
-| Save engine core (parse, apply, undo/redo, validate, plan, export) | Yes: `lib/domain/engine/`, `lib/domain/core/` | Yes, against synthetic layouts: `test/domain/engine/`, `test/domain/core/` | An adapter from `progress.sav` records to `LayoutDescriptor`; the real-format engine invariants are skipped |
-| Atomic file writes and sidecar originals | Yes: `lib/data/io/` | Yes: `test/data/io/` | Windows and macOS filesystem behaviour |
-| `caption.sav` decode/encode | Yes: `lib/data/codec/caption_codec.dart`, `lib/domain/save/caption_layout.dart` | Yes: synthetic cases always; the three scrubbed Longshot samples when fixtures are available (`test/data/caption_codec_test.dart`) | Exposing caption fields in a tab |
-| `progress.sav` decode/encode | Yes: `lib/data/codec/progress_codec.dart`, `lib/domain/save/progress_layout.dart`, `progress_save.dart`, `progress_record.dart` | Yes: synthetic cases and the three real samples when fixtures are available (`test/data/progress_codec_test.dart`) | Opening it through `SaveEngine` or any UI; a verified editable descriptor for every record |
-| Edited save loads in Longshot | Verified by external E2E run (2-byte Life edit → 4 hearts in game) | One-off acceptance run, 2026-11-22, external to this repo; harness and game not committed | Repeatable CI test; arbitrary field types; corrupt-file rejection; multi-slot edits; later game versions |
-| GameData schema and 2982123 revision gate | Yes: `lib/domain/schema/`, `assets/schema/gamedata_110.json` | Yes: `test/domain/schema/gamedata_schema_test.dart` | Loading the schema into the engine or UI; mapping names to editable choices |
-| Hex editor widget | Yes: `lib/presentation/widgets/hex/` | Yes: `test/presentation/hex_editor_test.dart` | Wiring it to the Advanced Data tab or a project |
-| World and actor catalogues | Yes: `lib/domain/world/`, `lib/domain/catalogue/`, `assets/world/`, `assets/catalogue/` | Yes: `test/domain/world/`, `test/domain/catalogue/` | A map-browsing UI; the assets are not yet declared in `pubspec.yaml` |
-| Save creation from scratch | No | No | All of it |
-| Windows and macOS builds | No | No | Runners and verification |
-
-The E2E acceptance harness is not committed to this repository, and no game
-binary, ROM, image, or save asset is shipped. The Longshot row is a one-off
-external result, not a repeatable CI test.
+Gate at commit `491fa3d`: `flutter analyze` → 0 issues, exit 0;
+`flutter test` → `+880 ~8 -0`; `flutter build linux --debug` → ok, 47,848 B
+launcher, ~139 MB bundle. The shipped tip `ffa8359` (comparison dialog and the
+honest footer count) has no separately recorded gate of its own. The suite still
+declares two `skip:` stubs in
+`test/domain/engine/roundtrip_invariants_test.dart`; real-format coverage lives
+in `test/data/adapter/` and `test/integration/`.
 
 The top-level `docs/` set:
 
@@ -47,6 +45,7 @@ The top-level `docs/` set:
   where new code belongs.
 - [`docs/BUILD.md`](docs/BUILD.md) — prerequisites, build, and smoke test.
 - [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — known gaps and their impact.
+- [`docs/NEW-SAVE.md`](docs/NEW-SAVE.md) — the new-save builder and its limits.
 - [`docs/WORLD.md`](docs/WORLD.md) — verified world and actor catalogues.
 - [`docs/LONGSHOT-BOUNDARY.md`](docs/LONGSHOT-BOUNDARY.md) — the read-only rule.
 - [`docs/SAVE-FORMAT.md`](docs/SAVE-FORMAT.md) — the save-format reference,
@@ -54,20 +53,18 @@ The top-level `docs/` set:
 
 ## Screenshots
 
-These are local development captures from a Flutter Linux run. They are **not
-committed** to the repository; the paths below are machine-local and may not
-exist elsewhere.
+The captures in this section **predate v1** and show the deliberate "No save
+file open" state. They document the shell chrome and navigation only; they are
+not a record of save editing, and no screenshot here shows a loaded save.
 
 - `/tmp/opencode/bomb_flower_shell_1360.png` — 1360×880 window, expanded
-  navigation rail, Overview tab. Shows the custom title bar and the deliberate
-  "No save file open" state.
+  navigation rail, Overview tab, empty state.
 - `/tmp/opencode/bomb_flower_shell_1100.png` — 1100×700 minimum-width layout
   with the rail collapsed to icons.
 - `/tmp/opencode/bomb_flower_shell_1100_inventory.png` — collapsed rail on the
-  Inventory tab, showing the "ENGINE PENDING" placeholder copy.
+  Inventory tab, showing placeholder copy from before the tab was wired.
 
-The screenshots document the shell, not save editing. No screenshot shows a
-loaded save, because that path is not implemented.
+These are machine-local paths, not committed assets.
 
 ## Quick start
 
@@ -83,6 +80,24 @@ flutter test
 flutter build linux --debug
 ./build/linux/x64/debug/bundle/bomb_flower
 ```
+
+In the app, use **Open** in the title bar and select a save folder (a `slot_NN`
+directory, or a parent of `slot_NN` directories). Edits stay in memory until
+**Save** or **Save As…**. **Reset slot…** restores the open-time bytes after an
+explicit confirmation. **Undo** and **Redo** walk the session history; they
+disable when the corresponding stack is empty. **Compare** opens a read-only
+dialog with the open-time original beside the current values, restricted to the
+active slot.
+
+To build a save from scratch:
+
+```sh
+dart run tool/create_save.dart --out /tmp/new-save
+```
+
+That writes `/tmp/new-save/slot_00/progress.sav` (120,572 bytes) and
+`caption.sav` with an original 1×1 JPEG. The tool is a CLI; v1 has no
+new-save action in the UI. See [`docs/NEW-SAVE.md`](docs/NEW-SAVE.md).
 
 For a headless check:
 
@@ -105,14 +120,19 @@ Bomb Flower is a save editor. Treat every save as the only copy you have.
 - **Exports keep a previous version.** The atomic writer keeps a `.bak` of a
   replaced slot and the sidecar `.bombflower-original/` stores the open-time
   bytes. Neither is a substitute for your own backup.
-- **There is no confirmed checksum.** The format does not expose an integrity
-  value the editor can verify, so Bomb Flower cannot detect tampering that was
-  already present in a save. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+- **There is no checksum.** The format exposes no integrity value, so Bomb
+  Flower cannot detect tampering that was already present in a save. See
+  [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+- **The game clamps invalid values; it does not reject the file.** A `Life=999`
+  control edit loaded and was clamped at runtime, so the editor enforces
+  semantic bounds itself rather than relying on the game.
 - **Game acceptance is proven for one scalar edit only.** An external E2E run
-  changed `Life`/`MaxLife` from 12 to 16 in a `kokiri-start` copy and the game
-  loaded it with 4 hearts. Arbitrary field types, corrupt files, multi-slot
-  edits, and later game versions are untested, and the harness is not in this
+  changed `Life`/`MaxLife` from 12 to 16 and the game loaded 4 hearts. A created
+  save has never been loaded by the game. The harness is not in this
   repository. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+- **Autosave rotates slots.** An in-game save writes a new `slot_NN`, and the
+  game loads the newest one, so editing an older slot alone will not change what
+  Continue loads.
 
 ## Why the format is evidence-based
 
@@ -121,35 +141,35 @@ game-data container with a different record stream, string fields instead of
 numeric scene ids, and its own schema revision. The layout work records its
 evidence next to the offsets:
 
+- `progress.sav` has a 40-byte header, a little-endian magic `0x01020304`, the
+  schema revision `2982123` (`0x2d80eb`) at byte 4, and the absolute tail
+  pointer at `u32@8`. It then holds 11,958 8-byte records
+  `{u32 Murmur3(name), u32 value}`: 11,925 fields, 32 sentinels, and one footer
+  `{0xA3DB7114, value}`. There is **no checksum**. Real played saves are
+  122,444–122,940 bytes and carry 280–608 trailing bytes after the footer value,
+  so the footer is not a total-length field. See
+  `lib/domain/save/progress_layout.dart` and `lib/data/codec/progress_codec.dart`.
+- The GameData schema is hash-verified from `GameDataList.Product.110`. All
+  11,925 on-disk fields resolve; 3,608 have a verified name and 8,317 are
+  hash-only and read-only. The schema also carries 75 enum tables (1,257 unique
+  members). 11,657 `Bool64bitKey` declarations exist only in the schema and
+  never on disk (`assets/schema/gamedata_110.json`,
+  `test/domain/schema/gamedata_schema_test.dart`).
 - `caption.sav`'s magic `04 03 02 01`, scene name at 684, map path at 748,
   layout marker 1392 at 540, JPEG length at 1392, and JPEG at 1396 are cited in
   `lib/domain/save/caption_layout.dart` against Longshot's `host/control.c`
   (`caption_json`, lines 1869–1901), `scripts/longshot_saves.py` lines 565–618,
   `website/src/lib/save-scrub.ts`, and `docs/dev/reference/saves.md` lines
   92–94. All three scrubbed samples are 4,741 bytes and round-trip.
-- The container magic is `04 03 02 01`. The GameData schema revision is
-  `2982123` (`0x2d80eb`) at byte offset 4. The schema's revision gate rejects a
-  different revision rather than rounding to a nearby schema.
-- `progress.sav` is 120,572 bytes: magic `04 03 02 01`, schema revision
-  `2982123` (`0x2d80eb`) at byte 4, a data offset at byte 8, then 8-byte
-  records and a pointer-referenced tail. The committed codec decodes all 32
-  sentinel-delimited sections, preserves unknown spans, and re-encodes the
-  three samples byte-identically. See `lib/domain/save/progress_layout.dart`
-  and `lib/data/codec/progress_codec.dart`.
-- The GameData schema is hash-verified from `GameDataList.Product.110`: 11,925
-  on-disk fields, 11,657 `Bool64bitKey` declarations that are not on disk, and
-  3,608 fields with a verified name (`assets/schema/gamedata_110.json`,
-  `test/domain/schema/gamedata_schema_test.dart`). The schema revision gate is
-  exact: a different revision is rejected, not guessed.
 - **External E2E acceptance run, 2026-11-22, external to this repository.** A
   `kokiri-start` copy with exactly two bytes changed (`Life` 12→16 at
   `0x14254`, `MaxLife` 12→16 at `0x14BFC`, no checksum recomputation) loaded in
   Longshot `v3.0.0-rc.3-93-g82886e89` (`image.bin` sha256 `f77dd8d6…`):
   `state=play`, `map=KokiriForest_Child`, live `life=16`, `max_life=16`, same
-  position as baseline, HUD 4 hearts instead of 3. An in-game save wrote a new
-  `slot_01` that still held 16/16. A control edit (`Life=999`, `MaxLife=12`)
-  loaded and was clamped to 12 at runtime; the file kept 999 until the next
-  save. The harness is not committed and no game binary or asset is shipped.
+  position as baseline, HUD 4 hearts instead of 3. The Longshot tree was
+  sha256-identical after the run. The harness is not committed and no game
+  binary or asset is shipped. This does not prove a **created** save is
+  accepted; that has never been tested in game.
 - The three observed samples are `kokiri-start`, `castle-gate`, and
   `market-entrance`; their scene and map strings are tabulated in
   [`docs/WORLD.md`](docs/WORLD.md). Only 3 of 80 known maps have been observed in
@@ -157,9 +177,10 @@ evidence next to the offsets:
 
 The current weaknesses of that evidence are listed in
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md): no checksum, one scalar
-game-acceptance result rather than a repeatable test, unverified
-`Binary`/`WString16Array` layouts, and 11,657 `Bool64bitKey` declarations that
-exist only in the schema, not in `progress.sav`.
+game-acceptance result rather than a repeatable test, partly opaque
+`Binary`/`BinaryArray`/`WString16Array` layouts, 8,317 unnamed fields, and
+11,657 `Bool64bitKey` declarations that exist only in the schema, not in
+`progress.sav`.
 
 ## Licence
 

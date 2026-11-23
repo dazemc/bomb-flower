@@ -3,8 +3,12 @@
 This document lists what Bomb Flower cannot yet prove or do. An unlisted
 limitation is a documentation bug, not a feature.
 
-Status is as of 2026-11-22; the last commit reviewed is `bcae1ea`. Check
-`git log` and the current test output before relying on any statement.
+Status is as of 2026-11-22, shipped tip `ffa8359`. The last recorded gate is
+commit `491fa3d`: `flutter analyze` reports 0 issues (exit 0) and `flutter test`
+reports `+880 ~8 -0`. The comparison and footer work at `ffa8359` sits on top of
+that gate without a separately recorded run. Two `skip:` stubs remain in
+`test/domain/engine/roundtrip_invariants_test.dart`. Check `git log` and the
+current test output before relying on any statement.
 
 ## 1. The format has no confirmed checksum
 
@@ -21,7 +25,19 @@ sidecar original. Do not describe an export as "verified" beyond the checks the
 code performs: field spans, declared ranges, exact read-back, and the optional
 `IntegrityRecomputer` (not configured for this format).
 
-## 2. Edited-save acceptance is one scalar case, not a general guarantee
+**Measured context.** A `progress.sav` is a 40-byte header, 11,958 8-byte
+records (11,925 fields, 32 sentinels, one footer), and a pointer-referenced
+tail. Real played saves carry 280–608 trailing bytes after the footer value, so
+even file length is not a reliable integrity signal.
+
+**Validation output is not silent.** On a real sample the status footer reports
+**11 warnings · 8328 informational notes**: eleven `field.out_of_range` results
+on `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values stored inside signed int32 fields,
+and 8,328 `field.unverified` records. Those results are shown, not suppressed.
+They describe what the schema and bounds checks found; they are not an integrity
+verdict, and a tidy-looking file can still be semantically wrong.
+
+## 2. Edited-save acceptance is one scalar case; created-save acceptance is unproven
 
 **Proven.** An external E2E acceptance run on 2026-11-22 (external to this
 repository) loaded a `kokiri-start` copy with exactly two bytes changed:
@@ -33,21 +49,30 @@ checksum was recomputed. The tested build was
 `state=play`, `map=KokiriForest_Child`, live `life=16`, `max_life=16`, the same
 position as the baseline, and drew 4 hearts instead of 3. An in-game save wrote
 a new `slot_01` that still contained `Life=16`/`MaxLife=16`; the game neither
-rejected nor silently repaired the edit.
+rejected nor silently repaired the edit. The Longshot tree was sha256-identical
+after the run.
 
-**Still not proven.** Arbitrary field types (strings, enums, vectors, arrays),
+**Not proven.** Arbitrary field types (strings, enums, vectors, arrays),
 corrupt-file rejection, multi-slot or multi-region edits, and later game
 versions. The E2E harness is not committed, no game binary or asset is shipped,
 and this is not a repeatable CI test.
 
+**Created saves.** `tool/create_save.dart` builds a schema-default save whose
+shape matches the samples (120,572 bytes, footer value 120,564, same keys,
+sentinels, pointers, and trailer). No created save has been loaded by the game.
+Shape equality is not acceptance, and the schema defaults are not verified
+against the game's New Game initialisation. This remains unproven.
+
 **Autosave slot rotation.** The game does not overwrite the loaded slot. An
 in-game save writes a **new** `slot_NN`, and Continue loads the newest
 `progress.sav` by modification time. Impact: editing an older slot alone does
-not affect Continue. Mitigation: edit the newest slot, or confirm which slot the
-game will load. The planned app mitigation is to warn when the open slot is not
-the newest and to offer an explicit-consent update of the newest slot's
-`progress.sav` mtime; the warning and the mtime update are **not implemented in
-committed code as of this documentation commit**.
+not affect Continue. v1 renders `SlotRotationWarning`
+(`lib/presentation/dialogs/slot_rotation_warning.dart`) inside the Save As
+dialog when the active slot is not the newest. That warning has no wired "Use
+newest slot" callback, and the dialog's "make newest" checkbox is not consumed:
+`SaveAsRequest.markNewest` is never read by the save path, and no code changes a
+file's mtime. So the app explains the rotation risk but does not correct the
+load order; choose the newest slot yourself.
 
 **No-checksum clarification.** The 2-byte edit loaded without any checksum
 recomputation, which confirms that the edited path has no integrity field to
@@ -69,34 +94,38 @@ fields. Do not synthesize them into a save without a verified writer path and a
 game test. The schema validation continues to reject a `Bool64bitKey` that
 appears in on-disk data (`lib/domain/schema/`, `test/domain/schema/`).
 
-## 4. Pouch and inventory ownership is not mapped to raw fields
+## 4. Inventory semantics are only partly mapped
 
-**Impact.** The editor cannot reliably say which raw field gives a pouch item to
-the player, how inventory slots are owned, or how equipment ownership differs
-from equipped state. An inventory screen built now would invent relationships.
+**Impact.** The save stores acquisition flags, not per-item stock. The Inventory
+tab toggles named `IsGet.*` flags and edits bottle contents; it states that per-
+item stock and ammo counts are not stored, and only
+`PouchData.Item_Token_Gold.StockNum` is a named count. Which raw field owns a
+pouch slot, and how equipment ownership differs from equipped state, is not
+fully mapped. Some stored actor text is therefore shown read-only.
 
-**Mitigation.** Do not expose inventory or pouch editing from raw offsets. Keep
-the tab read-only or a placeholder. Preserve all bytes outside verified fields.
-Require a field-level citation and a sample observation for each ownership field.
+**Mitigation.** Edit only named, verified fields. Keep unrecognised actor text
+read-only. Do not invent a stock or ownership relationship from offsets; require
+a field-level citation and a sample observation.
 
-## 5. `Binary` and `WString16Array` layouts are unverified
+## 5. `Binary`, `BinaryArray`, and `WString16Array` layouts are partly opaque
 
 **Impact.** These tail values have no length derivable from a verified header.
 The committed progress codec infers a span from the next tail pointer or EOF and
 preserves it as opaque bytes. Structural edits inside them are unsafe, and a
-wrong inference could misplace later records.
+wrong inference could misplace later records. The new-save builder zero-fills
+the `Binary` payloads it emits.
 
-**Mitigation.** Keep both types opaque and byte-preserving; do not offer typed
+**Mitigation.** Keep these types opaque and byte-preserving; do not offer typed
 editing. Add a fixture that pins every inferred span and its boundary before
-treating either layout as verified. A wrong inference must fail loudly.
+treating any layout as verified. A wrong inference must fail loudly.
 
 ## 6. Enums are stored as hashes
 
-**Impact.** A stored enum value is a 32-bit hash of a member name. Without a
-matching name table, an unknown member cannot be named and any UI must fall back
-to the raw hash, labelled `Unknown 0x…` or equivalent. Rewriting one, or
-presenting it as a named choice, risks changing data the editor does not
-understand.
+**Impact.** A stored enum value is a 32-bit hash of a member name. The schema
+resolves 2,499 member hashes across 75 tables (1,257 unique members), but an
+unknown member cannot be named and any UI must fall back to the raw hash,
+labelled `Unknown 0x…` or equivalent. Rewriting one, or presenting it as a named
+choice, risks changing data the editor does not understand.
 
 **Mitigation.** Preserve unknown hashes exactly and display the raw value with an
 unknown marker. Offer a named choice only when the schema resolves the hash;
@@ -135,21 +164,44 @@ paths can regress without a failing test.
 window-chrome check under Wayland and X11 before a release. Do not claim platform
 support from a headless run. Add a display-backed CI job before widening support.
 
-## 10. The codecs are committed, but engine and UI integration is not
+## 10. Four tabs are read-only gap panels
 
-**Impact.** `ProgressCodec` and `CaptionCodec` can decode, edit, and re-encode
-their files standalone, and their real-sample tests pass when fixtures are
-present. `SaveEngine` still has no `LayoutDescriptor` adapter for the
-`progress.sav` record stream, and no UI path opens a save. The two real-format
-engine invariants in `test/domain/engine/roundtrip_invariants_test.dart` remain
-skipped. Ten tabs are placeholders and Overview says "No save file open".
+**Impact.** Progression (297 named fields), Dungeons (42 named), Collectibles
+(159 named), and Flags (3,443 named + 6,769 hash-only) render a `V1GapPanel`
+with the verified field counts and the reason no safe editor exists. They are
+not editors, and they expose no disabled control that implies one. Those fields
+are inspectable only as raw bytes in Advanced Data.
 
-**Mitigation.** Do not present Bomb Flower as a working end-to-end save editor
-yet. Keep the skipped tests visible and un-faked. Add the record-stream adapter
-and the real-file engine round-trip before enabling any open/save control in the
-UI.
+**Mitigation.** Do not describe the four tabs as working editors. Add a tab only
+when its field semantics, ownership rules, and write path are verified; a count
+of named fields is not a mapping.
 
-## 11. A revision gate rejects unknown future saves
+## 11. 8,317 unnamed fields are read-only
+
+**Impact.** Of the 11,925 on-disk fields, 3,608 have a verified name and 8,317
+are hash-only. Unnamed fields keep their bytes, appear by hash, and cannot be
+edited through a typed control. A user who needs one of them must use the raw
+hex editor, with the risks that implies.
+
+**Mitigation.** Keep unnamed records read-only and clearly labelled. Do not
+promote a hash-only field to a named editor without a recovered name and a
+fixture that proves the mapping.
+
+## 12. Comparison is a read-only, per-slot dialog
+
+**Impact.** v1 has an original-versus-edited view: the Compare action opens
+`CompareSaveDialog`, which lists changed fields with Original and Current
+values, provenance badges, FNV-1a fingerprints, and coalesced changed byte
+spans. It is inspection only. It shows one slot at a time, it does not compare
+two exports, it cannot accept or reject an individual hunk, and its "original"
+is the in-memory bytes captured when the slot was opened. There is no
+side-by-side editable diff and no export preview.
+
+**Mitigation.** Treat Compare as a review aid, not an approval gate. For a
+byte-level audit against a stored copy, use the sidecar
+`.bombflower-original/` directory and an external diff tool.
+
+## 13. A revision gate rejects unknown future saves
 
 **Impact.** Only revision `2982123` (`0x2d80eb`) is understood. A game update
 that changes it is rejected with `ParseUnsupported` instead of opened

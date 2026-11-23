@@ -48,11 +48,20 @@ flutter test
 ```
 
 `flutter analyze` is expected to report `No issues found!`. `flutter test` runs
-the committed suite. With the local sample fixtures present, only the two
-real-format engine invariants in
-`test/domain/engine/roundtrip_invariants_test.dart` are skipped by design; they
-require an engine adapter for the verified `progress.sav` record layout. Codec
-tests that need the samples skip automatically when `.local-fixtures/` is absent.
+the committed suite. The last recorded gate, at commit `491fa3d` with the local
+sample fixtures present, is `+880 ~8 -0` with analyze at 0 issues and exit 0.
+The shipped tip `ffa8359` adds the comparison dialog and the honest footer
+count on top of that gate; it has no separately recorded run. Two `skip:` stubs
+remain in `test/domain/engine/roundtrip_invariants_test.dart`; the real-format
+behaviour they describe is covered by `test/data/adapter/` and
+`test/integration/`. Codec and integration tests that need the samples skip
+automatically when `.local-fixtures/` is absent, so a run without fixtures has
+more skips and a lower pass count; that is not a failure.
+
+On a real sample the status footer reports `11 warnings · 8328 informational
+notes`: eleven `field.out_of_range` results on sentinel values inside signed
+int32 fields and 8,328 `field.unverified` records. A successful build or
+analyzer run says nothing about those save-level results.
 
 ## Build
 
@@ -75,7 +84,30 @@ assets. Run it from there, not from an intermediate `build/` directory:
 ./build/linux/x64/debug/bundle/bomb_flower
 ```
 
+Measured debug artifacts at the delivered gate: the launcher is 47,848 bytes and
+the bundle directory is about 139 MB. A fresh rebuild on another machine can
+differ by a few bytes because of toolchain metadata; the bundle size is the
+useful figure.
+
 During development, a display-backed run is `flutter run -d linux`.
+
+## Creating a save
+
+The new-save path is `tool/create_save.dart`, not a UI action:
+
+```sh
+dart run tool/create_save.dart --out /tmp/new-save
+```
+
+It writes `/tmp/new-save/slot_00/progress.sav` (120,572 bytes) and
+`caption.sav` (2,029 bytes with the built-in 633-byte JPEG), then decodes both
+with the production codecs. It refuses a non-empty destination unless
+`--allow-overwrite` is passed. The complete options and the byte-level checks
+are in [`NEW-SAVE.md`](NEW-SAVE.md).
+
+A created save has **never been loaded by the game**. The build is verified
+against the samples' shape and against the codecs, not against Longshot's
+acceptance; see [`LIMITATIONS.md`](LIMITATIONS.md).
 
 ## Headless smoke test
 
@@ -162,9 +194,10 @@ the “Compatibility gate” section of
 
 The verified 2026-11-22 run changed two bytes in a `kokiri-start` copy
 (`Life`/`MaxLife` 12→16), loaded with 4 hearts, and wrote a new `slot_01` that
-retained 16/16. A `Life=999` control was clamped to 12 at runtime. This proves
-one scalar case only; it does not make arbitrary edits safe, and it cannot run
-in CI here without the game binary and assets.
+retained 16/16. A `Life=999` control was clamped to 12 at runtime. The Longshot
+tree was sha256-identical after the run. This proves one scalar case only; it
+does not make arbitrary edits safe, it says nothing about a **created** save,
+and it cannot run in CI here without the game binary and assets.
 
 ## Troubleshooting
 

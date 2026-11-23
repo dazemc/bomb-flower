@@ -1,8 +1,9 @@
 # Architecture
 
 Bomb Flower is a Linux desktop Flutter application with a pure-Dart save engine.
-The engine is the product; the UI is a client of it. Save-format knowledge is
-data supplied by research, not constants baked into the engine.
+The engine is the product; the UI is a client of it, and `lib/main.dart` now
+wires that client to the engine. Save-format knowledge is data supplied by
+research, not constants baked into the engine.
 
 ## Layers
 
@@ -11,9 +12,13 @@ data supplied by research, not constants baked into the engine.
 │ presentation                                                         │
 │   theme/        Deep Canopy tokens and ThemeData                     │
 │   shell/        AppShell, navigation rail, footer, eleven tabs        │
-│   bloc/shell/   ShellCubit: selection, rail, shortcuts, placeholders  │
-│   widgets/      chrome, common controls, hex editor                   │
-│   imports: domain types only; never dart:io                          │
+│   bloc/shell/   ShellCubit: selection, rail, shortcuts                │
+│   bloc/save_session/  SaveSessionCubit: open, edit, undo, export      │
+│   tabs_support/ SaveTabScope, FieldEditor, tab field views            │
+│   dialogs/      open, save-as, reset, unsaved-changes, compare,        │
+│                 slot rotation                                          │
+│   widgets/      chrome (title bar, file actions), controls, hex       │
+│   imports: domain types and data entry points; never dart:io          │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │ reads domain state, calls domain APIs
 ┌───────────────────────────────▼──────────────────────────────────────┐
@@ -22,25 +27,34 @@ data supplied by research, not constants baked into the engine.
 │                 layouts, edit commands, history, audit log, parsing   │
 │   engine/       SaveEngine, ports, SaveSessionController              │
 │   save/         caption and progress layouts, models, record accessors   │
+│   newsave/      NewSaveSpec and the schema-default builder            │
 │   schema/       hash-verified GameData schema and Murmur3 hashing     │
 │   validation/   field validators and validation results               │
 │   formatting/   hearts, labels, scalar display                        │
+│   fields/       field groups and tab membership                       │
 │   world/        verified map/base-scene/actor catalogues              │
 │   catalogue/    actor catalogue                                       │
 └───────────────────────────────▲──────────────────────────────────────┘
                                 │ implements ports, converts bytes
 ┌───────────────────────────────┴──────────────────────────────────────┐
 │ data                                                                 │
+│   adapter/      progress field ids, layout builder, resolver,         │
+│                 repository factory, display value codec               │
 │   codec/        ByteReader, caption and progress codecs               │
 │   io/           FileSlotSource, FileSaveRepository, AtomicFileWriter, │
 │                 SidecarBackup, path helpers                          │
+│   newsave/      NewSaveWriter over the atomic writer                  │
+│   system/       startup folder, directory picker, open diagnostics    │
 │   imports: domain; never Flutter, bloc, or presentation               │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 The domain does not know where bytes came from. `SlotSource` and `OriginalStore`
 in `lib/domain/engine/ports.dart` are implemented by `lib/data/io/`. The engine
-never imports `dart:io`; the file adapters never contain UI state.
+never imports `dart:io`; the file adapters never contain UI state. The
+presentation layer does not read files itself: it calls the `SaveSessionCubit`,
+which owns a `SaveSessionController` and reaches the filesystem only through the
+injected `SaveRepository`.
 
 ## Immutable models
 
@@ -201,17 +215,85 @@ The format boundary is explicit:
   `ProgressLayout.revision` (`2982123`) before decoding the record stream. It
   rejects a different revision with `ProgressDecodeUnsupported`
   (`lib/data/codec/progress_codec.dart`).
+- The container is a 40-byte header, then 11,958 8-byte records
+  `{u32 key, u32 value}`: 11,925 fields, 32 sentinels, and a footer
+  `{0xA3DB7114, value}`. The pointer tail starts at the `u32` at byte 8. There
+  is no checksum. The layout constants are `ProgressLayout` in
+  `lib/domain/save/progress_layout.dart`.
 
-As of this document, both codecs and the GameData schema are committed. Neither
-codec is wired into `SaveEngine`: there is no `LayoutDescriptor` adapter from
-the record stream yet, and no UI path opens a save. Use `ProgressCodec` directly
-only in tests or research until that adapter exists. The format is documented in
-[`SAVE-FORMAT.md`](SAVE-FORMAT.md).
+`SaveEngine` opens `progress.sav`. The wiring is in `lib/data/adapter/`:
+`ProgressLayoutResolver` detects a `slot_NN/progress.sav` and `caption.sav`,
+`ProgressLayoutBuilder` derives a `SaveSlotLayout` and a
+`LayoutDescriptor` from the decoded records and the GameData schema, and the
+resolver hands that exact descriptor to `SaveEngine.open`. The repository
+factory is `ProgressSaveRepositoryFactory` in
+`lib/data/adapter/progress_repository.dart`; `lib/main.dart` constructs it and
+passes the resolver into both `SaveSessionCubit` and `FileSaveRepository`.
+
+Because a `progress.sav`'s spans are derived per file, the format registers no
+static layouts. A plain `SaveFormat.layoutFor(version)` is therefore not the
+open path for this format; detection and descriptor construction happen in the
+adapter before the engine sees the bytes. Layouts are descriptions, not
+guesses: a record the schema does not name keeps its hash as its label and is
+read-only.
+
+The format is documented in [`SAVE-FORMAT.md`](SAVE-FORMAT.md).
 
 The remake format is not assumed to be the N64 format. Scene and map identities
 are strings such as `KokiriForest/KokiriForest_Child`, not numeric ids; the N64
 scene-id space is a separate glossary and is rejected by the world catalogue's
 validator when it appears in a string field.
+
+## UI surface
+
+Eleven tabs, of which seven are real:
+
+| Tab | What it does |
+|---|---|
+| Overview | Read-only session summary: slot, health, currency, scene, age, outstanding changes |
+| Player/World | Edits verified player and world fields; read-only stored scene when the catalogue cannot name it |
+| Inventory | Six-by-four inventory grid and per-slot properties |
+| Equipment | Equipped gear, tiers, condition; unknown actor text is read-only |
+| Resources | Vitals, currency, consumable counts; enforces semantic bounds |
+| Advanced Data | Hex inspection plus editing behind an explicit **Unlock editing** toggle |
+| Settings | Editor preferences held in an in-memory store; not persisted across launches |
+
+The other four are read-only **gap panels** (`lib/presentation/shell/tabs/
+v1_gap_panel.dart`). Each states why no safe editor exists and shows the
+verified counts that already exist:
+
+| Panel | Verified fields |
+|---|---|
+| Progression | 297 named |
+| Dungeons | 42 named |
+| Collectibles | 159 named |
+| Flags | 3,443 named + 6,769 hash-only |
+
+A gap panel has no editable control and no disabled control that implies future
+work; its only affordance points at Advanced Data, where those records are
+inspectable as raw bytes.
+
+The title bar owns eight file actions: **Open**, **Save**, **Save As…**,
+**Duplicate**, **Reset slot…**, **Undo**, **Redo**, and **Compare**
+(`lib/presentation/widgets/chrome/file_action_bar.dart`). Enablement comes from
+the session state — Save needs a dirty project, Compare needs a project that
+differs from its open-time original, Undo and Redo need a non-empty stack — and
+Reset still requires confirmation. Below 1280 logical pixels the eight actions
+collapse into one overflow menu so the brand and save identity keep their room;
+the compare entry keeps the widget key `shell-action-compare` in both forms.
+
+**Compare** opens `CompareSaveDialog` (`lib/presentation/dialogs/
+compare_save_dialog.dart`), a read-only view of one slot's changed fields with
+Original and Current columns, provenance badges, FNV-1a fingerprints, and the
+coalesced changed byte spans. It computes from the in-memory open-time original
+(also mirrored to the sidecar on export); it never writes and it never accepts
+or rejects a change.
+
+The status footer reports validation results instead of hiding them. On a real
+sample it shows **11 warnings · 8328 informational notes**: eleven
+`field.out_of_range` results on `0xFFFFFFFF`/`0xFFFFFFFB` sentinel values inside
+signed int32 fields, and 8,328 `field.unverified` records (the unnamed fields).
+Neither group blocks an export by itself, and neither is silent.
 
 ## Compatibility gate
 
@@ -250,6 +332,15 @@ enums, vectors, arrays, corrupt-file rejection, multi-slot/multi-region edits, o
 later game versions, and it cannot run in CI here because neither the game
 binary nor its assets are committed.
 
+The run left the Longshot tree sha256-identical: every tracked file, the `HEAD`,
+and the `work/` entry count matched the pre-run capture, so the read-only rule
+held in practice and not only by convention.
+
+**Created saves are not covered.** `tool/create_save.dart` produces a
+120,572-byte schema-default save whose shape matches the samples, but no created
+save has been loaded by the game. That acceptance remains unproven; a shape
+comparison is not a game-acceptance test.
+
 ## Enforced layering
 
 `test/architecture/layering_test.dart` scans every `import` and `export`
@@ -270,10 +361,14 @@ too, so deleting a layer fails the test.
 | Change | Location | Required evidence |
 |---|---|---|
 | New verified byte offset or field | `lib/domain/save/` layout descriptor, or `lib/domain/schema/` for schema metadata | A citation in the descriptor, plus a fixture-backed test |
+| New record-to-field mapping | `lib/data/adapter/` | Fixture-backed adapter test; unnamed records stay read-only |
 | New byte parse/encode | `lib/data/codec/` | Round-trip test, malformed-input cases, no Flutter imports |
+| New new-save rule or value source | `lib/domain/newsave/` | Builder test; the default build stays 120,572 bytes |
 | New file operation | `lib/data/io/` behind `SlotSource` or `OriginalStore` | Test in `test/data/io/`; update the port only if the contract changes |
+| New save-folder entry point | `lib/data/system/` | Typed result, no UI imports |
 | New domain operation | `lib/domain/engine/` | Synthetic-layout test; no `dart:io` |
 | New screen or tab | `lib/presentation/shell/tabs/` and `lib/presentation/bloc/` | Widget test; no `dart:io` |
+| New shared tab control | `lib/presentation/tabs_support/` | Widget test; no filesystem access |
 | New theme token | `lib/presentation/theme/` | Token test in `test/presentation/theme_test.dart` |
 | New reusable widget | `lib/presentation/widgets/` | Widget test in `test/presentation/` |
 | New fixture helper | `test/support/` | Must not contain copyrighted game assets |
@@ -281,20 +376,28 @@ too, so deleting a layer fails the test.
 
 ## Current shell
 
-- `lib/main.dart` — bitsdojo window setup: size, minimum size, title, show.
-- `lib/app.dart` — `MaterialApp`, theme, `BlocProvider<ShellCubit>`, `AppShell`.
+- `lib/main.dart` — bitsdojo window setup: size, minimum size, title, show. It
+  loads the schema, builds the engine and adapter resolver, creates
+  `SaveSessionCubit`, and resolves an optional startup folder.
+- `lib/app.dart` — `MaterialApp`, theme, the injected `SaveSessionCubit`,
+  `AppShell`.
 - `lib/presentation/widgets/chrome/app_title_bar.dart` — draggable custom
-  chrome. This replaces the old `lib/presentation/widgets/app_title_bar.dart`
-  path; the old path does not exist.
+  chrome and the title-bar file actions. This replaces the old
+  `lib/presentation/widgets/app_title_bar.dart` path; the old path does not
+  exist.
 - `lib/presentation/shell/app_shell.dart` — `AppShell`, the 44 px title bar,
   232/64 px navigation rail, capped tab content, and 28 px status footer. This
   replaces the old `BombFlowerShell` name.
+- `lib/presentation/bloc/save_session/` — `SaveSessionCubit` wraps
+  `SaveSessionController`. The cubit owns presentation state (busy, status,
+  dialog inputs, active slot) and owns no offsets; it calls the engine and the
+  injected repository.
 
 `BombFlowerApp(enableWindowChrome: false)` renders the shell in tests without
 native window calls. `ShellCubit` owns navigation selection, responsive rail
-collapse, and keyboard shortcuts; it reads and writes no save data. Ten of the
-eleven tabs render `PlaceholderTab`; Overview renders an honest empty state.
-Opening a save is the next integration seam.
+collapse, and keyboard shortcuts; it reads and writes no save data.
+`SaveSessionCubit.disabled()` remains for widget tests that render the shell
+without a save backend: every action returns a typed error instead of throwing.
 
 ## Testing strategy
 
@@ -302,16 +405,35 @@ Opening a save is the next integration seam.
   (`test/domain/core/fixtures.dart`, `test/support/`). They do not require game
   files.
 - `caption.sav` tests cover synthetic structure, malformed input, encode
-  diffs, and the three scrubbed samples when those fixtures are available.
+  diffs, and the three scrubbed samples (`test/data/caption_codec_test.dart`).
 - `progress.sav` tests cover the header, all 32 sections, typed accessors,
   in-place edit atomicity, malformed and truncated input, and the three real
-  samples when fixtures are available (`test/data/progress_codec_test.dart`).
+  samples (`test/data/progress_codec_test.dart`).
+- Adapter tests build the real descriptor from decoded samples:
+  `test/data/adapter/progress_layout_builder_test.dart` and its resolver,
+  field-id, and display-codec siblings.
+- Integration tests drive the production wiring over a real fixture:
+  `test/integration/fixture_chain_test.dart` opens the sample, edits `Life`,
+  undoes, redoes, saves as, and reopens; the exported difference is exactly the
+  declared `Life` span.
+- The UI chain test
+  (`test/presentation/tabs/ui_save_flow_test.dart`) drives the real shell:
+  open → edit `Life` → observe the dirty state → undo → re-apply the edit →
+  **Save As…** through the title-bar action → reopen the export with a fresh
+  session. The export differs from the open-time copy at exactly one byte,
+  `0x14254` (`0c` → `10`), inside the declared `Life` span. The undo step is
+  asserted separately: it returns to 12 and clears the modified badge.
+- Dialog and chrome tests cover file-action enablement and the comparison view
+  (`test/presentation/chrome/compare_action_test.dart`,
+  `test/presentation/dialogs/compare_save_dialog_test.dart`).
 - The GameData schema tests verify counts, revision, type shapes, enum hashes,
   and that a `Bool64bitKey` is never on disk
   (`test/domain/schema/gamedata_schema_test.dart`).
 - File and sidecar tests use temporary directories and fault-injection hooks.
-- Two real-format invariants — zero-edit round-trip and exact edit-span
-  equivalence through `SaveEngine` — are declared but skipped in
-  `test/domain/engine/roundtrip_invariants_test.dart`. The codec-level
-  round-trips are covered; the skipped tests need a `LayoutDescriptor` adapter
-  for the record stream. Do not report them as passing.
+- Two declared invariants — `(a)` zero-edit round-trip and `(b)` exact
+  edit-span equivalence — are still stubs with a `skip:` in
+  `test/domain/engine/roundtrip_invariants_test.dart`; do not report them as
+  passing. The gate at commit `491fa3d` reports `+880 ~8 -0`, and the shipped
+  tip `ffa8359` adds the comparison and footer work on top of that gate. The
+  real-format behaviour the stubs describe is exercised by the adapter and
+  integration tests above, not by that file.
