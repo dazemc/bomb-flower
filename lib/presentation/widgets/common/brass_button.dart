@@ -79,6 +79,8 @@ class _BrassButtonState extends State<BrassButton> {
     final border = _border(palette);
     final gradient = _gradient();
     final radius = BorderRadius.circular(BombFlowerRadii.sm);
+    final controlHeight = widget.height ?? BombFlowerSpacing.buttonHeight;
+    final controlMinWidth = widget.minWidth ?? BombFlowerSpacing.minHitTarget;
 
     final button = Stack(
       clipBehavior: Clip.none,
@@ -90,9 +92,9 @@ class _BrassButtonState extends State<BrassButton> {
           child: AnimatedContainer(
             duration: duration,
             curve: BombFlowerMotion.hoverCurve,
-            height: widget.height ?? BombFlowerSpacing.buttonHeight,
+            height: controlHeight,
             constraints: BoxConstraints(
-              minWidth: widget.minWidth ?? BombFlowerSpacing.minHitTarget,
+              minWidth: controlMinWidth,
             ),
             padding: const EdgeInsets.symmetric(
               horizontal: BombFlowerSpacing.xl,
@@ -193,7 +195,16 @@ class _BrassButtonState extends State<BrassButton> {
             onTapCancel: _enabled
                 ? () => setState(() => _pressed = false)
                 : null,
-            child: button,
+            // The hit box is the full control, not the painted glyphs: the
+            // outer SizedBox owns height and minimum width, padding lives
+            // inside, and this opaque detector covers that whole box.
+            child: SizedBox(
+              height: controlHeight,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: controlMinWidth),
+                child: button,
+              ),
+            ),
           ),
         ),
       ),
