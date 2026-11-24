@@ -4,14 +4,15 @@
 /// only sees `PreferencesBackend`.
 ///
 /// The resolved plugin writes
-/// `<getApplicationSupportPath()>/shared_preferences.json`. On Linux that is
-/// `$XDG_DATA_HOME/<APPLICATION_ID>` (falling back to
-/// `~/.local/share/<APPLICATION_ID>`), which `linux/CMakeLists.txt` sets to
-/// `~/.local/share/dev.dazemc.bomb_flower/`. On Windows it is
+/// `<getApplicationSupportPath()>/shared_preferences.json`. On Linux that path
+/// is `$XDG_DATA_HOME/<APPLICATION_ID>` (falling back to
+/// `~/.local/share/<APPLICATION_ID>`); `path_provider_linux` takes the id from
+/// the running GTK application, which `linux/CMakeLists.txt` sets to
+/// `dev.dazemc.bomb_flower`. On Windows, `path_provider_windows` builds the
+/// path from the executable's VERSIONINFO as
 /// `%APPDATA%\<CompanyName>\<ProductName>`, i.e.
 /// `%APPDATA%\bomb-flower\Bomb Flower\shared_preferences.json` for the
-/// `Runner.rc` values. The Windows path is derived from the plugins and
-/// `windows/runner/Runner.rc`, not observed.
+/// `Runner.rc` values. That Windows path is derived, never observed.
 library;
 
 import 'package:shared_preferences/shared_preferences.dart';
