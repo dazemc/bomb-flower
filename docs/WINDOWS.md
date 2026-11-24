@@ -78,7 +78,7 @@ opts in before the Flutter engine starts, in `windows/runner/main.cpp`:
 auto bdw = bitsdojo_window_configure(BDW_CUSTOM_FRAME | BDW_HIDE_ON_STARTUP);
 ```
 
-`main.cpp` creates the window at 1280×720 with the working title `bomb_flower`
+`main.cpp` creates the window at 1280×720 with the pre-Dart caption `Bomb Flower`
 and leaves it hidden. `lib/main.dart` then configures and shows it from
 `doWhenWindowReady`: title `Bomb Flower`, minimum size 800×600, alignment
 centred, `appWindow.show()`.
