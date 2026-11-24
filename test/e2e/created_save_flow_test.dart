@@ -43,6 +43,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../integration/support/progress_chain.dart';
+import '../support/byte_assert.dart';
 import '../support/temp_roots.dart';
 
 /// The three verified inline scalars this flow edits, one per tab.
@@ -229,9 +230,7 @@ void main() {
     // Collectibles: token stock 0 -> 5 through the row's NumericField.
     await _showTab(tester, shell, ShellTab.collectibles);
     await _searchEditTable(tester, _tokenStockName);
-    final stockCell = find.byKey(
-      Key('edit-table-cell-${tokenStockId.value}'),
-    );
+    final stockCell = find.byKey(Key('edit-table-cell-${tokenStockId.value}'));
     await tester.ensureVisible(stockCell);
     await tester.pumpAndSettle();
     final stockInput = find.descendant(
@@ -243,7 +242,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(cubit.state, isA<SaveSessionReady>());
     expect(tester.widget<NumericField>(stockCell).value, 5);
-    _reportEdit('collectibles', _tokenStockName, tokenStockId, tokenStockSpan, 0, 5);
+    _reportEdit(
+      'collectibles',
+      _tokenStockName,
+      tokenStockId,
+      tokenStockSpan,
+      0,
+      5,
+    );
 
     // The live project carries exactly the three edits and nothing else.
     final dirty = (cubit.state as SaveSessionReady).project;
@@ -271,7 +277,7 @@ void main() {
     final savedProgress = progressFile.readAsBytesSync();
     final savedCaption = captionFile.readAsBytesSync();
     expect(savedProgress.length, originalProgress.length);
-    expect(savedCaption, orderedEquals(originalCaption));
+    expectByteIdentical(savedCaption, originalCaption);
 
     final spans = <ByteSpan>[maxLifeSpan, flagSpan, tokenStockSpan];
     final union = <int>{
@@ -289,9 +295,7 @@ void main() {
     );
     for (final span in spans) {
       expect(
-        differing.where(
-          (offset) => offset >= span.offset && offset < span.end,
-        ),
+        differing.where((offset) => offset >= span.offset && offset < span.end),
         isNotEmpty,
         reason: 'the edit in ${span.offset}..${span.end} left no byte behind',
       );
@@ -312,8 +316,11 @@ void main() {
       (tokenStockId, tokenStockSpan, 5),
     ]) {
       expect(
-        ByteData.sublistView(savedProgress, entry.$2.offset, entry.$2.end)
-            .getUint32(0, Endian.little),
+        ByteData.sublistView(
+          savedProgress,
+          entry.$2.offset,
+          entry.$2.end,
+        ).getUint32(0, Endian.little),
         entry.$3,
         reason: 'disk value at ${_hexOffset(entry.$2.offset)}',
       );
@@ -324,8 +331,8 @@ void main() {
     final captionBak = File('${captionFile.path}.bak');
     expect(progressBak.existsSync(), isTrue, reason: 'no progress.sav.bak');
     expect(captionBak.existsSync(), isTrue, reason: 'no caption.sav.bak');
-    expect(progressBak.readAsBytesSync(), orderedEquals(originalProgress));
-    expect(captionBak.readAsBytesSync(), orderedEquals(originalCaption));
+    expectByteIdentical(progressBak.readAsBytesSync(), originalProgress);
+    expectByteIdentical(captionBak.readAsBytesSync(), originalCaption);
     stdout.writeln(
       '[e2e] backup progress.sav.bak=${progressBak.lengthSync()} identical=true '
       'caption.sav.bak=${captionBak.lengthSync()} identical=true',
@@ -375,9 +382,9 @@ void main() {
     expect(exportedCaptionFile.existsSync(), isTrue);
     final exportedProgress = exportedProgressFile.readAsBytesSync();
     final exportedCaption = exportedCaptionFile.readAsBytesSync();
-    expect(exportedProgress, orderedEquals(savedProgress));
-    expect(exportedCaption, orderedEquals(savedCaption));
-    expect(exportedCaption, orderedEquals(originalCaption));
+    expectByteIdentical(exportedProgress, savedProgress);
+    expectByteIdentical(exportedCaption, savedCaption);
+    expectByteIdentical(exportedCaption, originalCaption);
     stdout.writeln(
       '[e2e] saveAs path=$exportRoot progress=${exportedProgress.length} '
       'caption=${exportedCaption.length} identical=true',
