@@ -32,13 +32,15 @@ gap.
 | Windows build | Runner scaffolded in `windows/`; **not built or run yet** | [`docs/WINDOWS.md`](docs/WINDOWS.md) |
 | macOS build | Not supported | no `macos/` runner; Linux-only verification |
 
-Gate at commit `491fa3d`: `flutter analyze` → 0 issues, exit 0;
-`flutter test` → `+880 ~8 -0`; `flutter build linux --debug` → ok, 47,848 B
-launcher. A local run at the shipped tip `1b387db` reports `No issues found!`
-and `+896 ~2: All tests passed!` (the preceding tip `ffa8359` measured
-`+894 ~2`). The suite still declares two `skip:` stubs in
-`test/domain/engine/roundtrip_invariants_test.dart`; real-format coverage lives
-in `test/data/adapter/` and `test/integration/`.
+Gate on `main`, 2026-11-23: `flutter analyze` → `No issues found!`;
+`flutter test` → `+1187: All tests passed!`, measured twice with identical tails
+and no skipped tests on this checkout; `flutter build linux --debug` and
+`flutter build linux --release` both succeed. A clone without `.local-fixtures/`
+runs fewer tests — a lower `+N` with a higher `~N` is not a failure. These
+numbers supersede the older `+880 ~8 -0` / `+896 ~2` figures and the "two
+`skip:` stubs in `test/domain/engine/roundtrip_invariants_test.dart`" note,
+which no longer describe the suite. Real-format coverage lives in
+`test/data/adapter/` and `test/integration/`.
 
 The top-level `docs/` set:
 
