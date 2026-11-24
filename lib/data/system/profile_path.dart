@@ -9,7 +9,10 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import 'directory_lister.dart';
+import 'host_platform.dart';
 
 /// The save-root shapes the open form accepts, named in its refusals.
 const String profileFolderShape =
@@ -19,8 +22,32 @@ const String profileFolderShape =
 /// XDG variable that names the data root on Linux.
 const String _xdgDataHomeVariable = 'XDG_DATA_HOME';
 
-/// Longshot's save directory, relative to the platform data root.
-const String _longshotSaveSuffix = 'longshot/save';
+/// Home-directory variable on Linux and other POSIX hosts.
+const String _homeVariable = 'HOME';
+
+/// Windows roaming application-data variable (`%APPDATA%`).
+const String _windowsRoamingVariable = 'APPDATA';
+
+/// Windows local application-data variable (`%LOCALAPPDATA%`).
+const String _windowsLocalVariable = 'LOCALAPPDATA';
+
+/// Windows user-profile variable (`%USERPROFILE%`).
+const String _windowsProfileVariable = 'USERPROFILE';
+
+/// Longshot's folder name on Linux/Fuchsia, below the XDG data root.
+const String _longshotFolderName = 'longshot';
+
+/// Longshot's folder name on Windows, below `%APPDATA%`/`%LOCALAPPDATA%`.
+const String _windowsLongshotFolderName = 'Longshot';
+
+/// Slot save root folder name, below the Longshot folder.
+const String _saveFolderName = 'save';
+
+/// Longshot's backup folder name under the Linux data root.
+const String _backupFolderName = 'save-backup';
+
+/// Longshot's backup folder name under `%LOCALAPPDATA%` on Windows.
+const String _windowsBackupFolderName = 'oot-save-backups';
 
 /// What one typed path resolved to.
 sealed class ProfilePathResolution {
@@ -237,32 +264,120 @@ Future<bool> _holdsSaveBeneath(
   return false;
 }
 
-/// Longshot's save base directory, resolved at runtime, or `null` when the
-/// platform's location is not established.
+/// Longshot's save location and its own backup location on one host.
 ///
-/// Order: `$XDG_DATA_HOME/longshot/save` when the variable is set; then on
-/// Linux `$HOME/.local/share/longshot/save`; otherwise `null`.
+/// The two are not interchangeable: Longshot's docs (`Longshot`'s
+/// `docs/user/saves.md`, "Where Longshot keeps them") put the backup folder
+/// beside — not inside — the save folder, and its contents are its own
+/// `<import|export>-<name>-<timestamp>/` folders, not a save root a game can
+/// open. [backupBase] must therefore never be offered as an openable root.
+final class LongshotSaveLocations {
+  /// Creates a pair of locations; either may be unknown (`null`).
+  const LongshotSaveLocations({this.saveBase, this.backupBase});
+
+  /// The folder whose child profiles hold `slot_NN/progress.sav`.
+  ///
+  /// `null` when this platform's location is not established; callers then
+  /// degrade to the OS default rather than inventing a path.
+  final String? saveBase;
+
+  /// Longshot's own backup folder, or `null` when it is not established.
+  ///
+  /// Never an openable save root.
+  final String? backupBase;
+}
+
+/// Resolves Longshot's save and backup folders for [platform].
 ///
-/// Windows and macOS: Longshot's save location has not been established by
-/// evidence in this repository, so no path is invented there; callers degrade
-/// to the OS default (or `null`) instead. UNVERIFIED.
-String? longshotSaveBase({Map<String, String>? environment}) {
-  // Only Linux/Fuchsia have an evidenced save location. Returning `null`
-  // elsewhere keeps Windows/macOS on the OS default rather than inventing a
-  // POSIX path. UNVERIFIED on Windows and macOS.
-  if (!(Platform.isLinux || Platform.isFuchsia)) {
-    return null;
-  }
+/// [platform] defaults to [currentHostPlatform]; [environment] defaults to the
+/// process environment. Paths are built with `package:path`'s Windows or POSIX
+/// context chosen from [platform], never `Platform.pathSeparator`, so the rules
+/// are testable on a Linux host.
+///
+/// Rules, in order, from Longshot's own documentation
+/// (`~/GitHub/Longshot/docs/user/saves.md` lines 101-110,
+/// `docs/user/updates-and-saves.md` lines 56-64 and
+/// `docs/dev/reference/saves.md` lines 29-34, 61):
+///
+/// * Windows save root: `%APPDATA%\Longshot\save` when the installed launcher
+///   starts the game (the launcher passes `--user`); otherwise the documented
+///   default game folder's `user\save`, i.e. `%USERPROFILE%\Games\Longshot\
+///   user\save`. A player who chose another game folder, or who launches with
+///   `--user <folder>`, must open that folder explicitly — nothing here can
+///   discover it.
+/// * Windows backup root: `%LOCALAPPDATA%\Longshot\oot-save-backups`.
+/// * Linux and Fuchsia save root: `$XDG_DATA_HOME/longshot/save`, then
+///   `$HOME/.local/share/longshot/save`.
+/// * Linux and Fuchsia backup root: `$XDG_DATA_HOME/longshot/save-backup`,
+///   then `$HOME/.local/share/longshot/save-backup`.
+/// * macOS and any other host: nothing is established or invented, so both are
+///   `null`.
+///
+/// A variable that is set to whitespace counts as unset.
+LongshotSaveLocations resolveLongshotSaveLocations({
+  Map<String, String>? environment,
+  HostPlatform? platform,
+}) {
+  final host = platform ?? currentHostPlatform();
   final env = environment ?? Platform.environment;
-  final xdg = env[_xdgDataHomeVariable]?.trim();
-  if (xdg != null && xdg.isNotEmpty) {
-    return '${_trimSeparators(xdg)}/$_longshotSaveSuffix';
+  final path = hostPathContext(host);
+  final roaming = _environmentValue(env, _windowsRoamingVariable);
+  final local = _environmentValue(env, _windowsLocalVariable);
+  final profile = _environmentValue(env, _windowsProfileVariable);
+  final xdgData = _environmentValue(env, _xdgDataHomeVariable);
+  final home = _environmentValue(env, _homeVariable);
+
+  switch (host) {
+    case HostPlatform.windows:
+      final saveBase = roaming != null
+          ? path.join(roaming, _windowsLongshotFolderName, _saveFolderName)
+          : profile != null
+          ? path.join(profile, 'Games', 'Longshot', 'user', _saveFolderName)
+          : null;
+      final backupBase = local == null
+          ? null
+          : path.join(
+              local,
+              _windowsLongshotFolderName,
+              _windowsBackupFolderName,
+            );
+      return LongshotSaveLocations(saveBase: saveBase, backupBase: backupBase);
+    case HostPlatform.linux:
+    case HostPlatform.fuchsia:
+      final dataRoot =
+          xdgData ?? (home == null ? null : path.join(home, '.local', 'share'));
+      if (dataRoot == null) {
+        return const LongshotSaveLocations();
+      }
+      return LongshotSaveLocations(
+        saveBase: path.join(dataRoot, _longshotFolderName, _saveFolderName),
+        backupBase: path.join(dataRoot, _longshotFolderName, _backupFolderName),
+      );
+    case HostPlatform.macos:
+    case HostPlatform.other:
+      // No established location; not invented. UNVERIFIED.
+      return const LongshotSaveLocations();
   }
-  final home = env['HOME']?.trim();
-  if (home != null && home.isNotEmpty) {
-    return '${_trimSeparators(home)}/.local/share/$_longshotSaveSuffix';
-  }
-  return null;
+}
+
+/// Longshot's save base directory for [platform], or `null` when unknown.
+///
+/// A thin delegate over [resolveLongshotSaveLocations] kept for callers that
+/// only need the openable save root. Per-platform rules are documented there.
+String? longshotSaveBase({
+  Map<String, String>? environment,
+  HostPlatform? platform,
+}) {
+  return resolveLongshotSaveLocations(
+    environment: environment,
+    platform: platform,
+  ).saveBase;
+}
+
+/// [environment]'s [name], trimmed, or `null` when unset or blank.
+String? _environmentValue(Map<String, String> environment, String name) {
+  final value = environment[name]?.trim();
+  return value == null || value.isEmpty ? null : value;
 }
 
 /// Signature for the modification-time probe used to pick the newest profile.
@@ -287,7 +402,9 @@ Future<String?> newestOpenableProfile(
   String saveBase, {
   DirectoryLister lister = const IoDirectoryLister(),
   ModifiedAt modifiedAt = _ioModifiedAt,
+  HostPlatform? platform,
 }) async {
+  final path = hostPathContext(platform ?? currentHostPlatform());
   final listing = await lister.list(saveBase);
   if (listing.error != null) {
     return null;
@@ -298,7 +415,7 @@ Future<String?> newestOpenableProfile(
     if (!entry.isDirectory || !entry.containsSlots) {
       continue;
     }
-    final stamp = await _lastWrite(entry.path, lister, modifiedAt);
+    final stamp = await _lastWrite(entry.path, lister, modifiedAt, path);
     if (newest == null || stamp.isAfter(newestStamp!)) {
       newest = entry.path;
       newestStamp = stamp;
@@ -309,28 +426,33 @@ Future<String?> newestOpenableProfile(
 
 /// Ordered start folder for the open-save dialog, or `null` when none exists.
 ///
-/// In order: `$XDG_DATA_HOME` (or `~/.local/share`) + `longshot/save` + a
-/// profile discovered under it (the existing profile rule, never a guessed
-/// user id); then [lastUsedPath] when it is readable; then the lister's
-/// [DirectoryLister.homeDirectory] when non-empty, falling back to the process
-/// `HOME`; then `null`, which leaves the field empty for the OS folder picker
-/// rather than inventing a path that does not exist.
+/// In order: Longshot's save root for [platform] (see
+/// [resolveLongshotSaveLocations]) plus a profile discovered under it (the
+/// existing profile rule, never a guessed user id); then [lastUsedPath] when
+/// it is readable; then the lister's [DirectoryLister.homeDirectory] when
+/// non-empty, falling back to `HOME` and then `USERPROFILE` from [environment];
+/// then `null`, which leaves the field empty for the OS folder picker rather
+/// than inventing a path that does not exist.
 ///
-/// Windows and macOS degrade through [longshotSaveBase] returning `null`;
-/// those platforms are UNVERIFIED.
+/// [platform] defaults to [currentHostPlatform]. On macOS and unknown hosts the
+/// save root is `null`, so resolution falls through to the home folder; no
+/// location is invented there. UNVERIFIED on Windows and macOS.
 Future<String?> resolveOpenSaveStartFolder({
   Map<String, String>? environment,
   String? lastUsedPath,
   DirectoryLister lister = const IoDirectoryLister(),
   ModifiedAt modifiedAt = _ioModifiedAt,
+  HostPlatform? platform,
 }) async {
   final env = environment ?? Platform.environment;
-  final base = longshotSaveBase(environment: env);
+  final host = platform ?? currentHostPlatform();
+  final base = longshotSaveBase(environment: env, platform: host);
   if (base != null) {
     final profile = await newestOpenableProfile(
       base,
       lister: lister,
       modifiedAt: modifiedAt,
+      platform: host,
     );
     if (profile != null) {
       return profile;
@@ -343,7 +465,9 @@ Future<String?> resolveOpenSaveStartFolder({
     return lastUsed;
   }
   final listerHome = lister.homeDirectory?.trim();
-  final envHome = env['HOME']?.trim();
+  final envHome =
+      _environmentValue(env, _homeVariable) ??
+      _environmentValue(env, _windowsProfileVariable);
   final home = listerHome == null || listerHome.isEmpty ? envHome : listerHome;
   if (home != null && home.isNotEmpty && await _readable(home, lister)) {
     return home;
@@ -362,6 +486,7 @@ Future<DateTime> _lastWrite(
   String profile,
   DirectoryLister lister,
   ModifiedAt modifiedAt,
+  p.Context path,
 ) async {
   var stamp = modifiedAt(profile);
   final listing = await lister.list(profile);
@@ -372,7 +497,7 @@ Future<DateTime> _lastWrite(
     if (!entry.isDirectory || !entry.hasProgressSave) {
       continue;
     }
-    final modified = modifiedAt(_join(entry.path, progressSaveName));
+    final modified = modifiedAt(_join(path, entry.path, progressSaveName));
     if (modified.isAfter(stamp)) {
       stamp = modified;
     }
@@ -405,11 +530,9 @@ String _trimSeparators(String path) {
   return trimmed;
 }
 
-String _join(String parent, String child) {
-  if (parent.endsWith('/') || parent.endsWith('\\')) {
-    return '$parent$child';
-  }
-  return '$parent${Platform.pathSeparator}$child';
+/// Joins [parent] and [child] with [path]'s separator for the host platform.
+String _join(p.Context path, String parent, String child) {
+  return path.join(_trimSeparators(parent), child);
 }
 
 String _baseName(String path) {

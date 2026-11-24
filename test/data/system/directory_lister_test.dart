@@ -129,4 +129,43 @@ void main() {
       expect(lister.homeDirectory, home);
     }
   });
+
+  test('homeDirectory prefers HOME and falls back to USERPROFILE', () {
+    const both = IoDirectoryLister(
+      environment: <String, String>{
+        'HOME': '/home/d',
+        'USERPROFILE': r'C:\Users\d',
+      },
+    );
+    expect(both.homeDirectory, '/home/d');
+
+    const windowsOnly = IoDirectoryLister(
+      environment: <String, String>{'USERPROFILE': r'C:\Users\d'},
+    );
+    expect(windowsOnly.homeDirectory, r'C:\Users\d');
+
+    const blank = IoDirectoryLister(
+      environment: <String, String>{'HOME': '  ', 'USERPROFILE': ''},
+    );
+    expect(blank.homeDirectory, isNull);
+  });
+
+  test(
+    'an injected home still expands ~ without touching the process environment',
+    () async {
+      final home = Directory.systemTemp.createTempSync('bomb_flower_home_');
+      addTearDown(() {
+        if (home.existsSync()) {
+          home.deleteSync(recursive: true);
+        }
+      });
+      final injected = IoDirectoryLister(
+        environment: <String, String>{'HOME': home.path},
+      );
+
+      final expanded = await injected.list('~');
+      expect(expanded.error, isNull);
+      expect(expanded.path, home.path);
+    },
+  );
 }

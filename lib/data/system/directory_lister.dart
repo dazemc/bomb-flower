@@ -82,7 +82,7 @@ final class DirectoryListing {
 
 /// Lists directories for the save picker. Never throws.
 abstract interface class DirectoryLister {
-  /// `$HOME`, or `null` when the environment does not name one.
+  /// `$HOME`, falling back to `$USERPROFILE`, or `null` when neither is set.
   String? get homeDirectory;
 
   /// Lists [path], expanding `~` and resolving relative paths.
@@ -94,16 +94,38 @@ abstract interface class DirectoryLister {
 }
 
 /// The real filesystem lister.
+///
+/// [environment] is injected only so tests can exercise the home-directory
+/// rules without mutating the process environment; it defaults to
+/// [Platform.environment]. Filesystem reads always use the real host, so a test
+/// that injects a Windows-shaped `USERPROFILE` exercises the lookup rule, not a
+/// Windows filesystem.
 final class IoDirectoryLister implements DirectoryLister {
-  /// Creates a lister.
-  const IoDirectoryLister();
+  /// Creates a lister reading HOME and USERPROFILE from [environment].
+  const IoDirectoryLister({this.environment});
+
+  /// Environment map this lister reads, or `null` for [Platform.environment].
+  ///
+  /// Injected by tests so the home-directory rule can be exercised without
+  /// mutating the process environment.
+  final Map<String, String>? environment;
 
   static final RegExp _slotName = RegExp(r'^slot_\d{2}$');
 
+  /// `HOME`, falling back to `USERPROFILE` when `HOME` is unset.
+  ///
+  /// The same two variables the path rules use, so a Windows host (no `HOME`)
+  /// and a POSIX host (`HOME`) both name a home folder.
   @override
   String? get homeDirectory {
-    final home = Platform.environment['HOME']?.trim();
-    return home == null || home.isEmpty ? null : home;
+    final env = environment ?? Platform.environment;
+    for (final name in const <String>['HOME', 'USERPROFILE']) {
+      final value = env[name]?.trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
   }
 
   @override

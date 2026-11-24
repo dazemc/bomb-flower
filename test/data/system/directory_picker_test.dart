@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bomb_flower/data/system/directory_picker.dart';
+import 'package:bomb_flower/data/system/host_platform.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class FakeProcessRunner implements ProcessRunner {
@@ -19,6 +20,21 @@ final class FakeProcessRunner implements ProcessRunner {
     calls.add(<String>[executable, ...arguments].join(' '));
     timeouts.add(timeout);
     return outcomes[executable] ?? const ProcessOutcome.unavailable();
+  }
+}
+
+/// A [DirectoryPicker] that records the calls its backend received.
+final class RecordingPicker implements DirectoryPicker {
+  RecordingPicker(this.label, {this.result});
+
+  final String label;
+  final String? result;
+  final List<String> calls = <String>[];
+
+  @override
+  Future<String?> pickDirectory({String? title, String? initialPath}) async {
+    calls.add(label);
+    return result;
   }
 }
 
@@ -120,6 +136,116 @@ void main() {
     });
   });
 
+  group('PlatformDirectoryPicker', () {
+    test('windows selects the file_selector picker', () async {
+      final fileSelector = RecordingPicker('file_selector', result: r'C:\save');
+      final system = RecordingPicker('system');
+      final picker = PlatformDirectoryPicker(
+        platform: HostPlatform.windows,
+        fileSelector: fileSelector,
+        system: system,
+      );
+
+      expect(await picker.pickDirectory(title: 'Open'), r'C:\save');
+      expect(fileSelector.calls, <String>['file_selector']);
+      expect(system.calls, isEmpty);
+      expect(picker.backend, same(fileSelector));
+    });
+
+    test('linux keeps the zenity/kdialog chain', () async {
+      final fileSelector = RecordingPicker('file_selector');
+      final runner = FakeProcessRunner(<String, ProcessOutcome>{
+        'zenity': const ProcessOutcome.completed(0, '/save/root\n'),
+      });
+      final system = SystemDirectoryPicker(runner: runner);
+      final picker = PlatformDirectoryPicker(
+        platform: HostPlatform.linux,
+        fileSelector: fileSelector,
+        system: system,
+      );
+
+      expect(await picker.pickDirectory(), '/save/root');
+      expect(runner.calls.single, startsWith('zenity --file-selection'));
+      expect(fileSelector.calls, isEmpty);
+      expect(picker.backend, same(system));
+    });
+
+    test(
+      'fuchsia follows the Linux chain and other hosts the file_selector one',
+      () {
+        final fileSelector = RecordingPicker('file_selector');
+        final system = RecordingPicker('system');
+
+        expect(
+          PlatformDirectoryPicker(
+            platform: HostPlatform.fuchsia,
+            fileSelector: fileSelector,
+            system: system,
+          ).backend,
+          same(system),
+        );
+        expect(
+          PlatformDirectoryPicker(
+            platform: HostPlatform.other,
+            fileSelector: fileSelector,
+            system: system,
+          ).backend,
+          same(fileSelector),
+        );
+        expect(
+          PlatformDirectoryPicker(
+            platform: HostPlatform.macos,
+            fileSelector: fileSelector,
+            system: system,
+          ).backend,
+          same(fileSelector),
+        );
+      },
+    );
+  });
+
+  group('FileSelectorDirectoryPicker', () {
+    test('passes the start folder and title, then trims the result', () async {
+      String? start;
+      String? confirm;
+      final picker = FileSelectorDirectoryPicker(
+        chooser: ({String? initialDirectory, String? confirmButtonText}) async {
+          start = initialDirectory;
+          confirm = confirmButtonText;
+          return r'  C:\picked  ';
+        },
+      );
+
+      expect(
+        await picker.pickDirectory(
+          title: 'Choose',
+          initialPath: '  C:\\start  ',
+        ),
+        r'C:\picked',
+      );
+      expect(start, r'C:\start');
+      expect(confirm, 'Choose');
+    });
+
+    test('a cancelled or failing dialog is null, never a throw', () async {
+      final cancelled = FileSelectorDirectoryPicker(
+        chooser: ({
+          String? initialDirectory,
+          String? confirmButtonText,
+        }) async => null,
+      );
+      final failing = FileSelectorDirectoryPicker(
+        chooser: ({
+          String? initialDirectory,
+          String? confirmButtonText,
+        }) async => throw StateError('no plugin'),
+      );
+
+      expect(await cancelled.pickDirectory(), isNull);
+      expect(await failing.pickDirectory(), isNull);
+    });
+  });
+
   group('RecentPathsFileStore', () {
     late Directory temp;
 
@@ -132,6 +258,46 @@ void main() {
         temp.deleteSync(recursive: true);
       }
     });
+
+    test(
+      'default config directory follows the platform, never the temp folder',
+      () {
+        final windows = RecentPathsFileStore.defaultDirectory(
+          environment: const <String, String>{
+            'APPDATA': r'C:\Users\d\AppData\Roaming',
+            'LOCALAPPDATA': r'C:\Users\d\AppData\Local',
+          },
+          platform: HostPlatform.windows,
+        );
+        expect(windows, r'C:\Users\d\AppData\Roaming\bomb-flower');
+        expect(windows, isNot(contains('/')));
+        expect(windows, isNot(contains('TEMP')));
+
+        expect(
+          RecentPathsFileStore.defaultDirectory(
+            environment: const <String, String>{'XDG_CONFIG_HOME': '/cfg'},
+            platform: HostPlatform.linux,
+          ),
+          '/cfg/bomb-flower',
+        );
+        expect(
+          RecentPathsFileStore.defaultDirectory(
+            environment: const <String, String>{'HOME': '/home/d'},
+            platform: HostPlatform.linux,
+          ),
+          '/home/d/.config/bomb-flower',
+        );
+
+        // Documented last resort only: nothing resolved for this platform.
+        expect(
+          RecentPathsFileStore.defaultDirectory(
+            environment: const <String, String>{},
+            platform: HostPlatform.other,
+          ),
+          '${Directory.systemTemp.path}/bomb-flower',
+        );
+      },
+    );
 
     test('round-trips with the newest path first', () async {
       final store = RecentPathsFileStore(directory: temp.path);

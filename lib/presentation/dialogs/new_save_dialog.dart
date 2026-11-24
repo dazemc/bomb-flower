@@ -80,7 +80,9 @@ class NewSaveDialog extends StatefulWidget {
   /// Writes the build; defaults to [NewSaveWriter.write].
   final NewSavePersist? persist;
 
-  /// Native folder chooser; defaults to [SystemDirectoryPicker].
+  /// Native folder chooser; defaults to [PlatformDirectoryPicker], which
+  /// selects the `file_selector` dialog on Windows and macOS and the
+  /// zenity/kdialog/qarma chain on Linux.
   final DirectoryPicker? directoryPicker;
 
   /// Pre-fills the destination field.
@@ -135,7 +137,7 @@ class _NewSaveDialogState extends State<NewSaveDialog> {
   NewSaveWriteResult? _result;
 
   DirectoryPicker get _picker =>
-      widget.directoryPicker ?? const SystemDirectoryPicker();
+      widget.directoryPicker ?? const PlatformDirectoryPicker();
 
   @override
   void initState() {

@@ -9,6 +9,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart' as file_selector;
+
+import 'host_platform.dart';
+
 /// How a [ProcessRunner] call ended.
 enum ProcessOutcomeStatus {
   /// The program started and exited (possibly with a non-zero code).
@@ -204,6 +208,116 @@ final class SystemDirectoryPicker implements DirectoryPicker {
   }
 }
 
+/// One call to a native folder chooser.
+///
+/// Injected so tests can script a chooser without loading a platform plugin.
+typedef DirectoryPathChooser = Future<String?> Function({
+  String? initialDirectory,
+  String? confirmButtonText,
+});
+
+/// A [DirectoryPicker] backed by `package:file_selector`'s folder chooser.
+///
+/// This is the Flutter-team picker already chosen for this app
+/// (`docs/LIMITATIONS.md:182-188`: the human ruled out `file_picker` because
+/// `bitsdojo_window_windows` pins `win32 ^5.1.1`, and chose `file_selector
+/// ^1.1.0`), and `file_selector_windows` is already registered by the Windows
+/// runner, so wiring it here closes a documented gap rather than adding a
+/// dependency. The Windows COM/IFileDialog itself is UNVERIFIED on this Linux
+/// host.
+///
+/// [chooser] is the plugin seam; when it is omitted the plugin is loaded only
+/// at call time, so constructing this picker under `flutter test` is inert.
+/// Never throws: a cancelled or failed dialog is `null`.
+final class FileSelectorDirectoryPicker implements DirectoryPicker {
+  /// Creates a picker using [chooser], or `package:file_selector` when omitted.
+  const FileSelectorDirectoryPicker({this.chooser, this.confirmButtonText});
+
+  /// Injected chooser, or `null` to call `package:file_selector` at pick time.
+  ///
+  /// Tests pass a scripted chooser, so the plugin is never loaded.
+  final DirectoryPathChooser? chooser;
+
+  /// Button label used when [DirectoryPicker.pickDirectory] names no title.
+  final String? confirmButtonText;
+
+  @override
+  Future<String?> pickDirectory({String? title, String? initialPath}) async {
+    final start = initialPath?.trim();
+    final confirm = title ?? confirmButtonText;
+    try {
+      final chosen = await (chooser ?? _pluginChooser)(
+        initialDirectory: start == null || start.isEmpty ? null : start,
+        confirmButtonText: confirm,
+      );
+      final trimmed = chosen?.trim();
+      return trimmed == null || trimmed.isEmpty ? null : trimmed;
+    } catch (_) {
+      // A missing plugin or a failing native dialog must not break the flow.
+      return null;
+    }
+  }
+}
+
+/// The real `package:file_selector` call, reached only when one is made.
+Future<String?> _pluginChooser({
+  String? initialDirectory,
+  String? confirmButtonText,
+}) {
+  return file_selector.getDirectoryPath(
+    initialDirectory: initialDirectory,
+    confirmButtonText: confirmButtonText,
+  );
+}
+
+/// The picker this app uses by default: native per host, chosen at call time.
+///
+/// Windows and macOS get [FileSelectorDirectoryPicker] — the registered
+/// `file_selector` implementations — because `zenity`/`kdialog`/`qarma` are
+/// Linux programs. Linux and Fuchsia keep the existing
+/// [SystemDirectoryPicker] chain, and an unknown host also gets the
+/// `file_selector` path rather than assuming a Linux desktop.
+///
+/// The platform is read inside [pickDirectory], never in the constructor, so
+/// `const PlatformDirectoryPicker()` is inert until a user actually asks for a
+/// folder, and tests can inject the platform and both backends.
+final class PlatformDirectoryPicker implements DirectoryPicker {
+  /// Creates a platform-aware picker.
+  const PlatformDirectoryPicker({
+    this.platform,
+    this.fileSelector = const FileSelectorDirectoryPicker(),
+    this.system = const SystemDirectoryPicker(),
+  });
+
+  /// Host platform override; `null` means [currentHostPlatform] at call time.
+  final HostPlatform? platform;
+
+  /// Backend for Windows, macOS and unknown hosts.
+  final DirectoryPicker fileSelector;
+
+  /// Backend for Linux and Fuchsia.
+  final DirectoryPicker system;
+
+  /// The backend [platform] selects, read afresh on every call.
+  DirectoryPicker get backend => switch (platform ?? currentHostPlatform()) {
+    HostPlatform.linux || HostPlatform.fuchsia => system,
+    HostPlatform.windows ||
+    HostPlatform.macos ||
+    HostPlatform.other => fileSelector,
+  };
+
+  @override
+  Future<String?> pickDirectory({String? title, String? initialPath}) {
+    return backend.pickDirectory(title: title, initialPath: initialPath);
+  }
+}
+
+/// [environment]'s [name], trimmed, or `null` when unset or blank.
+String? _environmentValue(Map<String, String> environment, String name) {
+  final value = environment[name]?.trim();
+  return value == null || value.isEmpty ? null : value;
+}
+
 /// What a candidate save folder looks like, without reading slot bytes.
 final class SaveFolderInfo {
   /// Creates a folder description.
@@ -322,8 +436,7 @@ abstract interface class RecentPathsStore {
 
 /// A JSON file of recent folders under the user's config directory.
 final class RecentPathsFileStore implements RecentPathsStore {
-  /// Creates a store. [directory] defaults to
-  /// `$XDG_CONFIG_HOME/bomb-flower` (falling back to `$HOME/.config`).
+  /// Creates a store. [directory] defaults to [defaultDirectory].
   RecentPathsFileStore({String? directory, this.maxEntries = 10})
     : directory = directory ?? defaultDirectory();
 
@@ -336,15 +449,48 @@ final class RecentPathsFileStore implements RecentPathsStore {
   /// Full path of the JSON file.
   String get filePath => '$directory${Platform.pathSeparator}recent.json';
 
-  /// Resolves the default config directory.
-  static String defaultDirectory() {
-    final environment = Platform.environment;
-    final xdg = environment['XDG_CONFIG_HOME']?.trim();
-    final base = xdg != null && xdg.isNotEmpty
-        ? xdg
-        : '${environment['HOME'] ?? Directory.systemTemp.path}'
-              '${Platform.pathSeparator}.config';
-    return '$base${Platform.pathSeparator}bomb-flower';
+  /// Resolves the default config directory for [platform].
+  ///
+  /// [platform] defaults to [currentHostPlatform] and [environment] to the
+  /// process environment. Paths are built with `package:path`'s Windows or
+  /// POSIX context, so the rules can be exercised on any host.
+  ///
+  /// * Windows: `%APPDATA%\bomb-flower`.
+  /// * Linux and Fuchsia: `$XDG_CONFIG_HOME/bomb-flower`, then
+  ///   `$HOME/.config/bomb-flower`.
+  /// * Anything else (including macOS): nothing is established, so the last
+  ///   resort is `<system temp>/bomb-flower`. That is a deliberate last resort,
+  ///   not a policy: recent folders are a convenience and a per-machine temp
+  ///   folder is better than refusing to remember anything.
+  static String defaultDirectory({
+    Map<String, String>? environment,
+    HostPlatform? platform,
+  }) {
+    final host = platform ?? currentHostPlatform();
+    final env = environment ?? Platform.environment;
+    final path = hostPathContext(host);
+    final app = 'bomb-flower';
+    final roaming = _environmentValue(env, 'APPDATA');
+    final xdgConfig = _environmentValue(env, 'XDG_CONFIG_HOME');
+    final home = _environmentValue(env, 'HOME');
+    switch (host) {
+      case HostPlatform.windows:
+        if (roaming != null) {
+          return path.join(roaming, app);
+        }
+      case HostPlatform.linux:
+      case HostPlatform.fuchsia:
+        if (xdgConfig != null) {
+          return path.join(xdgConfig, app);
+        }
+        if (home != null) {
+          return path.join(home, '.config', app);
+        }
+      case HostPlatform.macos:
+      case HostPlatform.other:
+        break;
+    }
+    return path.join(Directory.systemTemp.path, app);
   }
 
   @override
