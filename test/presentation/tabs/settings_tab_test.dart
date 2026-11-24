@@ -1,3 +1,5 @@
+import 'package:bomb_flower/data/system/directory_picker.dart';
+import 'package:bomb_flower/data/system/longshot_launcher.dart';
 import 'package:bomb_flower/presentation/shell/tabs/settings_tab.dart';
 import 'package:bomb_flower/presentation/widgets/common/brass_button.dart';
 import 'package:bomb_flower/presentation/widgets/controls/brass_slider.dart';
@@ -54,12 +56,34 @@ final class FakeSettingsStore extends ChangeNotifier implements SettingsStore {
   }
 }
 
+/// Records the chooser request and answers with a scripted path.
+final class FakeFilePicker implements FilePicker {
+  FakeFilePicker(this.picked);
+
+  /// What the chooser returns; `null` means the user cancelled.
+  final String? picked;
+
+  /// Initial paths the row handed to the chooser, in order.
+  final List<String> calls = <String>[];
+
+  @override
+  Future<String?> pickFile({String? title, String? initialPath}) async {
+    calls.add(initialPath ?? '');
+    return picked;
+  }
+}
+
 Future<void> _pumpSettings(
   WidgetTester tester,
   SettingsStore store, {
   Size size = const Size(1100, 700),
+  FilePicker? picker,
 }) async {
-  await pumpTab(tester, SettingsTab(store: store), size: size);
+  await pumpTab(
+    tester,
+    SettingsTab(store: store, launcherPicker: picker),
+    size: size,
+  );
   await tester.pump();
 }
 
@@ -248,8 +272,7 @@ void main() {
     );
     expect(field.controller!.text, seeded);
 
-    const edited =
-        '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
+    const edited = '/opt/longshot/LongshotLauncher-x86_64.AppImage';
     await tester.enterText(find.byKey(SettingsTab.launcherPathKey), edited);
     await tester.ensureVisible(find.byKey(SettingsTab.launcherPathSaveKey));
     await tester.tap(find.byKey(SettingsTab.launcherPathSaveKey));
@@ -266,26 +289,60 @@ void main() {
     expectNoOverflow(tester);
   });
 
-  testWidgets('reset restores the default launcher path', (tester) async {
-    final store = FakeSettingsStore(
-      seeded: const EditorPreferences(
-        launcherPath: '/opt/longshot/Launcher.AppImage',
-      ),
-    );
+  testWidgets('an unset launcher path shows the shared empty state', (
+    tester,
+  ) async {
+    final store = FakeSettingsStore();
     await _pumpSettings(tester, store);
 
-    await tester.ensureVisible(find.byKey(SettingsTab.launcherPathResetKey));
-    await tester.tap(find.byKey(SettingsTab.launcherPathResetKey));
+    expect(find.byKey(SettingsTab.launcherPathEmptyKey), findsOneWidget);
+    expect(find.text(kNoLongshotLauncherConfigured), findsOneWidget);
+    // The same sentence is what the title bar reports; there is no
+    // second "reset to default" phrasing to drift from it.
+    expect(find.text('Reset to default'), findsNothing);
+    expectNoOverflow(tester);
+  });
+
+  testWidgets('Choose… fills the field and saves the picked launcher', (
+    tester,
+  ) async {
+    const picked = '/opt/longshot/Launcher.AppImage';
+    final store = FakeSettingsStore();
+    final picker = FakeFilePicker(picked);
+    await _pumpSettings(tester, store, picker: picker);
+
+    await tester.ensureVisible(find.byKey(SettingsTab.launcherPathChooseKey));
+    await tester.tap(find.byKey(SettingsTab.launcherPathChooseKey));
     await tester.pump();
     await tester.pump();
 
+    expect(picker.calls, hasLength(1));
     expect(store.saves, hasLength(1));
-    expect(store.saves.single.launcherPath, kDefaultLongshotLauncherPath);
+    expect(store.saves.single.launcherPath, picked);
 
     final field = tester.widget<TextField>(
       find.byKey(SettingsTab.launcherPathKey),
     );
-    expect(field.controller!.text, kDefaultLongshotLauncherPath);
+    expect(field.controller!.text, picked);
+    expect(find.byKey(SettingsTab.launcherPathEmptyKey), findsNothing);
+    expectNoOverflow(tester);
+  });
+
+  testWidgets('a cancelled chooser leaves the empty state and saves nothing', (
+    tester,
+  ) async {
+    final store = FakeSettingsStore();
+    final picker = FakeFilePicker(null);
+    await _pumpSettings(tester, store, picker: picker);
+
+    await tester.ensureVisible(find.byKey(SettingsTab.launcherPathChooseKey));
+    await tester.tap(find.byKey(SettingsTab.launcherPathChooseKey));
+    await tester.pump();
+    await tester.pump();
+
+    expect(picker.calls, hasLength(1));
+    expect(store.saves, isEmpty);
+    expect(find.byKey(SettingsTab.launcherPathEmptyKey), findsOneWidget);
     expectNoOverflow(tester);
   });
 }

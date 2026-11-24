@@ -13,6 +13,10 @@
 set -uo pipefail
 
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+# HOST-SPECIFIC EXAMPLES: the literal /home/daze/... values below are paths
+# from one developer machine, not defaults this tool depends on. Override
+# E2E_ROOT, GAME_DIR, CTL or LONGSHOT_REPO for your own checkout; preflight
+# names the variable to set instead of failing silently.
 E2E_ROOT=${E2E_ROOT:-/home/daze/longshot-e2e}
 GAME_DIR=${GAME_DIR:-$E2E_ROOT/game}
 CTL=${CTL:-$E2E_ROOT/ctl/longshot_ctl.py}
@@ -442,16 +446,24 @@ preflight() {
       exit 2
     fi
   done
+  if [ ! -d "$LONGSHOT_REPO" ]; then
+    say "PREFLIGHT FAIL: Longshot checkout not found: $LONGSHOT_REPO"
+    say "  Set LONGSHOT_REPO=/path/to/Longshot (the built-in value is only a host-specific example)."
+    exit 2
+  fi
   if [ ! -f "$CTL" ]; then
     say "PREFLIGHT FAIL: control bridge not found: $CTL"
+    say "  Set CTL=/path/to/longshot_ctl.py or E2E_ROOT=/path/to/e2e-tree."
     exit 2
   fi
   if [ ! -x "$GAME_DIR/longshot" ]; then
     say "PREFLIGHT FAIL: game binary not found: $GAME_DIR/longshot"
+    say "  Set GAME_DIR=/path/to/game or E2E_ROOT=/path/to/e2e-tree."
     exit 2
   fi
   if [ ! -f "$GAME_DIR/image.bin" ] || [ ! -d "$GAME_DIR/romfs" ]; then
     say "PREFLIGHT FAIL: game content not found: $GAME_DIR/image.bin and $GAME_DIR/romfs"
+    say "  Set GAME_DIR=/path/to/game or E2E_ROOT=/path/to/e2e-tree."
     exit 2
   fi
   if [ ! -f "$TEMPLATE_SLOT/progress.sav" ]; then

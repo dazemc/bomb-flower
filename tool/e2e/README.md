@@ -30,7 +30,7 @@ Not headless. Without `WAYLAND_DISPLAY` or `DISPLAY` it refuses to run.
 ```sh
 tool/e2e/windowed_load_test.sh \
   --template-slot /path/to/<uid>/slot_00 \
-  --out /home/daze/longshot-e2e/runs/e2e-script
+  --out /path/to/e2e/runs/e2e-script
 ```
 
 `--life` defaults to **12** quarter hearts (3 filled + 1 empty in the HUD). It is
@@ -126,5 +126,8 @@ Only `<out>`: the staged `--user` tree, the run manifest and log, the shots, and
 a `max_life_probe.dart`. It never writes the game folder, the Longshot checkout,
 or `~/.local/share/longshot`; the template slot is read-only.
 
-Overrides: `E2E_ROOT` (default `/home/daze/longshot-e2e`), `GAME_DIR`, `CTL`,
-`LONGSHOT_REPO`.
+Overrides: `E2E_ROOT`, `GAME_DIR`, `CTL`, `LONGSHOT_REPO`; `windowed_e2e.sh`
+additionally takes `E2E_HARNESS`, `E2E_CTL`, `SOURCE_SAVE`. The literal
+`/home/daze/...` values in the two scripts are host-specific examples from one
+developer machine, not defaults either script depends on. Preflight prints the
+variable to set when the path it resolved does not exist.

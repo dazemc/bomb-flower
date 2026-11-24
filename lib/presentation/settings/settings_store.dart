@@ -12,13 +12,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/preferences/preferences_backend.dart';
 
-/// The executables the editor starts for the user.
-///
-/// Presentation keeps its own default so this file never imports the data-layer
-/// launcher port; the title bar reads the persisted value from here.
-const String kDefaultLongshotLauncherPath =
-    '/home/daze/Personal/Downloads/LongshotLauncher-x86_64.AppImage';
-
 /// The narrowest text scale the editor will apply, whatever is stored.
 ///
 /// The Settings slider exposes 1.0-1.5 on purpose: that is the product range.
@@ -46,7 +39,7 @@ final class EditorPreferences {
     this.reducedMotion = false,
     this.textScale = 1.0,
     this.showHiddenEntries = false,
-    this.launcherPath = kDefaultLongshotLauncherPath,
+    this.launcherPath = '',
   });
 
   /// Recently opened save folders, newest first.
@@ -69,6 +62,9 @@ final class EditorPreferences {
   final bool showHiddenEntries;
 
   /// Executable the title-bar Launch action starts.
+  ///
+  /// Empty means unset: the app resolves a launcher at use time instead of
+  /// assuming a path that belongs to another machine.
   final String launcherPath;
 
   EditorPreferences copyWith({

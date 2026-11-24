@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart' hide Banner;
 
 import '../../../build_info.dart';
+import '../../../data/system/directory_picker.dart';
+import '../../../data/system/longshot_launcher.dart';
 import '../../bloc/shell/tab_definition.dart';
 import '../../settings/settings_store.dart';
 import '../../theme/bomb_flower_spacing.dart';
@@ -40,10 +42,14 @@ const String memoryCaption =
 /// committed change. A failed save is reported and never silently treated as
 /// persisted; the control keeps the value the user chose.
 class SettingsTab extends StatefulWidget {
-  const SettingsTab({super.key, this.store});
+  const SettingsTab({super.key, this.store, this.launcherPicker});
 
   /// Persistence boundary. Defaults to a fresh [InMemorySettingsStore].
   final SettingsStore? store;
+
+  /// Native file chooser for the launcher path. Defaults to
+  /// [PlatformFilePicker], read at pick time so tests never load the plugin.
+  final FilePicker? launcherPicker;
 
   /// Caption stating whether preferences survive a restart, and the trade-off
   /// of the editor's own text scale.
@@ -55,7 +61,8 @@ class SettingsTab extends StatefulWidget {
   static const Key textScaleKey = Key('settings-text-scale');
   static const Key launcherPathKey = Key('settings-launcher-path');
   static const Key launcherPathSaveKey = Key('settings-launcher-path-save');
-  static const Key launcherPathResetKey = Key('settings-launcher-path-reset');
+  static const Key launcherPathChooseKey = Key('settings-launcher-path-choose');
+  static const Key launcherPathEmptyKey = Key('settings-launcher-path-empty');
   static const Key saveFailedKey = Key('settings-save-failed');
   static const Key nativeDialogWarningKey = Key(
     'settings-native-dialog-warning',
@@ -318,6 +325,7 @@ class _SettingsTabState extends State<SettingsTab> {
             'equivalent.',
         child: _LauncherPathRow(
           path: preferences.launcherPath,
+          picker: widget.launcherPicker ?? const PlatformFilePicker(),
           onSave: (path) {
             unawaited(_persist(preferences.copyWith(launcherPath: path)));
           },
@@ -373,11 +381,22 @@ String _formatTextScale(double value) {
 
 /// Editable launcher path, kept in step with the persisted preference without
 /// overwriting what the user is currently typing.
+///
+/// There is no "reset to a default" affordance: no default path exists. When
+/// the field is empty the row says so with the same sentence the title bar
+/// shows, and offers the native chooser that fills and saves it.
 class _LauncherPathRow extends StatefulWidget {
-  const _LauncherPathRow({required this.path, required this.onSave});
+  const _LauncherPathRow({
+    required this.path,
+    required this.picker,
+    required this.onSave,
+  });
 
-  /// The persisted path, which seeds the field and drives the reset button.
+  /// The persisted path, which seeds the field and drives the empty state.
   final String path;
+
+  /// Native chooser; only reached when the user presses Choose….
+  final FilePicker picker;
 
   /// Writes the trimmed path once per commit.
   final void Function(String path) onSave;
@@ -395,7 +414,7 @@ class _LauncherPathRowState extends State<_LauncherPathRow> {
   @override
   void didUpdateWidget(_LauncherPathRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Follow a reloaded or reset value, but never fight the user mid-typing.
+    // Follow a reloaded value, but never fight the user mid-typing.
     if (widget.path != oldWidget.path && !_focusNode.hasFocus) {
       _controller.text = widget.path;
     }
@@ -412,15 +431,26 @@ class _LauncherPathRowState extends State<_LauncherPathRow> {
     widget.onSave(_controller.text.trim());
   }
 
-  void _reset() {
-    _controller.text = kDefaultLongshotLauncherPath;
-    widget.onSave(kDefaultLongshotLauncherPath);
+  Future<void> _choose() async {
+    final picked = await widget.picker.pickFile(
+      title: 'Choose the Longshot launcher',
+      initialPath: _controller.text.trim(),
+    );
+    if (!mounted) {
+      return;
+    }
+    final trimmed = picked?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return;
+    }
+    _controller.text = trimmed;
+    widget.onSave(trimmed);
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.bombFlowerTheme;
-    final isDefault = widget.path.trim() == kDefaultLongshotLauncherPath;
+    final isConfigured = widget.path.trim().isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -438,6 +468,19 @@ class _LauncherPathRowState extends State<_LauncherPathRow> {
             ),
           ),
         ),
+        if (!isConfigured) ...<Widget>[
+          const SizedBox(height: BombFlowerSpacing.sm),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Text(
+              kNoLongshotLauncherConfigured,
+              key: SettingsTab.launcherPathEmptyKey,
+              style: BombFlowerTypography.caption.copyWith(
+                color: palette.textMuted,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: BombFlowerSpacing.md),
         Wrap(
           spacing: BombFlowerSpacing.md,
@@ -451,23 +494,13 @@ class _LauncherPathRowState extends State<_LauncherPathRow> {
               onPressed: _commit,
             ),
             BrassButton(
-              key: SettingsTab.launcherPathResetKey,
-              label: 'Reset to default',
-              icon: Icons.settings_backup_restore,
+              key: SettingsTab.launcherPathChooseKey,
+              label: 'Choose…',
+              icon: Icons.folder_open,
               variant: BrassButtonVariant.text,
-              onPressed: isDefault ? null : _reset,
+              onPressed: () => unawaited(_choose()),
             ),
           ],
-        ),
-        const SizedBox(height: BombFlowerSpacing.sm),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 620),
-          child: Text(
-            'Default: $kDefaultLongshotLauncherPath',
-            style: BombFlowerTypography.caption.copyWith(
-              color: palette.textMuted,
-            ),
-          ),
         ),
       ],
     );

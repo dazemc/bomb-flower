@@ -8,18 +8,19 @@
 ///
 /// ```sh
 /// dart run tool/gen_catalogues.dart \
+///   --longshot-root <path-to-Longshot> \
 ///   --scenes .tmp/catalogue/scenes/scenes.longshot.json \
-///   --area-names /home/daze/GitHub/Longshot/host/oot_area_names.c \
-///   --cheat-items /home/daze/GitHub/Longshot/gpu/vk/oot_cheat_items.h \
-///   --heart-containers /home/daze/GitHub/Longshot/host/oot_heart_containers.c \
 ///   --out assets
 /// ```
 ///
-/// Every path except `--out` falls back to an environment variable and then to
-/// the developer paths above. The output is canonical JSON: object keys are
-/// sorted at every level, arrays have documented stable orders, and no
-/// timestamp or absolute input path is embedded, so repeated runs are
-/// byte-identical.
+/// `--longshot-root` (or `LONGSHOT_ROOT`) is required. There is no default
+/// checkout: naming no root exits non-zero instead of silently generating from
+/// a tree this machine happens to have. `--area-names`, `--cheat-items` and
+/// `--heart-containers` keep their explicit forms, and resolve under the root
+/// only for the paths the caller left out. The output is canonical JSON:
+/// object keys are sorted at every level, arrays have documented stable
+/// orders, and no timestamp or absolute input path is embedded, so repeated
+/// runs are byte-identical.
 library;
 
 import 'dart:convert';
@@ -97,7 +98,34 @@ String _normalizedPath(String path) {
   return normalized;
 }
 
-const String _defaultLongshotRoot = '/home/daze/GitHub/Longshot';
+/// Environment variable naming the Longshot checkout root.
+const String longshotRootEnvVar = 'LONGSHOT_ROOT';
+
+/// The Longshot checkout root this run reads from.
+///
+/// [flagValue] is `--longshot-root`; [environment] defaults to
+/// [Platform.environment]. Throws [StateError] naming both inputs when neither
+/// supplies a value. The generator never guesses a checkout: silently reading
+/// the wrong tree is worse than stopping.
+String resolveLongshotRoot({
+  String? flagValue,
+  Map<String, String>? environment,
+}) {
+  final fromFlag = flagValue?.trim();
+  if (fromFlag != null && fromFlag.isNotEmpty) {
+    return fromFlag;
+  }
+  final env = environment ?? Platform.environment;
+  final fromEnvironment = env[longshotRootEnvVar]?.trim();
+  if (fromEnvironment != null && fromEnvironment.isNotEmpty) {
+    return fromEnvironment;
+  }
+  throw StateError(
+    'No Longshot checkout root given. Pass --longshot-root <path> or set '
+    '$longshotRootEnvVar. There is no default.',
+  );
+}
+
 const String _defaultOut = 'assets';
 
 const String _gameTitle =
@@ -195,7 +223,8 @@ Options:
   --area-names <path>         Longshot host/oot_area_names.c (optional)
   --cheat-items <path>        Longshot gpu/vk/oot_cheat_items.h
   --heart-containers <path>   Longshot host/oot_heart_containers.c (optional)
-  --longshot-root <path>      root used for the optional defaults above
+  --longshot-root <path>      Longshot checkout root (required unless
+                              LONGSHOT_ROOT is set; there is no default)
   --out <dir>                 output root (default: assets)
   --help                      show this text
 ''';
@@ -263,10 +292,10 @@ final class _Options {
   }
 
   _Paths resolvePaths() {
-    final longshotRoot =
-        values['longshot-root'] ??
-        Platform.environment['LONGSHOT_ROOT'] ??
-        _defaultLongshotRoot;
+    final longshotRoot = resolveLongshotRoot(
+      flagValue: values['longshot-root'],
+      environment: Platform.environment,
+    );
     String? optional(String explicitKey, String relative) {
       final explicit = values[explicitKey];
       if (explicit != null) {

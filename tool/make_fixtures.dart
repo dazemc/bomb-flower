@@ -32,7 +32,10 @@ Future<void> main(List<String> args) async {
   stdout.writeln('Bomb Flower sample fixture preparation (dev tool)');
   final source = sampleSourceDirectory;
   stdout.writeln(
-    'Source: ${source.path}${source.existsSync() ? '' : ' (absent)'}',
+    source == null
+        ? 'Source: (unset; export $longshotSavesRootEnvVar to copy from a '
+              'checkout)'
+        : 'Source: ${source.path}${source.existsSync() ? '' : ' (absent)'}',
   );
   stdout.writeln('Local cache: ${fixturesDirectory.path}');
 
@@ -40,8 +43,11 @@ Future<void> main(List<String> args) async {
   if (files.isEmpty) {
     stderr.writeln('');
     stderr.writeln(
-      'Samples absent: no sample saves found at ${source.path} or '
-      '${fixturesDirectory.path}.',
+      source == null
+          ? 'Samples absent: $longshotSavesRootEnvVar is unset and '
+                '${fixturesDirectory.path} holds no copy.'
+          : 'Samples absent: no sample saves found at ${source.path} or '
+                '${fixturesDirectory.path}.',
     );
     stderr.writeln(
       'Expected <name>/slot_00/{progress,caption}.sav for: '

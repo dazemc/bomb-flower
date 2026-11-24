@@ -33,6 +33,21 @@ void main() {
     expect(result.message, contains(file.path));
   });
 
+  test('an empty path never produces a dangling colon', () {
+    // `launch('')` classifies as missing before statting; the other two
+    // statuses cannot arise from an empty path, but the message guards them
+    // too so no future call site can surface "not found: ".
+    for (final status in <LaunchStatus>[
+      LaunchStatus.missing,
+      LaunchStatus.notExecutable,
+      LaunchStatus.failed,
+    ]) {
+      final message = LaunchResult(status: status, path: '').message;
+      expect(message, kNoLongshotLauncherConfigured);
+      expect(message, isNot(endsWith(':')));
+    }
+  });
+
   // An executable path is deliberately not exercised here: the only way to
   // observe [LaunchStatus.started] from the real implementation is to actually
   // start the process, which a unit test must not do.

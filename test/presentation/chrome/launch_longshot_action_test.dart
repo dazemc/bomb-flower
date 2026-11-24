@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bomb_flower/data/system/longshot_launcher.dart';
+import 'package:bomb_flower/data/system/longshot_launcher_resolver.dart';
 import 'package:bomb_flower/presentation/shell/tabs/settings_tab.dart';
 import 'package:bomb_flower/presentation/theme/bomb_flower_theme.dart';
 import 'package:bomb_flower/presentation/widgets/chrome/app_title_bar.dart';
@@ -25,12 +26,30 @@ final class FakeLongshotLauncher implements LongshotLauncher {
   }
 }
 
-/// Pumps the title bar with its two launch seams injected, exactly as
-/// `AppShell` wires them in production.
+/// Answers every resolve call with one scripted path and counts the calls.
+final class FakeLongshotLauncherResolver implements LongshotLauncherResolver {
+  FakeLongshotLauncherResolver(this.path);
+
+  /// What resolution reports; `''` means nothing was found.
+  final String path;
+
+  /// Number of times the title bar asked.
+  int calls = 0;
+
+  @override
+  String resolve() {
+    calls++;
+    return path;
+  }
+}
+
+/// Pumps the title bar with its launch seams injected, exactly as `AppShell`
+/// wires them in production.
 Future<void> pumpTitleBar(
   WidgetTester tester, {
   SettingsStore? store,
   LongshotLauncher? launcher,
+  LongshotLauncherResolver? resolver,
   Size size = const Size(1360, 880),
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -49,6 +68,7 @@ Future<void> pumpTitleBar(
               saveName: 'slot_00',
               settingsStore: store ?? InMemorySettingsStore(),
               launcher: launcher ?? const IoLongshotLauncher(),
+              launcherResolver: resolver,
             ),
           ],
         ),
@@ -125,6 +145,63 @@ void main() {
       find.descendant(of: errorBanner, matching: find.textContaining(path)),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an unset preference reports the shared no-launcher message', (
+    tester,
+  ) async {
+    final launcher = FakeLongshotLauncher(
+      (path) => LaunchResult(status: LaunchStatus.started, path: path),
+    );
+    final resolver = FakeLongshotLauncherResolver('');
+    final store = InMemorySettingsStore(const EditorPreferences());
+    await pumpTitleBar(
+      tester,
+      store: store,
+      launcher: launcher,
+      resolver: resolver,
+      size: const Size(2000, 880),
+    );
+
+    await tapAction(tester, find.byKey(const Key('shell-action-launch')));
+
+    expect(resolver.calls, 1);
+    // Nothing is fabricated and no process is attempted.
+    expect(launcher.calls, isEmpty);
+    expect(errorBanner, findsOneWidget);
+    expect(
+      find.descendant(
+        of: errorBanner,
+        matching: find.text(kNoLongshotLauncherConfigured),
+      ),
+      findsOneWidget,
+    );
+    expect(store.preferences.launcherPath, '');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an unset preference launches the use-time resolution as-is', (
+    tester,
+  ) async {
+    const resolved = '/opt/longshot/LongshotLauncher-x86_64.AppImage';
+    final launcher = FakeLongshotLauncher(
+      (path) => LaunchResult(status: LaunchStatus.started, path: path),
+    );
+    final store = InMemorySettingsStore(const EditorPreferences());
+    await pumpTitleBar(
+      tester,
+      store: store,
+      launcher: launcher,
+      resolver: FakeLongshotLauncherResolver(resolved),
+    );
+
+    await tapAction(tester, find.byKey(const Key('shell-action-launch')));
+
+    expect(launcher.calls, <String>[resolved]);
+    // Resolution must not be written back as a preference.
+    expect(store.preferences.launcherPath, '');
+    expect(errorBanner, findsNothing);
     expect(tester.takeException(), isNull);
   });
 

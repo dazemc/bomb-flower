@@ -7,6 +7,13 @@ library;
 
 import 'dart:io';
 
+/// The one user-facing sentence for "no launcher is configured".
+///
+/// The Settings empty state and the title-bar failure both show this exact
+/// string, so the two surfaces cannot drift into different phrasings.
+const String kNoLongshotLauncherConfigured =
+    'No Longshot launcher configured — choose one in Settings';
+
 /// How a launch attempt ended.
 enum LaunchStatus {
   /// The launcher process was started and detached.
@@ -40,14 +47,29 @@ final class LaunchResult {
   bool get started => status == LaunchStatus.started;
 
   /// The user-facing line for this outcome; it always names [path].
+  ///
+  /// An empty [path] is [LaunchStatus.missing] by construction
+  /// ([IoLongshotLauncher.launch] rejects it before statting), and an empty
+  /// interpolation would otherwise surface as a dangling colon. Every
+  /// non-started status therefore falls back to
+  /// [kNoLongshotLauncherConfigured] when the path is blank.
   String get message {
+    final hasPath = path.trim().isNotEmpty;
     return switch (status) {
       LaunchStatus.started => 'Longshot launcher started',
-      LaunchStatus.missing => 'Longshot launcher not found: $path',
+      LaunchStatus.missing =>
+        hasPath
+            ? 'Longshot launcher not found: $path'
+            : kNoLongshotLauncherConfigured,
       LaunchStatus.notExecutable =>
-        'Longshot launcher is not executable: $path',
+        hasPath
+            ? 'Longshot launcher is not executable: $path'
+            : kNoLongshotLauncherConfigured,
       LaunchStatus.failed =>
-        'Could not start the Longshot launcher: $path (${detail ?? 'unknown error'})',
+        hasPath
+            ? 'Could not start the Longshot launcher: $path '
+                  '(${detail ?? 'unknown error'})'
+            : kNoLongshotLauncherConfigured,
     };
   }
 }

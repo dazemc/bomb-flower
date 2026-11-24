@@ -11,12 +11,11 @@ const List<String> sampleSaveNames = <String>[
 /// Files that make up one sample slot.
 const List<String> sampleSaveFiles = <String>['progress.sav', 'caption.sav'];
 
-/// Default location of Longshot's read-only sample saves.
-const String defaultLongshotSavesRoot =
-    '/home/daze/GitHub/Longshot/assets/saves';
-
-/// Environment override for tests that run against a different Longshot
-/// checkout.
+/// Environment variable naming Longshot's read-only sample saves.
+///
+/// There is deliberately no default path: a checkout location belongs to the
+/// machine that holds it, not to this repository. Local copies under
+/// `.local-fixtures/` are used when the variable is unset.
 const String longshotSavesRootEnvVar = 'BOMB_FLOWER_LONGSHOT_SAVES';
 
 /// Message used by tests when the real sample saves are absent.
@@ -31,12 +30,13 @@ const String samplesUnavailableMessage =
 Directory get fixturesDirectory =>
     Directory('${_repositoryRoot.path}/.local-fixtures');
 
-/// Longshot's sample-save root, honouring [longshotSavesRootEnvVar].
-Directory get sampleSourceDirectory {
-  final override = Platform.environment[longshotSavesRootEnvVar];
-  return Directory(
-    override == null || override.isEmpty ? defaultLongshotSavesRoot : override,
-  );
+/// Longshot's sample-save root from [longshotSavesRootEnvVar], or `null`.
+///
+/// Null means no source checkout was named; callers then rely on the local
+/// `.local-fixtures/` copies and skip when those are absent too.
+Directory? get sampleSourceDirectory {
+  final override = Platform.environment[longshotSavesRootEnvVar]?.trim();
+  return override == null || override.isEmpty ? null : Directory(override);
 }
 
 /// Whether at least one complete sample pair is available locally or in
@@ -78,7 +78,7 @@ Future<File?> copySample(String name, String file) async {
   }
 
   final source = _sourceFile(name, file);
-  if (!await _isNonEmptyFile(source)) {
+  if (source == null || !await _isNonEmptyFile(source)) {
     return null;
   }
 
@@ -137,13 +137,15 @@ Future<void> _copySamplePair(String name) {
 File _localFile(String name, String file) =>
     File('${fixturesDirectory.path}/$name/slot_00/$file');
 
-File _sourceFile(String name, String file) =>
-    File('${sampleSourceDirectory.path}/$name/slot_00/$file');
+File? _sourceFile(String name, String file) {
+  final root = sampleSourceDirectory;
+  return root == null ? null : File('${root.path}/$name/slot_00/$file');
+}
 
 bool _isSampleAvailable(String name) => sampleSaveFiles.every(
   (file) =>
       _localFile(name, file).existsSync() ||
-      _sourceFile(name, file).existsSync(),
+      (_sourceFile(name, file)?.existsSync() ?? false),
 );
 
 Future<bool> _isNonEmptyFile(File file) async =>

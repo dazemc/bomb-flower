@@ -42,6 +42,9 @@ set -u -o pipefail
 
 REPO=${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 E2E_ROOT=${E2E_ROOT:-/tmp/longshot-windowed}
+# HOST-SPECIFIC EXAMPLE: the literal /home/daze/... path below belongs to one
+# developer machine, not to this harness. Set E2E_HARNESS (or E2E_CTL,
+# GAME_DIR and SOURCE_SAVE individually); preflight names what is missing.
 E2E_HARNESS=${E2E_HARNESS:-/home/daze/longshot-e2e}
 E2E_CTL=${E2E_CTL:-$E2E_HARNESS/ctl}
 GAME_DIR=${GAME_DIR:-$E2E_HARNESS/game}
@@ -123,11 +126,13 @@ print("%s %dx%d@%.0f scale %s" % (
     esac
   fi
 
-  # 6. the control bridge must exist
-  [ -f "$CTL" ] || die "no control bridge at $CTL"
-  [ -x "$GAME_DIR/longshot" ] || die "no game binary at $GAME_DIR/longshot"
-  [ -f "$GAME_DIR/image.bin" ] || die "no image.bin in $GAME_DIR"
-  [ -d "$SOURCE_SAVE" ] || die "no source save at $SOURCE_SAVE"
+  # 6. the control bridge must exist. Each message names the variable that
+  #    points at the missing path, because the built-in values are only
+  #    host-specific examples from one machine.
+  [ -f "$CTL" ] || die "no control bridge at $CTL (set E2E_CTL or E2E_HARNESS)"
+  [ -x "$GAME_DIR/longshot" ] || die "no game binary at $GAME_DIR/longshot (set GAME_DIR or E2E_HARNESS)"
+  [ -f "$GAME_DIR/image.bin" ] || die "no image.bin in $GAME_DIR (set GAME_DIR or E2E_HARNESS)"
+  [ -d "$SOURCE_SAVE" ] || die "no source save at $SOURCE_SAVE (set SOURCE_SAVE or E2E_HARNESS)"
 
   say "preflight: ok"
 }

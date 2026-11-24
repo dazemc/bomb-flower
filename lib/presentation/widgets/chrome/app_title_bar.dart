@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart' hide Banner;
 import '../../../data/system/directory_lister.dart';
 import '../../../data/system/directory_picker.dart';
 import '../../../data/system/longshot_launcher.dart';
+import '../../../data/system/longshot_launcher_resolver.dart';
 import '../../../data/system/open_diagnostics.dart';
 import '../../bloc/save_session/save_session_cubit.dart';
 import '../../bloc/save_session/save_session_ui_state.dart';
@@ -50,6 +51,7 @@ class AppTitleBar extends StatefulWidget {
     this.directoryLister,
     this.settingsStore,
     this.launcher,
+    this.launcherResolver,
     this.onOpenPath,
     this.onHelp,
     this.onNewSave,
@@ -78,11 +80,15 @@ class AppTitleBar extends StatefulWidget {
   final DirectoryLister? directoryLister;
 
   /// Store the Launch action reads the launcher path from. Null falls back to a
-  /// fresh [InMemorySettingsStore], i.e. the platform default path.
+  /// fresh [InMemorySettingsStore], whose launcher path is unset.
   final SettingsStore? settingsStore;
 
   /// Launcher seam. Null falls back to the real detached process starter.
   final LongshotLauncher? launcher;
+
+  /// Use-time resolver for when the stored launcher path is unset. Null falls
+  /// back to environment, next-to-app and `PATH` discovery.
+  final LongshotLauncherResolver? launcherResolver;
 
   /// The app's single open path. Null keeps this bar's local open-and-log.
   final Future<void> Function(String path)? onOpenPath;
@@ -273,14 +279,29 @@ class _AppTitleBarState extends State<AppTitleBar> {
 
   /// Starts the configured launcher. Independent of any open save, so the
   /// action works before a project is loaded.
+  ///
+  /// An unset preference is resolved at use time rather than defaulted to a
+  /// path from another machine. If resolution finds nothing, no process is
+  /// started: the banner says so and points at Settings. A resolved path is
+  /// launched as-is and is not persisted.
   Future<void> _launch() async {
     final store = widget.settingsStore ?? InMemorySettingsStore();
     final preferences = await store.load();
     if (!mounted) {
       return;
     }
+    var path = preferences.launcherPath.trim();
+    if (path.isEmpty) {
+      path = (widget.launcherResolver ?? const IoLongshotLauncherResolver())
+          .resolve()
+          .trim();
+    }
+    if (path.isEmpty) {
+      setState(() => _actionError = kNoLongshotLauncherConfigured);
+      return;
+    }
     final result = await (widget.launcher ?? const IoLongshotLauncher()).launch(
-      preferences.launcherPath,
+      path,
     );
     if (!mounted) {
       return;

@@ -312,6 +312,194 @@ final class PlatformDirectoryPicker implements DirectoryPicker {
   }
 }
 
+/// Opens the host's native file chooser.
+///
+/// The launcher preference needs one executable, not a folder, so this is a
+/// separate narrow port; both it and [DirectoryPicker] share the same host
+/// mechanisms and never throw.
+abstract interface class FilePicker {
+  /// Returns the chosen absolute path, or `null` when nothing was chosen or no
+  /// native picker is installed. Never throws.
+  Future<String?> pickFile({String? title, String? initialPath});
+}
+
+/// A [FilePicker] backed by zenity, kdialog, then qarma.
+///
+/// The first *installed* backend is used; cancellation and timeouts stop the
+/// chain for the same reasons [SystemDirectoryPicker] documents.
+final class SystemFilePicker implements FilePicker {
+  /// Creates a picker.
+  const SystemFilePicker({
+    this.runner = const IoProcessRunner(),
+    this.timeout = const Duration(seconds: 3),
+  });
+
+  /// Host process seam.
+  final ProcessRunner runner;
+
+  /// Maximum time one backend may run.
+  final Duration timeout;
+
+  @override
+  Future<String?> pickFile({String? title, String? initialPath}) async {
+    final start = initialPath?.trim();
+    final attempts = <(String, List<String>)>[
+      (
+        'zenity',
+        <String>[
+          '--file-selection',
+          if (title != null) '--title=$title',
+          if (start != null && start.isNotEmpty) '--filename=$start',
+        ],
+      ),
+      (
+        'kdialog',
+        <String>[
+          '--getopenfilename',
+          if (start != null && start.isNotEmpty) start,
+          if (title != null) '--title',
+          ?title,
+        ],
+      ),
+      (
+        'qarma',
+        <String>[
+          '--file-selection',
+          if (title != null) '--title=$title',
+          if (start != null && start.isNotEmpty) '--filename=$start',
+        ],
+      ),
+    ];
+
+    try {
+      for (final (executable, arguments) in attempts) {
+        final outcome = await runner.run(
+          executable,
+          arguments,
+          timeout: timeout,
+        );
+        switch (outcome.status) {
+          case ProcessOutcomeStatus.unavailable:
+            continue;
+          case ProcessOutcomeStatus.timedOut:
+            return null;
+          case ProcessOutcomeStatus.completed:
+            if (!outcome.succeeded) {
+              return null;
+            }
+            return SystemDirectoryPicker._firstLine(outcome.stdout);
+        }
+      }
+    } catch (_) {
+      // The port contract is that the UI never sees a process exception.
+    }
+    return null;
+  }
+}
+
+/// One call to a native file chooser.
+///
+/// Injected so tests can script a chooser without loading a platform plugin.
+typedef FilePathChooser = Future<String?> Function({
+  String? initialDirectory,
+  String? confirmButtonText,
+  List<String>? extensions,
+});
+
+/// A [FilePicker] backed by `package:file_selector`'s file chooser.
+///
+/// [chooser] is the plugin seam; when it is omitted the plugin is loaded only
+/// at call time, so constructing this picker under `flutter test` is inert.
+/// Never throws: a cancelled or failed dialog is `null`.
+final class FileSelectorFilePicker implements FilePicker {
+  /// Creates a picker using [chooser], or `package:file_selector` when omitted.
+  const FileSelectorFilePicker({
+    this.chooser,
+    this.confirmButtonText,
+    this.extensions,
+  });
+
+  /// Injected chooser, or `null` to call `package:file_selector` at pick time.
+  final FilePathChooser? chooser;
+
+  /// Button label used when [FilePicker.pickFile] names no title.
+  final String? confirmButtonText;
+
+  /// Extensions offered by the dialog; `null` offers every file.
+  final List<String>? extensions;
+
+  @override
+  Future<String?> pickFile({String? title, String? initialPath}) async {
+    final start = initialPath?.trim();
+    final confirm = title ?? confirmButtonText;
+    try {
+      final chosen = await (chooser ?? _pluginFileChooser)(
+        initialDirectory: start == null || start.isEmpty ? null : start,
+        confirmButtonText: confirm,
+        extensions: extensions,
+      );
+      final trimmed = chosen?.trim();
+      return trimmed == null || trimmed.isEmpty ? null : trimmed;
+    } catch (_) {
+      // A missing plugin or a failing native dialog must not break the flow.
+      return null;
+    }
+  }
+}
+
+/// The real `package:file_selector` call, reached only when one is made.
+Future<String?> _pluginFileChooser({
+  String? initialDirectory,
+  String? confirmButtonText,
+  List<String>? extensions,
+}) async {
+  final chosen = await file_selector.openFile(
+    initialDirectory: initialDirectory,
+    confirmButtonText: confirmButtonText,
+    acceptedTypeGroups: <file_selector.XTypeGroup>[
+      if (extensions != null && extensions.isNotEmpty)
+        file_selector.XTypeGroup(label: 'Executables', extensions: extensions),
+    ],
+  );
+  return chosen?.path;
+}
+
+/// The file picker this app uses by default: native per host.
+///
+/// Mirrors [PlatformDirectoryPicker]: Linux and Fuchsia keep the zenity /
+/// kdialog / qarma chain, while every other host uses the registered
+/// `file_selector` implementation. The platform is read at call time.
+final class PlatformFilePicker implements FilePicker {
+  /// Creates a platform-aware picker.
+  const PlatformFilePicker({
+    this.platform,
+    this.fileSelector = const FileSelectorFilePicker(),
+    this.system = const SystemFilePicker(),
+  });
+
+  /// Host platform override; `null` means [currentHostPlatform] at call time.
+  final HostPlatform? platform;
+
+  /// Backend for Windows, macOS and unknown hosts.
+  final FilePicker fileSelector;
+
+  /// Backend for Linux and Fuchsia.
+  final FilePicker system;
+
+  /// The backend [platform] selects, read afresh on every call.
+  FilePicker get backend => switch (platform ?? currentHostPlatform()) {
+    HostPlatform.linux || HostPlatform.fuchsia => system,
+    HostPlatform.windows ||
+    HostPlatform.macos ||
+    HostPlatform.other => fileSelector,
+  };
+
+  @override
+  Future<String?> pickFile({String? title, String? initialPath}) {
+    return backend.pickFile(title: title, initialPath: initialPath);
+  }
+}
+
 /// [environment]'s [name], trimmed, or `null` when unset or blank.
 String? _environmentValue(Map<String, String> environment, String name) {
   final value = environment[name]?.trim();
