@@ -1,6 +1,7 @@
 # Architecture
 
-Bomb Flower is a Linux desktop Flutter application with a pure-Dart save engine.
+Bomb Flower is a Flutter desktop application whose only verified target is
+Linux, with a pure-Dart save engine.
 The engine is the product; the UI is a client of it, and `lib/main.dart` now
 wires that client to the engine. Save-format knowledge is data supplied by
 research, not constants baked into the engine.
@@ -44,7 +45,7 @@ research, not constants baked into the engine.
 │   io/           FileSlotSource, FileSaveRepository, AtomicFileWriter, │
 │                 SidecarBackup, path helpers                          │
 │   newsave/      NewSaveWriter over the atomic writer                  │
-│   system/       startup folder, directory picker, open diagnostics    │
+│   system/       host platform, save locations, picker, diagnostics    │
 │   imports: domain; never Flutter, bloc, or presentation               │
 └──────────────────────────────────────────────────────────────────────┘
 ```

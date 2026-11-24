@@ -1,6 +1,8 @@
 # Build and run
 
-Bomb Flower targets Linux desktop only. Windows and macOS are untested.
+Linux desktop is the only verified target. A Windows runner is committed under
+`windows/` and is scaffolded but has never been built or run; see
+[`WINDOWS.md`](WINDOWS.md). macOS has no runner and is unsupported.
 
 ## Prerequisites
 
@@ -175,10 +177,17 @@ unmaintained, which is a maintenance risk rather than a build switch; see
 
 ## Windows and macOS
 
-Untested. There are no `windows/` or `macos/` runners in the repository, no
-verified bitsdojo configuration for them, and no CI job that builds them. Adding
-a platform means generating a runner, revalidating the custom-frame patch, and
-adding a build job before claiming support.
+`windows/` holds a generated Windows runner (Visual Studio 2022, MSVC, CMake),
+a bitsdojo custom-frame hook in `windows/runner/main.cpp`, and the registered
+`bitsdojo_window_windows` / `file_selector_windows` plugins. The Windows-specific
+Dart is analysed and unit-tested on Linux; **no Windows build has ever been
+produced or run**, so the platform is scaffolded, not supported. Build
+prerequisites, artifact layout, save/settings locations, and the checklist that
+would move it to supported are in [`WINDOWS.md`](WINDOWS.md).
+
+macOS has no runner, no verified bitsdojo configuration, and no CI job; adding a
+platform means generating a runner, revalidating the custom-frame patch, and
+building it on that platform before claiming support.
 
 ## Appendix: Acceptance test against a local Longshot build
 

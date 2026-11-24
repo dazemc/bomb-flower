@@ -29,7 +29,8 @@ gap.
 | Created save loads in game | **Unproven** | no in-game test has been run |
 | Original/edited comparison | Read-only **Compare** dialog: changed fields and byte spans, original vs current, one slot at a time | `compare_save_dialog.dart` |
 | Validation footer | On a single-slot real sample: **no actionable warnings**, **8,328 informational notes** (8,325 field + 3 caption `field.unverified`). `1b387db` removed the former 11 sentinel `field.out_of_range` warnings | status footer; `1b387db` |
-| Windows and macOS builds | Not supported | Linux-only verification |
+| Windows build | Runner scaffolded in `windows/`; **not built or run yet** | [`docs/WINDOWS.md`](docs/WINDOWS.md) |
+| macOS build | Not supported | no `macos/` runner; Linux-only verification |
 
 Gate at commit `491fa3d`: `flutter analyze` → 0 issues, exit 0;
 `flutter test` → `+880 ~8 -0`; `flutter build linux --debug` → ok, 47,848 B
@@ -44,6 +45,8 @@ The top-level `docs/` set:
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layers, invariants, and
   where new code belongs.
 - [`docs/BUILD.md`](docs/BUILD.md) — prerequisites, build, and smoke test.
+- [`docs/WINDOWS.md`](docs/WINDOWS.md) — the scaffolded Windows runner, its
+  save and settings locations, and what has never been built or run.
 - [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — known gaps and their impact.
 - [`docs/NEW-SAVE.md`](docs/NEW-SAVE.md) — the new-save builder and its limits.
 - [`docs/WORLD.md`](docs/WORLD.md) — verified world and actor catalogues.

@@ -196,14 +196,19 @@ user-visible gain. Full record: `docs/RESEARCH-FORMATS.md` §9.2.
 
 ## 9. Verification is Linux-only; headless CI has no real window manager
 
-**Impact.** Windows and macOS are untested. The Xvfb smoke test proves only that
-the process starts and stays alive; it does not prove a first frame, dragging,
-minimising, closing, multi-monitor behaviour, or compositor integration. Those
-paths can regress without a failing test.
+**Impact.** Verification is Linux-only. A Windows runner now exists under
+`windows/` (`17042d4`), but no Windows build has been produced or run, and no
+bit of it is verified: see [`WINDOWS.md`](WINDOWS.md). macOS has no runner at
+all. The Xvfb smoke test proves only that the process starts and stays alive; it
+does not prove a first frame, dragging, minimising, closing, multi-monitor
+behaviour, or compositor integration. Those paths can regress without a failing
+test.
 
-**Mitigation.** State Linux as the only supported target. Run a manual
-window-chrome check under Wayland and X11 before a release. Do not claim platform
-support from a headless run. Add a display-backed CI job before widening support.
+**Mitigation.** State Linux as the only *verified* target, and the Windows
+runner as scaffolded and unverified. Run a manual window-chrome check under
+Wayland and X11 before a Linux release, and on Windows only when a Windows host
+can build it. Do not claim platform support from a headless run or from
+`flutter analyze`. Add a display-backed CI job before widening support.
 
 ## 10. The former gap panels are now editors
 
