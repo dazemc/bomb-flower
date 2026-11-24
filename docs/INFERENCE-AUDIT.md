@@ -35,10 +35,11 @@ A row may mix classes; both are stated. A byte-level coincidence is (b), never
 - **86 fields have a schema default that differs from every one of the 9
   observed saves** (6 real slots + 3 fixtures): 41 Enum (mostly the shared
   `NotReady` default hash `1471695344`), 20 Bool, 7 UInt, 6 Int, 5 String64,
-  3 Vector3, 3 Int64, 1 UInt64. Evidence is scratch: the cancelled agent's
-  `.tmp/inference-audit-a7f3/defaults-differs.tsv` (86 rows; type histogram
-  re-counted here from that file), not an independent re-measurement. Class
-  (b) with that caveat. Consequence: a default no observed save uses is
+  3 Vector3, 3 Int64, 1 UInt64. Re-measured independently through
+  `ProgressCodec` and `ProgressLayoutBuilder`; per-field evidence is in the
+  appendix below. Class (b); `Float` and `Vector3` components are compared at
+  six decimal places (88 fields differ bit-exactly; see the appendix).
+  Consequence: a default no observed save uses is
   suspect and must not ship silently as a "normal" value.
 - **`Binary`/`BinaryArray` schema defaults are not spans.** Verified in
   `assets/schema/gamedata_110.json`: `Binary` defaults 156000, 376, 160000;
@@ -89,3 +90,114 @@ or `inferred` and whose provenance is not `observed`, and the builder maps
 `string` field displays as Verified. Whether that label overstates the
 evidence is a UI judgement left open (c). Opaque `Binary`/array spans have no
 editor surface: not yet determined.
+
+## Appendix: fields whose schema default differs from every observed save
+
+Measured 2026-11-23 against nine observed saves: the six real played slots
+`~/.local/share/longshot/save/5a3c9e1f0b7d24680000000000000001/slot_00` …
+`slot_05` (read only) and the three scrubbed fixtures `kokiri-start`,
+`castle-gate` and `market-entrance` under `.local-fixtures/`. Each file was
+decoded with `ProgressCodec.decode`, its layout built with
+`ProgressLayoutBuilder.buildProgressSlotLayout`, and each schema field that has
+a default and an interpretable descriptor was compared with its on-disk value.
+`Binary`, `BinaryArray` and `WString16Array` defaults are excluded because a
+schema default there is not a length; `Float` and `Vector3` components are
+compared at six decimal places, the precision the earlier scratch measurement
+used. 72 of the 86 rows have no verified name and are shown as `—`; the hash
+identifies the field. This is a re-measurement, not a copy of the scratch TSV:
+`.tmp/inference-audit-a7f3/defaults-differs.tsv` is uncommitted scratch with no
+committed generator, so the table was measured again from the saves with
+`dart run .tmp/gate4/defaults_differs.dart` (throwaway, not committed). It
+reproduces 86 rows with the committed histogram — 41 Enum, 20 Bool, 7 UInt,
+6 Int, 5 String64, 3 Vector3, 3 Int64, 1 UInt64 — and the same 86 hashes,
+through the repo's own decoder and layout builder rather than a separate byte
+reader.
+
+| Field | Hash | Type | Schema default | Observed value(s) |
+| --- | --- | --- | --- | --- |
+| — | `003694b5` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `1002b466` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `1193a73e` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `147138e3` | Enum | 1471695344 (NotReady) | 398436934 |
+| Step_SageOfSpirit | `19189e9d` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `26a2e01c` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `3372689b` | Enum | 1471695344 (NotReady) | 1275749364 / 3949112793 |
+| — | `37a4567e` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `44063c4e` | Enum | 1471695344 (NotReady) | 398436934 |
+| Step_EscapeFromCrumblingGanonCastle | `4661f050` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `474f4ca5` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `4969f026` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `4dd52013` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `55bfddfa` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `560a64af` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `5bca02a6` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `606c3207` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `6660ed46` | Enum | 3069107721 | 494906868 |
+| — | `682d1169` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `6e9b2539` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `746f47c0` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `78a93b78` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `7a5b9537` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `7a6d0096` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `7a91dbd5` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `7d776b61` | Enum | 1471695344 (NotReady) | 1275749364 / 398436934 |
+| — | `8c5e9f84` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `916e55c8` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `92431c55` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `9472302b` | Enum | 1471695344 (NotReady) | 398436934 |
+| Step_MiniGame_HitTarget | `a3404532` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `a4ed3902` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `a9632cca` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `be19d91a` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `db89c1a9` | Enum | 1471695344 (NotReady) | 3949112793 / 240843480 / 398436934 / 1619408863 |
+| Step_MiniGame_DampeRace | `e73daf62` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `ea010310` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `eea87aec` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `f6e99816` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `f6eb33a1` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `f7176a52` | Enum | 1471695344 (NotReady) | 398436934 |
+| — | `15b67d0e` | Bool | false | true |
+| — | `16c65ed3` | Bool | false | true |
+| KokiriForest_Npc_Kokiri_006_Child_ActionTypeZero_NotAttention | `2307603e` | Bool | false | true |
+| — | `3b5ca6c2` | Bool | false | true |
+| — | `3d2c3b29` | Bool | false | true |
+| — | `46080375` | Bool | false | true |
+| ActionGuide_IsEnd.SideJump | `4c41f51f` | Bool | false | true |
+| ActionGuide_IsEnd.RollAttack | `7f007dd5` | Bool | false | true |
+| Sequence_IsAnotherLoadArea | `82cce1c8` | Bool | false | true |
+| — | `88d83b68` | Bool | false | true |
+| ActionGuide_IsEnd.LockOnSideMove | `9ed2497f` | Bool | false | true |
+| — | `a14e000e` | Bool | false | true |
+| — | `a95bd438` | Bool | false | true |
+| HavePlayedEvent.Dm_Kokiri_0030 | `b041ae87` | Bool | false | true |
+| ActionGuide_IsEnd.Backflip | `b5c475d9` | Bool | false | true |
+| — | `b6e5a3a5` | Bool | false | true |
+| — | `de513abd` | Bool | false | true |
+| — | `e5d6cd48` | Bool | false | true |
+| — | `f6dd463e` | Bool | false | true |
+| — | `f9594156` | Bool | false | true |
+| — | `2029d3d8` | UInt | 0 | 3536827811 / 1304207999 |
+| — | `3f8d9d86` | UInt | 0 | 360 / 3550 / 3692 / 3711 |
+| — | `5fb01f39` | UInt | 0 | 11 / 10 / 1 |
+| — | `be6da4db` | UInt | 0 | 2982123 |
+| — | `e3c3cc6e` | UInt | 0 | 249406649 / 1523664439 |
+| — | `e53eb6d1` | UInt | 0 | 4 / 868 / 650 / 945 … (9 distinct) |
+| — | `e573f564` | UInt | 0 | 5664 / 6528 / 3522 / 6605 … (9 distinct) |
+| UI_GetWeaponShieldArmorNum | `128250a4` | Int | 0 | 3 / 1 |
+| — | `1d74617e` | Int | 0 | 1 |
+| — | `6f631388` | Int | 0 | 1 |
+| — | `73736cde` | Int | -1 | 15 / 20 / 23 |
+| — | `84ba0d24` | Int | 0 | 1 |
+| — | `e0010a50` | Int | 0 | 200 |
+| Sequence_CurrentBanc | `1d6189da` | String64 | "" | "HyruleField_Child" / "KokiriForest_Child" / "Market_Child" |
+| — | `3e42affa` | String64 | "" | "Item_Wallet_Small" |
+| — | `72c4152b` | String64 | "" | "Item_Ocarina_Fairy" / "Item_Token_Gold" / "Item_Wallet_Small" |
+| — | `874c7ed4` | String64 | "" | "Goto_HyruleCastle" / "Meet_DekuTree" |
+| — | `fb117672` | String64 | "" | "Weapon_Shield_Deku" / "Armor_Adult_Normal" |
+| — | `8773f02d` | Vector3 | [0.0, 0.0, 0.0] | [197.980362, 163.174179, 309.699036] / [155.949554, 168.629349, 285.450531] / [38.424564, 113.140511, 0.613594] / [114.535889, 161.059326, 199.801636] … (9 distinct) |
+| Player_Pos_For_Map | `960ad56a` | Vector3 | [0.0, 0.0, 0.0] | [197.980362, 163.174179, 309.699036] / [155.949554, 168.629349, 285.450531] / [38.424564, 113.140511, 0.613594] / [114.470375, 161.069778, 199.699951] … (9 distinct) |
+| — | `c884818d` | Vector3 | [0.0, 0.0, 0.0] | [197.980347, 163.174164, 309.699036] / [155.949554, 168.629349, 285.450531] / [38.424564, 113.140511, 0.613594] / [115.606293, 160.718903, 201.459961] … (9 distinct) |
+| — | `64b98a4e` | Int64 | 0 | 11 / 10 / 1 |
+| — | `ce97845e` | Int64 | 0 | 5496 / 6360 / 3361 / 6432 … (9 distinct) |
+| — | `ed4698d9` | Int64 | -1 | 0 |
+| — | `ef10b80f` | UInt64 | 0 | 21600 / 8589974826 / 8589983344 / 8589984458 |

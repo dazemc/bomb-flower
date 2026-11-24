@@ -66,9 +66,11 @@ and this is not a repeatable CI test.
 
 **Created saves.** `tool/create_save.dart` builds a schema-default save whose
 shape matches the samples (120,572 bytes, footer value 120,564, same keys,
-sentinels, pointers, and trailer). No created save has been loaded by the game.
-Shape equality is not acceptance, and the schema defaults are not verified
-against the game's New Game initialisation. This remains unproven.
+sentinels, pointers, and trailer). It is structurally valid and has never been
+loaded by the game. Shape equality is not acceptance, and the schema defaults
+are not verified against the game's New Game initialisation: 86 of them differ
+from every one of the 9 observed saves (6 real slots + 3 fixtures), itemised in
+the appendix of `docs/INFERENCE-AUDIT.md`. This remains unproven.
 
 **Autosave slot rotation.** The game does not overwrite the loaded slot. An
 in-game save writes a **new** `slot_NN`, and Continue loads the newest

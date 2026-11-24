@@ -170,7 +170,7 @@ all 305 offset-bearing fields in all three samples.
 | String32 | absolute offset | 32-byte NUL-padded UTF-8 | byte-verified by span |
 | String64 | absolute offset | 64-byte NUL-padded UTF-8 | byte-verified by span |
 | String64Array | absolute offset | `u32 count`, then `count` × 64 B | byte-verified by span |
-| Binary | absolute offset | `u32 length`, then `length` bytes | byte-verified by span |
+| Binary | absolute offset | `u32 length`, then `length` bytes | layout/span byte-verified; payload meaning **inferred** |
 | BinaryArray | absolute offset | `u32 count`, then `count` × u32 | layout verified; semantics **inferred** |
 | WString16Array | absolute offset | `u32 count`, then `count` × 32 B | layout verified; UTF-16LE interpretation **inferred** |
 
@@ -204,7 +204,7 @@ Element sizes:
 | FloatArray | 4 | binary32 |
 | EnumArray | 4 | member hash |
 | String64Array | 64 | NUL-padded UTF-8 |
-| BinaryArray | 4 | values are u32; they are not length-prefixed blobs. Meaning **unverified**. |
+| BinaryArray | 4 | values are u32; they are not length-prefixed blobs. Element meaning **inferred**. |
 | UIntArray | 4 | unsigned 32-bit |
 | UInt64Array | 8 | unsigned 64-bit |
 | WString16Array | 32 | 16 UTF-16 code units; the samples are all zero bytes, so the encoding is **inferred**. |
@@ -212,6 +212,10 @@ Element sizes:
 `Binary` is a single length-prefixed blob. `BinaryArray` is **not** an array of
 such blobs: its span arithmetic is `4 + 4*count`, and the samples contain ten
 u32 zeros per field. Do not treat those words as pointers without evidence.
+The first `Binary` is 404 bytes in the three scrubbed samples (`u32 400` plus
+400 bytes); a report that the first span is variable in real played saves
+(length word 2,088–2,496) has not been re-measured here and stays
+**inferred/open**, listed in §10.
 
 ## 6. Reconstruction formulas
 
@@ -308,8 +312,12 @@ Inferred / unresolved:
 
 - field **names** for 8,317 fields (hash-only in the JSON);
 - BoolArray bit masks wider than one u32 (none observed);
+- the meaning of the bytes inside `Binary` payloads (the span is verified, the
+  contents are not);
 - BinaryArray element meaning;
 - WString16Array UTF-16LE interpretation (samples are zero);
+- the first `Binary` span's length in real played saves (a report puts it at
+  2,088–2,496 bytes, not the 404 bytes the samples show; not re-measured here);
 - the footer's meaning;
 - `SaveFileIndex` 1/2/3 field layouts beyond the BYML mapping;
 - whether a future revision reorders the record table.
